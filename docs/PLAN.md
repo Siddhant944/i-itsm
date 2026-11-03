@@ -17,7 +17,7 @@ Rubric keys: **FN** Functionality 60 · **TD** Technical depth 15 · **DA** Desi
 - **D-007 Added tools:** import-linter (enforces the §2 layers in `make verify`); TanStack Query; openapi-typescript + openapi-fetch; a pure-Python TF-IDF; **tectonic** for the report both locally and in CI; plantuml.jar for diagrams.
 - **D-008 Self-registration:** open to any email unless `ALLOWED_EMAIL_DOMAINS` is set. Google Sign-In always checks `hd`.
 - **D-009 Clock control:** a `/dev/clock` endpoint exists only when `APP_ENV` ∈ {test, demo}, for Playwright and the demo.
-- **D-010 CI budget:** the repo is private, with 2,000 Actions minutes a month. CI runs only on PRs, pushes to main and manual runs. It cancels superseded runs and caches uv and npm. The Playwright and report jobs run only on PRs that touch their paths. Between PRs, `make verify` in the session is the gate.
+- **D-010 CI budget:** the repo is private, with 2,000 Actions minutes a month. CI runs only on PRs, pushes to main and manual runs. It cancels superseded runs and caches uv and npm. The report job runs only on PRs that touch its paths, and Playwright only on PRs labelled `e2e`. Between PRs, `make verify` in the session is the gate.
 - **D-011 Secrets:** gitleaks runs in pre-commit and CI instead of GitHub secret scanning. Branch protection is optional, because it needs GitHub Pro on a private repo.
 - **D-012 Trimmed P0:** no CODEOWNERS file (a deviation from §2; ownership lives in PLAN.md). The four lost blueprint diagrams aren't restored, because AGENTS.md covers them and P6 generates the real ones from code. A single cross-platform `scripts/dev.py` replaces per-OS scripts.
 
@@ -28,7 +28,7 @@ Rubric keys: **FN** Functionality 60 · **TD** Technical depth 15 · **DA** Desi
 | P0.2 | Backend skeleton | M3 | P0.1 | `backend/pyproject.toml` (uv, `requires-python ==3.12.*`, `.python-version`); `app/main.py` app factory; `app/api/health.py`; `app/core/{config,logging}.py`; empty layer packages; Ruff, `mypy --strict`, pytest-cov and import-linter config | `tests/integration/test_health.py` green; `lint-imports` and mypy clean | TD, DA |
 | P0.3 | Frontend skeleton | M4 | P0.2 | `frontend/` (Vite, React, TS strict, Tailwind, ESLint, Prettier, Vitest, React Router, TanStack Query); `scripts/export_openapi.py` → `frontend/src/api/schema.d.ts`; placeholder page showing /health with loading and error states; `e2e/` Playwright config and smoke test | Vitest covers the three states; Playwright smoke passes locally | UX, TD |
 | P0.4 | Tooling | M3 | P0.2–3 | `scripts/dev.py` (cross-platform: setup, dev, test, seed, demo-reset, gen-client; run with `uv run`); a Makefile that delegates to it; `.pre-commit-config.yaml` (Ruff, mypy, ESLint, Prettier, **gitleaks**); `docker-compose.yml` (api, web, postgres) and Dockerfiles; `.env.example`; `.claude/settings.json` (allow make, uv, npm, npx, docker, git and gh; deny reads of `.env`, `.env.local` and `.env.production`); `scripts/cloud-setup.sh` (also installs tectonic, plantuml.jar and gitleaks); `report/` LaTeX skeleton in deliverables order; Windows commands in the README | `make dev` and `uv run python scripts/dev.py dev` both serve /health and the UI; `docker compose up` is healthy; `make report` builds the skeleton with tectonic; gitleaks is clean | TD, DOC |
-| P0.5 | CI and templates | M3 | P0.4 | `.github/workflows/ci.yml` (triggers: pull_request, push to main, workflow_dispatch; concurrency with cancel-in-progress; uv and npm caches). Jobs: gitleaks; backend lint, types, import contracts and tests on a {sqlite, postgres} matrix with coverage summary; frontend lint, types, test and build; generated-client freshness. `e2e.yml` (paths `e2e/**`, `frontend/**`) and `report.yml` (paths `report/**`, `docs/diagrams/**`, tectonic). Issue templates (bug, feature) and a PR template | CI green on the P0 PR | TST, TD |
+| P0.5 | CI and templates | M3 | P0.4 | `.github/workflows/ci.yml` (triggers: pull_request, push to main, workflow_dispatch; concurrency with cancel-in-progress; uv and npm caches). Jobs: gitleaks; backend lint, types, import contracts and tests on a {sqlite, postgres} matrix with coverage summary; frontend lint, types, test and build; generated-client freshness. `e2e.yml` (only on PRs labelled `e2e`, or run by hand) and `report.yml` (paths `report/**`, `docs/diagrams/**`, tectonic). Issue templates (bug, feature) and a PR template | CI green on the P0 PR | TST, TD |
 | P0.6 | Phase close | all | P0.1–5 | PROGRESS.md | Fresh clone: `make setup && make verify` passes; subagent review findings fixed; PR opened; CI green on it | – |
 
 ## P1 Domain core — Thu 5 Nov (test-first; framework-free)
@@ -93,7 +93,7 @@ Never-cut work and WF3 come first; the cuttable extras follow in reverse cut ord
 - **P5.1 (M3)** Production settings and secrets on the host; HTTPS; CORS locked to the frontend's origin. Acceptance: deployed health check and a WF1 smoke test pass.
 - **P5.2 (M3, cut 3rd)** Locust: 10k incidents, search p95 ≤ 300 ms; results in `docs/testing/performance.md`.
 - **P5.3 (M1, M2)** Coverage ≥ 80 % on domain and services, enforced with `--cov-fail-under`.
-- **P5.4 (M4)** All three workflows in Playwright, run in `e2e.yml`.
+- **P5.4 (M4)** All three workflows in Playwright, run by `e2e.yml` on PRs labelled `e2e`.
 - **P5.5 (M2, M3)** `make demo-reset`, locally and on the deployment: reseed, ×10 clock, staged incidents per workflow.
 - **P5.6 (M4)** UX pass: responsive layout, accessibility labels, empty and error states, PWA manifest.
 
@@ -120,6 +120,6 @@ Never-cut work and WF3 come first; the cuttable extras follow in reverse cut ord
 
 ## Verification
 - Every commit: `make verify` (Ruff, mypy --strict, import-linter, pytest with coverage, ESLint, tsc, Vitest) plus gitleaks via pre-commit.
-- Every PR: CI green on SQLite and PostgreSQL; e2e and report workflows when their paths change.
+- Every PR: CI green on SQLite and PostgreSQL; the report workflow when its paths change; E2E once the phase-end PR is labelled `e2e`.
 - Phase end: that phase's Playwright workflows, a fresh-subagent review with findings fixed, PROGRESS.md updated, PR opened, and five bullets per module.
 - P0: on a fresh clone, `make setup && make verify` passes; `make dev` serves `/health` and the placeholder UI; CI is green on the P0 PR.
