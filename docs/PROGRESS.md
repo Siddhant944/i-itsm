@@ -4,20 +4,25 @@ Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECIS
 
 ## Status: P1 Domain core, in progress (3 Nov)
 
-P0 merged in PR #1. P1.1 was done at the end of the P0 session, on `claude/funny-fermi-bjxlhr`
+P0 merged in PR #1. P1.1 and P1.2 were done at the end of the P0 session, on `claude/funny-fermi-bjxlhr`
 restarted from main; it is not in a PR yet.
 
 **Next session, first step:** `git fetch origin claude/funny-fermi-bjxlhr` and merge it into the
-new session branch, so P1.1 carries into the P1 PR. Then continue with P1.2.
+new session branch, so P1.1 and P1.2 carry into the P1 PR. Then continue with P1.3.
 
 ### Done
 - P1.1 Clock and errors (tests first): `app/core/clock.py` (Clock ABC; SystemClock, the only
   wall-clock read; FakeClock that never moves backwards; AcceleratedClock with an injectable
   monotonic source and `real_seconds()` for D-003) and `app/domain/errors.py` (ITSMError, 8 groups,
   14 specific errors with stable codes and read-only details). 18 new unit tests.
+- P1.2 Users and permissions (tests first): `app/domain/value_objects.py` (EmailAddress,
+  SkillSet over a frozenset with `coverage()`), `app/domain/permissions.py` (Role, Portal,
+  Permission; the role → permission map built up the is-a hierarchy; escalation levels 0-3) and
+  `app/domain/users.py` (abstract User → Employee, Technician → TeamLead, Administrator →
+  ITManager; name-mangled read-only state; UserFactory). 43 new unit tests.
 
 ### Next
-- P1.2 Users and permissions, then P1.3 Incident aggregate and State (the 100-pair matrix).
+- P1.3 Incident aggregate and State (the 100-pair matrix), then P1.4 Priority.
 
 ## Previous: P0 Foundations (merged 3 Nov, PR #1)
 
