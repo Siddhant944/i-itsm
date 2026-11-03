@@ -10,6 +10,7 @@
 ## Checks
 - [ ] `make verify` passes locally
 - [ ] Phase-end PR: `e2e` label added so Playwright runs in CI
+- [ ] Report or diagrams changed: `report` label added so the PDF builds in CI
 - [ ] Tests added first for any domain rule (test names carry the BR-xx ID)
 - [ ] Deviations from docs/blueprint.md are logged in docs/DECISIONS.md
 - [ ] docs/PROGRESS.md updated

@@ -1,12 +1,11 @@
-# Report PDF (tectonic, same engine as `make report`) and diagrams: only on PRs that touch them.
+# Report PDF (tectonic, same engine as `make report`) and diagrams: only on PRs labelled
+# `report`, or by hand (D-010). A paths filter would match the whole PR diff and rebuild on
+# every push; on unlabelled PRs the job is skipped and costs nothing.
 name: Report
 
 on:
   pull_request:
-    paths:
-      - "report/**"
-      - "docs/diagrams/**"
-      - ".github/workflows/report.yml"
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 concurrency:
@@ -23,6 +22,7 @@ env:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'report')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
