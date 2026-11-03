@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from app.domain.priority import Priority
 from app.domain.states import IncidentStatus
 
 
@@ -32,6 +33,13 @@ class IncidentStateChanged(DomainEvent):
     from_status: IncidentStatus
     to_status: IncidentStatus
     description: str
+
+
+@dataclass(frozen=True, slots=True)
+class PriorityChanged(DomainEvent):
+    old_priority: Priority | None
+    new_priority: Priority
+    reason: str
 
 
 @dataclass(frozen=True, slots=True)

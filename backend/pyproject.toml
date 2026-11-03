@@ -37,6 +37,8 @@ src = ["app", "tests", "scripts"]
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "N", "SIM", "RUF", "S", "PT", "DTZ", "ANN", "C4", "PIE", "RET", "TID"]
 ignore = ["ANN401"]
+# Math signs used on purpose in user-facing explanations ("3 × 3 × 3 = 27").
+allowed-confusables = ["×", "−"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "datetime.datetime.now".msg = "Inject a Clock (app.core.clock) instead (AGENTS.md: Time)."

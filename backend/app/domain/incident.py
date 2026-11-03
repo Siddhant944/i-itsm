@@ -16,7 +16,14 @@ from app.domain.errors import (
     InvalidUserInputError,
     UnauthorizedOperationError,
 )
-from app.domain.events import DomainEvent, IncidentCreated, IncidentStateChanged, WorkNoteAdded
+from app.domain.events import (
+    DomainEvent,
+    IncidentCreated,
+    IncidentStateChanged,
+    PriorityChanged,
+    WorkNoteAdded,
+)
+from app.domain.priority import Priority, PriorityAssessment
 from app.domain.states import IncidentState, IncidentStatus, state_for
 
 MAX_TITLE_LENGTH = 200
@@ -96,6 +103,9 @@ class Incident:
         self.__resolved_at: datetime | None = None
         self.__closed_at: datetime | None = None
         self.__reopen_count = 0
+        self.__priority: Priority | None = None
+        self.__priority_score: int | None = None
+        self.__priority_overridden = False
         self.__notes: list[WorkNote] = []
         self.__resolution: Resolution | None = None
         self.__feedback: Feedback | None = None
@@ -170,6 +180,18 @@ class Incident:
     @property
     def reopen_count(self) -> int:
         return self.__reopen_count
+
+    @property
+    def priority(self) -> Priority | None:
+        return self.__priority
+
+    @property
+    def priority_score(self) -> int | None:
+        return self.__priority_score
+
+    @property
+    def priority_overridden(self) -> bool:
+        return self.__priority_overridden
 
     @property
     def notes(self) -> tuple[WorkNote, ...]:
@@ -287,6 +309,32 @@ class Incident:
         self.__closed_at = clock.now()
         label = f"duplicate of {duplicate_of}" if duplicate_of else reason.value
         self._move(target, actor_id, clock, f"Cancelled ({label})")
+
+    # ------------------------------------------------------------ priority (BR-05)
+    def prioritise(self, assessment: PriorityAssessment, clock: Clock) -> None:
+        """Record the computed priority (the system is the actor)."""
+        old = self.__priority
+        self.__priority = assessment.priority
+        self.__priority_score = assessment.score
+        self.__priority_overridden = False
+        self._record(
+            PriorityChanged(
+                clock.now(), self.__id, None, old, assessment.priority, assessment.explanation
+            )
+        )
+
+    def override_priority(
+        self, priority: Priority, reason: str, actor_id: int, clock: Clock
+    ) -> None:
+        """A technician or admin override; it needs a reason and is audited (BR-05)."""
+        if self.__state.is_terminal:
+            msg = "A closed or cancelled incident cannot be re-prioritised."
+            raise InvalidIncidentError(msg)
+        why = _text(reason, "reason")
+        old = self.__priority
+        self.__priority = priority
+        self.__priority_overridden = True
+        self._record(PriorityChanged(clock.now(), self.__id, actor_id, old, priority, why))
 
     # ------------------------------------------------------------ notes
     def add_note(self, actor_id: int, clock: Clock, text: str) -> WorkNote:
