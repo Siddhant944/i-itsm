@@ -4,11 +4,11 @@ Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECIS
 
 ## Status: P1 Domain core, in progress (3 Nov)
 
-P0 merged in PR #1. P1.1 and P1.2 were done at the end of the P0 session, on `claude/funny-fermi-bjxlhr`
+P0 merged in PR #1. P1.1 to P1.3 were done at the end of the P0 session, on `claude/funny-fermi-bjxlhr`
 restarted from main; it is not in a PR yet.
 
 **Next session, first step:** `git fetch origin claude/funny-fermi-bjxlhr` and merge it into the
-new session branch, so P1.1 and P1.2 carry into the P1 PR. Then continue with P1.3.
+new session branch, so P1.1 to P1.3 carry into the P1 PR. Then continue with P1.4.
 
 ### Done
 - P1.1 Clock and errors (tests first): `app/core/clock.py` (Clock ABC; SystemClock, the only
@@ -20,9 +20,15 @@ new session branch, so P1.1 and P1.2 carry into the P1 PR. Then continue with P1
   Permission; the role → permission map built up the is-a hierarchy; escalation levels 0-3) and
   `app/domain/users.py` (abstract User → Employee, Technician → TeamLead, Administrator →
   ITManager; name-mangled read-only state; UserFactory). 43 new unit tests.
+- P1.3 Incident aggregate and State (tests first): `app/domain/states.py` (10 states, 20 legal
+  transitions, registry), `app/domain/events.py` (domain events, EventBus) and
+  `app/domain/incident.py` (Incident composing work notes, resolution and feedback;
+  IncidentFactory with INC-YYYY-NNNN IDs). The 100-pair matrix, BR-03 and BR-04 tests pass;
+  domain coverage 98 %. Deferred: the SLA clock inside the incident (joins in P1.5) and
+  `scripts/gen_state_diagram.py` (P6.1, generated from the state registry).
 
 ### Next
-- P1.3 Incident aggregate and State (the 100-pair matrix), then P1.4 Priority.
+- P1.4 Priority (all 27 combinations), then P1.5 SLA, which also adds the SLA clock to Incident.
 
 ## Previous: P0 Foundations (merged 3 Nov, PR #1)
 

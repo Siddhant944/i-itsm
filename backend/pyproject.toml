@@ -49,7 +49,7 @@ ignore = ["ANN401"]
 known-first-party = ["app", "tests", "scripts"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "ANN", "S105", "S106"]
+"tests/**" = ["S101", "ANN", "S105", "S106", "N802"]  # N802: test names carry BR-xx IDs
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]
