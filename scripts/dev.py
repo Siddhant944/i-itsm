@@ -44,12 +44,18 @@ def exe(name: str) -> str:
     return found
 
 
+def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Environment for child processes, without this script's own (ephemeral) virtualenv."""
+    env = {**os.environ, **(extra or {})}
+    env.pop("VIRTUAL_ENV", None)
+    return env
+
+
 def run(cmd: Sequence[str], cwd: Path, env: dict[str, str] | None = None) -> None:
     """Run one command, echoing it first; raise TaskError on a non-zero exit."""
     rel = cwd.relative_to(REPO) if cwd != REPO else Path(".")
     print(f"\n$ ({rel}) {' '.join(cmd)}", flush=True)
-    merged = {**os.environ, **(env or {})}
-    result = subprocess.run([exe(cmd[0]), *cmd[1:]], cwd=cwd, env=merged, check=False)  # noqa: S603
+    result = subprocess.run([exe(cmd[0]), *cmd[1:]], cwd=cwd, env=child_env(env), check=False)  # noqa: S603
     if result.returncode != 0:
         raise TaskError(f"failed ({result.returncode}): {' '.join(cmd)}")
 
@@ -87,8 +93,9 @@ def dev(_: argparse.Namespace) -> None:
                 "8000",
             ],
             cwd=BACKEND,
+            env=child_env(),
         ),
-        subprocess.Popen([exe("npm"), "run", "dev"], cwd=FRONTEND),  # noqa: S603
+        subprocess.Popen([exe("npm"), "run", "dev"], cwd=FRONTEND, env=child_env()),  # noqa: S603
     ]
     print("API http://127.0.0.1:8000/health · web http://localhost:5173 · Ctrl+C stops both")
     try:
