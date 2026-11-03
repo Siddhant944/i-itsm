@@ -1,0 +1,21 @@
+name: Feature or task
+description: A work package or change (link the docs/PLAN.md package ID)
+labels: [enhancement]
+body:
+  - type: input
+    id: package
+    attributes:
+      label: Plan package
+      placeholder: e.g. P3.2
+  - type: textarea
+    id: what
+    attributes:
+      label: What and why
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance tests
+    validations:
+      required: true

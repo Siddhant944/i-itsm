@@ -1,0 +1,48 @@
+# Local hooks only: they reuse the project's own tool versions (uv and npm lockfiles)
+# and need no network. Install with `make setup` (or `uv run --directory backend pre-commit install`).
+default_install_hook_types: [pre-commit]
+repos:
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks (staged secrets)
+        entry: uv run scripts/dev.py secrets-staged
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --directory backend ruff check --fix . ../scripts
+        language: system
+        pass_filenames: false
+        files: ^(backend|scripts)/.*\.py$
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --directory backend ruff format . ../scripts
+        language: system
+        pass_filenames: false
+        files: ^(backend|scripts)/.*\.py$
+      - id: mypy
+        name: mypy --strict
+        entry: uv run --directory backend mypy
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+      - id: import-linter
+        name: import-linter (layer rules)
+        entry: uv run --directory backend lint-imports
+        language: system
+        pass_filenames: false
+        files: ^backend/app/.*\.py$
+      - id: eslint
+        name: eslint
+        entry: npm --prefix frontend run lint
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js)$
+      - id: prettier
+        name: prettier
+        entry: npm --prefix frontend run format:check
+        language: system
+        pass_filenames: false
+        files: ^frontend/

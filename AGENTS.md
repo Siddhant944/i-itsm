@@ -67,7 +67,8 @@ CS F213 group project; submission 21 Nov 2026 (hard deadline 22 Nov).
 
 ## Sessions, git and usage
 - We build in Claude Code cloud sessions on one Pro account, one session at a time; all four of us review at each phase end.
-- When told "continue": check out the open phase branch (or branch from main if none), read docs/PLAN.md and docs/PROGRESS.md, and carry on with the next unfinished package.
-- One branch per phase; small Conventional Commits (feat:, fix:, test:, docs:, refactor:, chore:); push before a session ends; never push to main.
+- Each phase runs in a fresh cloud session on the `claude/*` branch that session is given, cut from main after the previous phase PR is merged (D-001). Never push to another branch.
+- When told "continue": make sure the session branch is based on the latest main, read docs/PLAN.md and docs/PROGRESS.md, and carry on with the next unfinished package.
+- One session branch per phase; small Conventional Commits (feat:, fix:, test:, docs:, refactor:, chore:); push before a session ends; never push to main.
 - End of phase: a fresh subagent reviews the phase diff; fix its findings; update docs/PROGRESS.md (done, next, needs a human); open the PR; stop with a short summary and five bullets per module for its owner to present. We merge.
 - Save usage: read only the files a task needs, keep command output short, run the narrowest relevant tests while iterating, `make verify` before each commit, Playwright only at phase ends.

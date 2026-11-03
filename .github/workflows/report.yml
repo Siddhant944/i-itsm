@@ -1,0 +1,61 @@
+# Report PDF (tectonic, same engine as `make report`) and diagrams: only on PRs labelled
+# `report`, or by hand (D-010). A paths filter would match the whole PR diff and rebuild on
+# every push; on unlabelled PRs the job is skipped and costs nothing.
+name: Report
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+
+concurrency:
+  group: report-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MICROMAMBA_VERSION: 2.10.0
+  TECTONIC_VERSION: 0.17.0
+  PLANTUML_VERSION: 1.2026.9
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'report')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/cache@v4
+        with:
+          path: |
+            tools
+            ~/.cache/Tectonic
+          key: report-tools-${{ env.TECTONIC_VERSION }}-${{ env.PLANTUML_VERSION }}
+      - name: Install tectonic and PlantUML
+        run: |
+          mkdir -p tools/bin
+          if [ ! -x tools/tex/bin/tectonic ]; then
+            curl -fsSL "https://conda.anaconda.org/conda-forge/linux-64/micromamba-${MICROMAMBA_VERSION}-0.tar.bz2" \
+              | tar -xj -C tools bin/micromamba
+            MAMBA_ROOT_PREFIX="$PWD/tools/mamba" tools/bin/micromamba create -y -q \
+              -p "$PWD/tools/tex" -c conda-forge "tectonic=${TECTONIC_VERSION}"
+            rm -rf tools/mamba/pkgs
+          fi
+          if [ ! -f tools/plantuml.jar ]; then
+            curl -fsSL -o tools/plantuml.jar \
+              "https://repo1.maven.org/maven2/net/sourceforge/plantuml/plantuml/${PLANTUML_VERSION}/plantuml-${PLANTUML_VERSION}.jar"
+          fi
+      - run: uv run scripts/dev.py diagrams
+      - run: uv run scripts/dev.py report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: report-pdf
+          path: report/build/main.pdf
+          retention-days: 14

@@ -1,0 +1,201 @@
+\chapter{Technology Stack}\label{ch:technology}
+% Owner: M2 (Siddhant L Pathak). Draft 1, 3 Nov 2026; source: blueprint §12, uv.lock and
+% package-lock.json. Versions are those locked at the time of writing; P6 regenerates this
+% table from the lock files at feature freeze. Rows marked "planned" are added in later phases.
+
+\section{Technologies, libraries and services}
+
+\subsection*{Backend (Python)}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{8.4cm}@{}}
+\toprule
+\textbf{Technology} & \textbf{Version} & \textbf{Purpose} \\
+\midrule
+\endhead
+Python & 3.12 & Language for the domain, services and API. \\
+uv & 0.11 & Python version, dependency and virtual-environment management (lock file). \\
+FastAPI & 0.162 & HTTP API, dependency injection, OpenAPI generation, WebSockets. \\
+Starlette & 1.10 & ASGI toolkit under FastAPI (middleware, CORS). \\
+Uvicorn & 0.54 & ASGI server. \\
+Pydantic & 2.14 & Validation of every request and response at the boundary. \\
+pydantic-settings & 2.16 & Typed configuration from the environment. \\
+SQLAlchemy & 2.1 & ORM and query builder behind the repository interfaces. \\
+psycopg & 3.3 & PostgreSQL driver. \\
+Alembic & planned (P2) & Database migrations. \\
+APScheduler & planned (P2) & In-process SLA monitor job. \\
+argon2-cffi, PyJWT & planned (P2) & Password hashing and short-lived access tokens. \\
+Google Gen AI SDK & planned (P4) & Gemini classification, summaries and embeddings. \\
+google-auth & planned (P4) & Verifying Google Sign-In ID tokens and the \texttt{hd} claim. \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Frontend (TypeScript)}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{8.4cm}@{}}
+\toprule
+\textbf{Technology} & \textbf{Version} & \textbf{Purpose} \\
+\midrule
+\endhead
+Node.js & 22 LTS & Build and test runtime. \\
+TypeScript & 5.9 & Static typing in strict mode. \\
+React & 19.3 & Component-based UI for the three portals. \\
+Vite & 8.3 & Development server and production build. \\
+Tailwind CSS & 4.3 & Utility-first styling and per-portal themes. \\
+React Router & 8.5 & Role-based routing and navigation. \\
+TanStack Query & 5.105 & Server state: caching, loading and error states, retries. \\
+openapi-typescript, openapi-fetch & 7.13, 0.17 & A typed API client generated from the
+  backend's OpenAPI document. \\
+Recharts & planned (P3) & Dashboard charts. \\
+React Flow & planned (P4) & Service dependency health map. \\
+Web Speech API & browser & Voice input for incident reports (Chrome, Edge). \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Data, services and infrastructure}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{8.4cm}@{}}
+\toprule
+\textbf{Technology} & \textbf{Version} & \textbf{Purpose} \\
+\midrule
+\endhead
+SQLite & 3 & Local development and tests (\texttt{foreign\_keys=ON}, WAL). \\
+PostgreSQL & 16 & Docker and deployment database; CI runs the tests on it too. \\
+Google Gemini API & planned (P4) & AI classification, grounded resolution summaries and
+  embeddings, with rule-based and TF-IDF fallbacks. \\
+SMTP email & planned (P2) & Email notifications (console fallback when unset). \\
+Telegram Bot API & planned (P4) & Urgent alerts to technicians and leads. \\
+Google Identity Services & planned (P4) & Sign-in restricted to the campus domain. \\
+Docker, Docker Compose & 29 & One-command startup of API, web (nginx) and PostgreSQL. \\
+nginx & 1.29 & Serves the built frontend and proxies the API in Docker. \\
+GitHub, GitHub Actions & -- & Version control, issues as the bug log, CI (lint, types, tests
+  on SQLite and PostgreSQL, builds, end-to-end tests, report). \\
+Hosting & to be chosen (P2.10) & Free-tier static host, container host and managed
+  PostgreSQL. \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Quality and documentation tooling}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{8.4cm}@{}}
+\toprule
+\textbf{Tool} & \textbf{Version} & \textbf{Purpose} \\
+\midrule
+\endhead
+pytest, pytest-cov & 9.2, 7.1 & Backend unit and integration tests with coverage. \\
+Ruff & 0.17 & Python linting (including a ban on wall-clock calls) and formatting. \\
+mypy & 2.4 & Static type checking in \texttt{--strict} mode. \\
+import-linter & 2.15 & Machine-checked layer rules (the domain imports no framework). \\
+ESLint, Prettier & 10.14, 3.9 & TypeScript linting and formatting. \\
+Vitest, Testing Library & 5.1, 16.3 & Frontend component tests. \\
+Playwright & 1.63 & End-to-end tests of the three demo workflows. \\
+Locust & planned (P5) & Load test of the search performance target. \\
+pre-commit, gitleaks & 4.7, 8.30 & Commit-time checks, including secret scanning. \\
+tectonic, PlantUML & 0.17, 1.2026.9 & This report and its UML diagrams, built from sources. \\
+\bottomrule
+\end{longtable}
+
+\section{Technology selection: the nine questions}
+
+\subsection*{1. Why did you choose this programming language?}
+Python~3.12 for the backend and TypeScript for the frontend.
+\begin{itemize}
+  \item Abstract base classes, dataclasses (frozen for value objects), enums and type hints
+    express the object model concisely: interfaces, the user hierarchy, the ten state classes
+    and the exception hierarchy map directly onto language features.
+  \item Python has first-class libraries for the intelligent features: the Gemini SDK,
+    text similarity and data handling for analytics and prediction.
+  \item Python lacks compile-time access control and static typing. We compensate with
+    name-mangled attributes behind read-only properties, frozen dataclasses, \texttt{mypy
+    --strict} in CI, and import contracts that enforce the layering.
+  \item TypeScript gives the frontend static types, and generating the API client from the
+    backend's OpenAPI document keeps types consistent end to end.
+\end{itemize}
+
+\subsection*{2. Why did you choose this frontend technology?}
+React with TypeScript and Tailwind CSS, built with Vite.
+\begin{itemize}
+  \item Components such as status and priority badges, SLA countdown chips, the filter bar and
+    the notification bell are written once and reused across the three portals, while each
+    portal keeps its own visual identity, as the requirements ask.
+  \item The ecosystem provides what our features need: TanStack Query for loading and error
+    states, Recharts for dashboards, React Flow for the dependency map, and support for an
+    installable progressive web app.
+  \item Vite gives a fast development loop and a small production build.
+\end{itemize}
+
+\subsection*{3. Why did you choose this backend technology?}
+FastAPI.
+\begin{itemize}
+  \item Pydantic validates every request at the boundary, which covers the invalid-input
+    requirements before data reaches the domain.
+  \item The OpenAPI document is generated from the code; it gives interactive documentation
+    for evaluators and the source for our typed client.
+  \item Dependency injection supplies the authenticated user, role and ownership checks,
+    repositories and the Clock to each route, keeping routers thin; WebSockets are built in.
+\end{itemize}
+
+\subsection*{4. Why did you select this database?}
+SQLite for development and tests, PostgreSQL for Docker and deployment.
+\begin{itemize}
+  \item The data is relational with integrity constraints between incidents, users, services,
+    SLA policies and audit records; reports need joins and aggregates.
+  \item SQLite needs no installation, which makes a Windows-native setup and fast tests
+    possible; PostgreSQL provides concurrent writers and row locking in deployment.
+  \item SQLAlchemy~2 and Alembic sit on top, so the same code and migrations run on both, and
+    CI runs the whole test suite against both databases.
+\end{itemize}
+
+\subsection*{5. Why did you choose this architecture?}
+A layered, containerised modular monolith (the requirements' ``Choice~1'').
+\begin{itemize}
+  \item The layers separate concerns: API, services, a framework-free domain, and
+    persistence and adapters that implement the domain's interfaces. Dependencies point
+    inward, which import-linter checks on every commit.
+  \item The domain, where the OOP design lives, can be tested in isolation with fakes and a
+    controllable clock.
+  \item Package boundaries match team ownership, so four people can work in parallel.
+\end{itemize}
+
+\subsection*{6. What alternatives did you consider?}
+\begin{itemize}
+  \item \textbf{Spring Boot with PostgreSQL:} compile-time typing and strong access control,
+    but heavier setup, and Python's AI and data libraries suit our intelligent features better
+    on a four-week timeline.
+  \item \textbf{Node.js with MongoDB:} rejected because the audit trail and SLA reporting need
+    relational integrity and joins.
+  \item \textbf{Flutter with Firebase (mobile and cloud):} rejected because technician and
+    administrator work needs wide screens; a responsive web app also works on phones.
+  \item \textbf{Microservices:} rejected at this scale because of network and distributed-
+    transaction overhead; our package boundaries allow a later split.
+\end{itemize}
+
+\subsection*{7. What are the advantages and limitations of your technology stack?}
+\begin{itemize}
+  \item \textbf{Advantages:} fast development, a typed API contract with generated
+    documentation and client, a strong AI ecosystem, the same code on SQLite and PostgreSQL,
+    and one-command startup.
+  \item \textbf{Limitation: runtime typing.} Python checks types at run time only; mitigated
+    by \texttt{mypy --strict} and Pydantic at the boundary.
+  \item \textbf{Limitation: SQLite allows one writer at a time,} so it is used only for
+    development and tests.
+  \item \textbf{Limitation: external AI is a dependency;} mitigated by deterministic
+    fallbacks, so classification and similarity work offline.
+  \item \textbf{Limitation: the in-process scheduler} supports a single API instance only.
+\end{itemize}
+
+\subsection*{8. How does your technology support object-oriented design?}
+Chapter~\ref{ch:oop} gives the evidence class by class. In short: abstract base classes define
+the interfaces (strategies, notification channels, AI advisor, embedding provider, clock and
+repositories); inheritance is used only for genuine is-a relationships (users, states,
+exceptions); polymorphism lets strategies, channels, states and clocks be swapped; composition
+ties an incident's SLA clock, notes, resolution and feedback to its lifetime; and nine design
+patterns appear in named classes. Python's encapsulation rests on convention, name mangling and
+immutability, which we verify with static checks rather than claim the language enforces.
+
+\subsection*{9. How would your system evolve if the number of users increased significantly?}
+\begin{itemize}
+  \item Run several stateless API containers behind a load balancer.
+  \item Use PostgreSQL with the existing indexes, read replicas for reports, and cached
+    analytics.
+  \item Move the SLA monitor and notification delivery to a task queue (for example Redis with
+    Celery) so that instances do not run duplicate jobs.
+  \item Fan out WebSocket messages across instances with Redis publish/subscribe.
+  \item Store embeddings in pgvector for similarity search at scale, and keep pagination on
+    every list.
+\end{itemize}

@@ -1,0 +1,260 @@
+\chapter{Requirements Specification}\label{ch:requirements}
+% Owner: M2 (Siddhant L Pathak). Draft 1, 3 Nov 2026; sources: requirements (MVP, Major Users,
+% Incident Management ... Security) and blueprint §4-§9. Test IDs are filled in from real runs
+% in P6 (traceability matrix, Chapter 11).
+
+Requirements carry stable IDs so that the traceability matrix (Chapter~\ref{ch:traceability})
+can link each one to its implementation, its tests and its place in the demo. The
+\emph{Source} column cites the requirements document (R) or the blueprint (B, with section).
+
+\section{Functional requirements}
+
+\subsection*{Accounts and access}
+\begin{longtable}{@{}l>{\raggedright\arraybackslash}p{9.6cm}l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Source} \\
+\midrule
+\endhead
+FR-01 & Employees can register and log in with email and password. & R: Major Users \\
+FR-02 & Employees can sign in with Google, restricted to the campus domain; the first sign-in
+  creates an Employee account. & B §8 \\
+FR-03 & Administrators manage users and technicians: create, edit, deactivate, assign roles,
+  skills, team and experience level, and mark availability. & R: Major Users \\
+FR-04 & Every action is checked against the user's role and, for incidents, ownership. &
+  R: Security \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Incident management}
+\begin{longtable}{@{}l>{\raggedright\arraybackslash}p{9.6cm}l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Source} \\
+\midrule
+\endhead
+FR-05 & An employee reports an incident by title, description (typed or spoken), affected
+  service and two plain-language questions (who is affected, can you keep working). &
+  R: MVP; B §5.1, §6.1 \\
+FR-06 & Each incident records its ID, reporter, category, description, affected service,
+  impact, urgency, priority, creation time, status, assigned technician, SLA deadlines and
+  status, investigation notes, resolution and closure information. & R: Incident Management \\
+FR-07 & Employees view their incidents, track status, add information, answer requests for
+  information, view the resolution, and verify or reject the fix with a rating and comment. &
+  R: Major Users \\
+FR-08 & Technicians view assigned incidents, acknowledge, start work, add investigation notes,
+  request information, put an incident on hold, record resolution details and resolve. &
+  R: Major Users \\
+FR-09 & Technicians see their current workload. & R: Major Users \\
+FR-10 & The lifecycle has ten states and exactly twenty legal transitions; any other transition
+  is refused with an error (Table~\ref{tab:transitions}). & R: Incident Lifecycle; B §4 \\
+FR-11 & An unverified resolution closes automatically after 72 hours. & B §4 \\
+FR-12 & An incident can be cancelled with a reason (withdrawn, or duplicate of another). & B §4 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Classification, priority, SLA and assignment}
+\begin{longtable}{@{}l>{\raggedright\arraybackslash}p{9.6cm}l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Source} \\
+\midrule
+\endhead
+FR-13 & The system suggests a category (and service) with a confidence score; the reporter or
+  technician can override it, and the decision is audited. & R: Classification, Feature F \\
+FR-14 & Categories are data: an administrator adds one without code changes, and
+  classification uses it immediately. & R: Classification \\
+FR-15 & Priority is computed from impact, urgency and the service's business criticality;
+  category minimum priorities apply; an override needs a reason and is audited. &
+  R: Priority; B §5.1 \\
+FR-16 & SLA targets come from the service's tier and the incident's priority; the system
+  calculates response and resolution deadlines and tracks both. & R: SLA; B §5.2 \\
+FR-17 & A background monitor warns before a deadline (AT\_RISK), detects and records
+  violations, and pauses the resolution clock while the incident is on hold. & R: SLA; B §5.2 \\
+FR-18 & The system recommends or assigns a technician with one of at least two strategies
+  (skill-based, load-based, smart); the administrator switches strategy at runtime. &
+  R: Assignment; B §5.3 \\
+FR-19 & The top three candidates are shown with the reasons for their ranking. & R: Feature D \\
+FR-20 & Unacknowledged critical incidents escalate automatically: Technician $\rightarrow$ Team
+  Lead $\rightarrow$ Administrator $\rightarrow$ IT Manager. & R: Feature C; B §5.5 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Notifications, audit, search and reporting}
+\begin{longtable}{@{}l>{\raggedright\arraybackslash}p{9.6cm}l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Source} \\
+\midrule
+\endhead
+FR-21 & Relevant users are notified when an incident is created, assigned, re-prioritised,
+  waiting on information, approaching or past its SLA, escalated, resolved or closed. &
+  R: Notification; B §5.4 \\
+FR-22 & At least two notification channels: in-app (with real-time push) and email, plus
+  Telegram for urgent events; a new channel needs one class. & R: Notification \\
+FR-23 & Every important action is recorded with timestamp, user, action, incident ID, previous
+  state, new state and description; the log is append-only and its integrity can be checked. &
+  R: Audit Trail; B §8 \\
+FR-24 & Incidents can be searched and filtered by ID, date range, status, priority, category,
+  service, technician, SLA status and reporter, plus free text, with pagination and CSV export.
+  & R: Search; B §9 \\
+FR-25 & Dashboards show an incident overview, technician workload, service analysis, mean time
+  to acknowledge and resolve, SLA compliance, satisfaction, reopen rate and trends. &
+  R: Reporting; B §9 \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Administration and intelligent features}
+\begin{longtable}{@{}l>{\raggedright\arraybackslash}p{9.6cm}l@{}}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Source} \\
+\midrule
+\endhead
+FR-26 & Administrators manage IT services (criticality, tier, dependencies), categories, SLA
+  policies and the assignment strategy and its weights. & R: Major Users; B §3 \\
+FR-27 & Administrators monitor all incidents and SLA violations and view reports and the audit
+  log. & R: Major Users \\
+FR-28 & Possible duplicates are suggested while the reporter types; a technician can confirm a
+  duplicate, which cancels it and links its reporter to the original. & R: Feature A; B §6.2 \\
+FR-29 & Incidents on services that depend on a service with an open P1 or P2 are flagged as
+  likely related, with the possible root cause. & R: Feature B; B §6.2 \\
+FR-30 & Incidents likely to breach their SLA are flagged from historical evidence, with a
+  plain-language explanation. & R: Feature E; B §6.3 \\
+FR-31 & The technician sees resolutions of the most similar past incidents, with a short
+  summary citing them. & R: Feature G; B §6.1 \\
+\bottomrule
+\end{longtable}
+
+\begin{table}[htbp]
+\centering\small
+\caption{The twenty legal lifecycle transitions (all other 80 pairs are refused).}
+\label{tab:transitions}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{From} & \textbf{To} \\
+\midrule
+NEW & CLASSIFIED, CANCELLED \\
+CLASSIFIED & ASSIGNED, CANCELLED \\
+ASSIGNED & ACKNOWLEDGED, ASSIGNED (reassign or escalate), CANCELLED \\
+ACKNOWLEDGED & IN\_PROGRESS, ASSIGNED, CANCELLED \\
+IN\_PROGRESS & ON\_HOLD, RESOLVED, ASSIGNED, CANCELLED \\
+ON\_HOLD & IN\_PROGRESS, CANCELLED \\
+RESOLVED & VERIFIED, IN\_PROGRESS (fix rejected), CLOSED (auto-close after 72 h) \\
+VERIFIED & CLOSED \\
+CLOSED, CANCELLED & none (terminal) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Non-functional requirements}
+
+\begin{longtable}{@{}l>{\raggedright\arraybackslash}p{3cm}>{\raggedright\arraybackslash}p{8.6cm}@{}}
+\toprule
+\textbf{ID} & \textbf{Quality} & \textbf{Requirement} \\
+\midrule
+\endhead
+NFR-01 & Performance & Search over 10\,000 incidents answers within 300 ms at the 95th
+  percentile (measured with Locust). \\
+NFR-02 & Timeliness & An SLA breach is detected within one 30-second monitor tick. \\
+NFR-03 & Reliability & When an external service fails, the system falls back (rule-based AI,
+  TF-IDF similarity, console email) and never blocks incident creation; a failed notification
+  never rolls back the change that caused it. \\
+NFR-04 & Integrity & Every state change is audited in the same transaction; audit records are
+  append-only and hash-chained; incidents are never hard-deleted. \\
+NFR-05 & Security & Hashed passwords, short-lived tokens, role and ownership checks on the
+  server, account lockout, validated input and parameterised queries
+  (Chapter~\ref{ch:security}). \\
+NFR-06 & Extensibility & A new category, service or SLA policy needs no code; a new assignment
+  strategy or notification channel needs one class. \\
+NFR-07 & Maintainability & Layered architecture enforced by import contracts; \texttt{mypy
+  --strict}; at least 80\,\% test coverage on the domain and services. \\
+NFR-08 & Portability & Starts with one command (Docker Compose), and also natively on Windows,
+  Linux and macOS with uv, npm and SQLite; the same code runs on SQLite and PostgreSQL. \\
+NFR-09 & Usability & Three visibly different portals with navigation to every screen of the
+  role; loading, empty and error states everywhere; AI suggestions show their confidence and
+  can be overridden; responsive layout. \\
+NFR-10 & Testability & Time is injected through a Clock, so SLA and escalation behaviour is
+  tested deterministically; external services have fakes. \\
+\bottomrule
+\end{longtable}
+
+\section{User roles}
+
+Roles form an inheritance hierarchy where a genuine is-a relationship exists; what each role
+may do comes from a role-to-permission map, not from type checks.
+
+\noindent\begin{tabularx}{\textwidth}{@{}lll>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Role} & \textbf{Is a} & \textbf{Portal} & \textbf{Main capabilities} \\
+\midrule
+Employee & User & Employee & Report, track, add information, respond, verify or reject, rate. \\
+Technician & User & Technician & Work assigned incidents end to end; view own workload.
+  Escalation level 0. \\
+Team Lead & Technician & Technician & Everything a technician does, plus the team queue,
+  reassignment and escalated incidents. Escalation level 1. \\
+Administrator & User & Admin & Manage users, technicians, services, categories, SLA policies
+  and strategies; monitor incidents, violations, reports and audit logs. Escalation level 2. \\
+IT Manager & Administrator & Admin & Everything an administrator does; final escalation level 3. \\
+\bottomrule
+\end{tabularx}
+
+\section{Business rules}
+
+\begin{longtable}{@{}l>{\raggedright\arraybackslash}p{12cm}@{}}
+\toprule
+\textbf{ID} & \textbf{Rule} \\
+\midrule
+\endhead
+BR-01 & Employees see and act only on their own incidents. \\
+BR-02 & Only the assignee, the escalation owner or an administrator may acknowledge, update,
+  request information or resolve. \\
+BR-03 & Only the reporter verifies or rejects a fix; unanswered resolutions auto-close after
+  72 hours. \\
+BR-04 & Resolving requires a resolution summary. Reopening is allowed only from RESOLVED; a
+  problem after closure becomes a new, linked incident. \\
+BR-05 & Priority is computed; overrides need a reason and are audited, and category floors
+  apply. \\
+BR-06 & A technician's weighted load stays at or below 10 points (P1--P4 cost 4, 3, 2, 1), and
+  unavailable technicians are never auto-assigned. \\
+BR-07 & The SLA clock pauses in ON\_HOLD, the response SLA is met at first acknowledgement, and
+  a breach means now $>$ deadline. \\
+BR-08 & Unacknowledged P1 and P2 incidents escalate one level per elapsed response target. \\
+BR-09 & A suggested duplicate is offered at similarity $\geq \theta$; a near-identical ticket
+  ($\geq \theta_{\text{high}}$) from the same reporter within 30 minutes is refused with a link
+  to the existing one. \\
+BR-10 & Audit records are append-only, and incidents are never hard-deleted. \\
+\bottomrule
+\end{longtable}
+
+\subsection*{Rule parameters}
+
+Priority score $S = I \cdot U \cdot C$ with $I, U, C \in \{1, 2, 3\}$:
+
+\begin{center}\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Priority} & \textbf{Score} & \textbf{Possible scores} & \textbf{Combinations of 27} \\
+\midrule
+P1 Critical & $S \geq 18$ & 18, 27 & 4 \\
+P2 High & $9 \leq S < 18$ & 9, 12 & 6 \\
+P3 Medium & $4 \leq S < 9$ & 4, 6, 8 & 10 \\
+P4 Low & $S < 4$ & 1, 2, 3 & 7 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+SLA targets (response / resolution). Gold is the requirements' table; Silver and Bronze are
+$\times 2$ and $\times 4$. A service's default tier follows its criticality (3 Gold, 2 Silver,
+1 Bronze).
+
+\begin{center}\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Priority} & \textbf{Gold} & \textbf{Silver} & \textbf{Bronze} \\
+\midrule
+P1 & 5 min / 30 min & 10 min / 1 h & 20 min / 2 h \\
+P2 & 15 min / 2 h & 30 min / 4 h & 1 h / 8 h \\
+P3 & 1 h / 8 h & 2 h / 16 h & 4 h / 32 h \\
+P4 & 4 h / 24 h & 8 h / 48 h & 16 h / 96 h \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+An incident is AT\_RISK when the predictive estimate of breaching reaches 0.5, or, with fewer
+than ten comparable past incidents, when 75\,\% of the target has elapsed (inclusive).

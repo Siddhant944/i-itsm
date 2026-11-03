@@ -1,0 +1,134 @@
+\chapter{Problem Analysis}\label{ch:problem}
+% Owner: M1 (Tushar B). Draft 1, 3 Nov 2026; sources: requirements (Project Overview,
+% Problem Scenario) and blueprint §1.
+
+\section{Problem}
+
+A university campus depends on a set of shared IT services: Wi-Fi and the wired LAN, campus
+email, the learning management system (LMS), laboratory PCs, printers and the Fee Payment
+Portal. Thousands of students, faculty and staff use them every day, and a small IT helpdesk
+keeps them running. When one of these services fails, the people affected need a reliable way
+to report it, and the helpdesk needs to identify, prioritise, assign, investigate, resolve and
+close the incident quickly.
+
+Today that work is largely manual: problems arrive by phone, email or in person, are logged
+inconsistently, and are prioritised and routed by judgement. The requirements list what this
+leads to:
+
+\begin{itemize}
+  \item delayed responses, because nobody is told promptly that a ticket is waiting;
+  \item incorrect prioritisation, because whoever shouts loudest is served first;
+  \item inefficient technician allocation, because skills and current workload are not visible;
+  \item SLA violations that are noticed only after the fact, if at all;
+  \item poor visibility into service health;
+  \item duplicate reports of the same outage, each handled separately;
+  \item incomplete incident history, so nobody can say who did what and when;
+  \item difficulty identifying recurring problems.
+\end{itemize}
+
+The requirements' central scenario makes this concrete. In our campus framing it reads:
+\emph{the Fee Payment Portal is down and students cannot complete their fee transactions}.
+Many students report it within minutes, the deadline for fee payment may be near, and the
+outage may in fact be caused by a service the portal depends on, such as the database. The
+system must turn that first report into a prioritised, assigned and monitored incident, keep
+everyone informed, and record every step until the fix is verified and the incident closed.
+
+\section{Stakeholders}
+
+\noindent\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Stakeholder} & \textbf{Interest in the system} \\
+\midrule
+Employees (students, faculty, staff) & Report problems easily, see what happens to their report,
+  answer questions from the helpdesk, and confirm that the fix works. \\
+Technicians & See a clear queue of incidents that match their skills, without being overloaded;
+  record investigation notes and resolutions. \\
+Team Leads & Watch their team's queue and workload, take escalated incidents and reassign work. \\
+Administrators & Configure users, technicians, services, categories, SLA policies and the
+  assignment strategy; monitor incidents, SLA violations and the audit log. \\
+IT Manager & The final escalation level; reads reports on SLA compliance, workload and service
+  health to plan staffing and improvements. \\
+Campus administration (CCIT, maintenance division) & Reliable services, measurable support
+  quality, and an auditable record of incidents. \\
+\bottomrule
+\end{tabularx}
+
+\section{Existing challenges}
+
+Each challenge from the requirements maps to a cause and to the part of I-ITSM that addresses
+it.
+
+\noindent\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3cm}>{\raggedright\arraybackslash}p{4cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Challenge} & \textbf{Root cause} & \textbf{Our response} \\
+\midrule
+Delayed response & No alerting; no response deadline & Response SLA per priority and
+  service tier, notifications on creation and assignment, automatic escalation when nobody
+  acknowledges. \\
+Incorrect prioritisation & Reporters set priority; no rule & Priority computed from impact,
+  urgency and service criticality; reporters answer plain-language questions; overrides
+  need a reason and are audited. \\
+Inefficient allocation & Skills and load are invisible & Assignment strategies that weigh
+  skills, priority-weighted workload, experience and past fixes on the service. \\
+SLA violations & Deadlines are not tracked & An SLA clock per incident (paused while waiting on
+  the reporter), a background monitor, warnings before the deadline and recorded violations. \\
+Poor visibility & No shared view of service state & Dashboards, a service dependency graph and
+  a live health map. \\
+Duplicate reports & Each report is handled on its own & Hybrid duplicate detection while the
+  reporter types, and linking of confirmed duplicates to the original. \\
+Incomplete history & Actions are not recorded & An append-only, hash-chained audit trail of
+  every state change, login and configuration change. \\
+Recurring problems & History is not searchable & Nine-criteria search, analytics and trends,
+  suggested resolutions from similar past incidents, and correlation through service
+  dependencies. \\
+\bottomrule
+\end{tabularx}
+
+\section{Proposed solution}
+
+I-ITSM is a full-stack web application that manages the whole incident lifecycle:
+\textbf{Report $\rightarrow$ Classify $\rightarrow$ Prioritise $\rightarrow$ Assign
+$\rightarrow$ Investigate $\rightarrow$ Resolve $\rightarrow$ Verify $\rightarrow$ Close}.
+It has three visibly different portals: Employee, Technician and Administrator.
+
+\begin{itemize}
+  \item \textbf{Lifecycle.} Ten states and exactly twenty legal transitions, implemented with
+    the State pattern, so illegal moves such as NEW $\rightarrow$ CLOSED are impossible. Hold,
+    reopen, cancel and a 72-hour auto-close are part of the lifecycle.
+  \item \textbf{Core engines.} Priority ($S = I \times U \times C$, mapped to P1--P4), SLA targets
+    by service tier and priority, three interchangeable assignment strategies, notifications
+    through several channels, and a Chain-of-Responsibility escalation from technician to
+    Team Lead, Administrator and IT Manager.
+  \item \textbf{Intelligent features.} AI-assisted classification with a rule-based fallback,
+    suggested resolutions from similar resolved incidents, hybrid duplicate detection,
+    dependency-based correlation, predictive SLA-risk estimation and smart technician
+    recommendation with reasons.
+  \item \textbf{Architecture.} A layered modular monolith whose framework-free domain model is
+    the centre of the design; the API, persistence and external services depend on it, never
+    the other way round (Chapter~\ref{ch:architecture}).
+\end{itemize}
+
+In the Fee Payment Portal scenario, the employee's report creates an incident; the system
+suggests the Application category, identifies the Gold-tier portal (criticality 3), computes
+$3 \times 3 \times 3 = 27$, which is P1, applies the 5-minute response and 30-minute resolution
+targets, recommends and assigns the best technician, notifies the reporter and the technician,
+watches the deadlines, escalates if nobody acknowledges, links the other students' duplicate
+reports, points to a likely root cause in a dependency, records every step, and finally counts
+the incident in the reports once the reporter has verified the fix.
+
+\section{Assumptions}
+
+\begin{enumerate}
+  \item One organisation (the campus), with incidents written in English.
+  \item SLA clocks run 24$\times$7; business-hours calendars are out of scope.
+  \item The historical incidents used for analytics, prediction and suggested resolutions are
+    realistic synthetic seed data (300--500 incidents).
+  \item Reporters do not set priority directly; they answer two plain-language questions, and the
+    service's criticality comes from its configuration.
+  \item Silver and Bronze SLA targets are twice and four times the Gold targets given in the
+    requirements.
+  \item External services (Gemini, email, Telegram, Google Sign-In) can fail; the system then
+    falls back to deterministic behaviour and never blocks incident creation.
+  \item The API runs as a single instance, so the in-process SLA monitor needs no coordination;
+    Chapter~\ref{ch:technology} explains how this changes at scale.
+\end{enumerate}

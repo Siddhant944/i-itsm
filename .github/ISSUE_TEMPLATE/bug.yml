@@ -1,0 +1,34 @@
+name: Bug
+description: Something is broken (AGENTS.md - every bug found after merge gets an issue, a regression test and a fix commit)
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the incident ID, role and screen if relevant. Never paste secrets or .env contents.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Log in as tech1@...\n2. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: Related rule or requirement
+      placeholder: e.g. BR-07, §5.2, MVP Audit
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options: [Domain and lifecycle (M1), Intelligence and SLA (M2), Platform (M3), Frontend and QA (M4)]

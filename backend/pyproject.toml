@@ -1,0 +1,124 @@
+[project]
+name = "i-itsm-backend"
+version = "0.1.0"
+description = "I-ITSM: Intelligent IT Service Management & Incident Resolution System (API and domain)"
+readme = "../README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "fastapi>=0.162,<0.163",
+    "uvicorn[standard]>=0.54,<0.55",
+    "pydantic>=2.11,<3",
+    "pydantic-settings>=2.16,<3",
+    "sqlalchemy>=2.0.40,<2.2",
+    "psycopg[binary]>=3.3,<4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2,<10",
+    "pytest-cov>=7.1,<8",
+    "httpx>=0.28,<0.29",
+    "ruff>=0.17,<0.18",
+    "mypy>=2.4,<3",
+    "import-linter>=2.15,<3",
+    "pre-commit>=4.7,<5",
+]
+
+[tool.uv]
+package = false
+
+# ---------------------------------------------------------------- Ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["app", "tests", "scripts"]
+
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "N", "SIM", "RUF", "S", "PT", "DTZ", "ANN", "C4", "PIE", "RET", "TID"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"datetime.datetime.now".msg = "Inject a Clock (app.core.clock) instead (AGENTS.md: Time)."
+"datetime.datetime.utcnow".msg = "Inject a Clock (app.core.clock) instead (AGENTS.md: Time)."
+"datetime.datetime.today".msg = "Inject a Clock (app.core.clock) instead (AGENTS.md: Time)."
+"datetime.date.today".msg = "Inject a Clock (app.core.clock) instead (AGENTS.md: Time)."
+"time.time".msg = "Inject a Clock (app.core.clock) instead (AGENTS.md: Time)."
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests", "scripts"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ANN", "S105", "S106"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app", "tests", "scripts"]
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+filterwarnings = [
+    "error",
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
+markers = [
+    "live: calls a real external API; skipped unless RUN_LIVE_TESTS=1",
+    "req(id): links a test to a requirement or business rule (traceability matrix)",
+]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = false
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@abstractmethod"]
+
+# ---------------------------------------------------------------- import-linter (blueprint §2)
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Domain depends only on core (no frameworks, no outer layers)"
+type = "forbidden"
+source_modules = ["app.domain"]
+forbidden_modules = [
+    "app.api", "app.services", "app.repositories", "app.adapters", "app.main", "app.core.config",
+    "fastapi", "starlette", "sqlalchemy", "pydantic_settings", "httpx", "uvicorn",
+]
+
+[[tool.importlinter.contracts]]
+name = "Services depend only on domain and core"
+type = "forbidden"
+source_modules = ["app.services"]
+forbidden_modules = ["app.api", "app.repositories", "app.adapters", "app.main", "fastapi", "starlette", "sqlalchemy"]
+
+[[tool.importlinter.contracts]]
+name = "API depends only on services, domain and core"
+type = "forbidden"
+source_modules = ["app.api"]
+forbidden_modules = ["app.repositories", "app.adapters", "app.main", "sqlalchemy"]
+
+[[tool.importlinter.contracts]]
+name = "Persistence and adapters depend only on domain and core"
+type = "forbidden"
+source_modules = ["app.repositories", "app.adapters"]
+forbidden_modules = ["app.api", "app.services", "app.main", "fastapi", "starlette"]
+
+[[tool.importlinter.contracts]]
+name = "Core depends on no application layer"
+type = "forbidden"
+source_modules = ["app.core"]
+forbidden_modules = ["app.api", "app.services", "app.domain", "app.repositories", "app.adapters", "app.main"]
+
+[[tool.importlinter.contracts]]
+name = "Repositories and adapters are independent of each other"
+type = "independence"
+modules = ["app.repositories", "app.adapters"]
