@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from app.core.config import AppEnv, Settings
+from app.core.config import DEV_JWT_SECRET, AppEnv, Settings
 
 ENV_EXAMPLE = Path(__file__).resolve().parents[3] / ".env.example"
 
@@ -21,10 +21,30 @@ def test_production_refuses_the_dev_jwt_secret() -> None:
         Settings(app_env=AppEnv.PROD, _env_file=None)
 
 
+def test_production_refuses_a_short_secret() -> None:
+    with pytest.raises(ValidationError, match="JWT_SECRET"):
+        Settings(app_env=AppEnv.PROD, jwt_secret=SecretStr("too-short"), _env_file=None)
+
+
+def test_copied_env_example_keeps_defaults_for_empty_values() -> None:
+    settings = Settings(_env_file=ENV_EXAMPLE)
+
+    assert settings.jwt_secret.get_secret_value() == DEV_JWT_SECRET
+    assert settings.gemini_api_key is None
+    assert settings.smtp_password is None
+    assert settings.telegram_bot_token is None
+
+
+def test_copied_env_example_cannot_run_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "prod")
+    with pytest.raises(ValidationError, match="JWT_SECRET"):
+        Settings(_env_file=ENV_EXAMPLE)
+
+
 def test_production_accepts_a_real_secret() -> None:
     settings = Settings(
         app_env=AppEnv.PROD,
-        jwt_secret=SecretStr("a-long-random-production-secret"),
+        jwt_secret=SecretStr("x" * 48),
         _env_file=None,
     )
     assert settings.app_env is AppEnv.PROD

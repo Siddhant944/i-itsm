@@ -106,8 +106,12 @@ def dev(_: argparse.Namespace) -> None:
     finally:
         for p in procs:
             if p.poll() is None:
-                if os.name == "nt":
-                    p.terminate()
+                if os.name == "nt":  # npm is npm.cmd: kill the whole tree, not just cmd.exe
+                    subprocess.run(  # noqa: S603
+                        [exe("taskkill"), "/T", "/F", "/PID", str(p.pid)],
+                        check=False,
+                        capture_output=True,
+                    )
                 else:
                     p.send_signal(signal.SIGINT)
         for p in procs:

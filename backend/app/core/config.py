@@ -5,12 +5,16 @@ Every variable is listed in ``.env.example``; a test keeps the two in sync.
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 from typing import Self
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_JWT_SECRET = "dev-only-insecure-jwt-secret-change-me"  # noqa: S105 - documented dev default
+MIN_PROD_SECRET_LENGTH = 32
+# The one optional .env file, at the repository root (absent inside Docker images).
+ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
 
 
 class AppEnv(StrEnum):
@@ -33,7 +37,7 @@ class Settings(BaseSettings):
     """Typed settings. Secrets are ``SecretStr`` so they never appear in logs or reprs."""
 
     model_config = SettingsConfigDict(
-        env_file=(".env", "../.env"), env_file_encoding="utf-8", extra="ignore"
+        env_file=ENV_FILE, env_file_encoding="utf-8", env_ignore_empty=True, extra="ignore"
     )
 
     # --- application
@@ -74,9 +78,12 @@ class Settings(BaseSettings):
     google_hd_domain: str = ""
 
     @model_validator(mode="after")
-    def _refuse_dev_secret_in_prod(self) -> Self:
-        if self.app_env is AppEnv.PROD and self.jwt_secret.get_secret_value() == DEV_JWT_SECRET:
-            msg = "JWT_SECRET must be set in production"
+    def _refuse_weak_secret_in_prod(self) -> Self:
+        secret = self.jwt_secret.get_secret_value()
+        if self.app_env is AppEnv.PROD and (
+            secret == DEV_JWT_SECRET or len(secret) < MIN_PROD_SECRET_LENGTH
+        ):
+            msg = f"JWT_SECRET must be set to at least {MIN_PROD_SECRET_LENGTH} characters in prod"
             raise ValueError(msg)
         return self
 

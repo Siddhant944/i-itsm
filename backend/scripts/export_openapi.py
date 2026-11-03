@@ -13,8 +13,10 @@ from app.main import create_app
 def main() -> None:
     """Export the schema to the path given as the first argument."""
     out = Path(sys.argv[1])
-    app = create_app(Settings(database_url="sqlite://"))
-    out.write_text(json.dumps(app.openapi(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    # Ignore the developer's .env so the schema is identical on every machine and in CI.
+    settings = Settings(app_name="I-ITSM", database_url="sqlite://", _env_file=None)
+    document = json.dumps(create_app(settings).openapi(), indent=2, sort_keys=True) + "\n"
+    out.write_text(document, encoding="utf-8", newline="\n")  # LF on Windows too
 
 
 if __name__ == "__main__":
