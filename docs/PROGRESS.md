@@ -4,11 +4,11 @@ Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECIS
 
 ## Status: P1 Domain core, in progress (3 Nov)
 
-P0 merged in PR #1. P1.1 to P1.6 were done at the end of the P0 session, on `claude/funny-fermi-bjxlhr`
+P0 merged in PR #1. P1.1 to P1.7 were done at the end of the P0 session, on `claude/funny-fermi-bjxlhr`
 restarted from main; it is not in a PR yet.
 
 **Next session, first step:** `git fetch origin claude/funny-fermi-bjxlhr` and merge it into the
-new session branch, so P1.1 to P1.6 carry into the P1 PR. Then continue with P1.7.
+new session branch, so P1.1 to P1.7 carry into the P1 PR. Then continue with P1.8.
 
 ### Done
 - P1.1 Clock and errors (tests first): `app/core/clock.py` (Clock ABC; SystemClock, the only
@@ -39,9 +39,13 @@ new session branch, so P1.1 to P1.6 carry into the P1 PR. Then continue with P1.
   available, active technicians under the 10-point cap; Skill, Load and Smart strategies with
   reasons such as "2/2 skills · 60 % capacity free · senior · 5 past fixes on this service";
   `check_capacity` for manual assignment; registry). 8 new tests including BR-06.
+- P1.7 Escalation: `app/domain/escalation.py` (Chain of Responsibility Technician → Team Lead →
+  Administrator → IT Manager; unacknowledged P1/P2 move up one level per missed response
+  target, strictly after each multiple; a resolution breach goes to the Team Lead; no repeat
+  escalation to the current level). 10 new tests including BR-08.
 
 ### Next
-- P1.7 Escalation, P1.8 Ports and in-memory repositories, P1.9 phase close (review, PR).
+- P1.8 Ports and in-memory repositories, then P1.9 phase close (subagent review, PR).
 
 ## Previous: P0 Foundations (merged 3 Nov, PR #1)
 
