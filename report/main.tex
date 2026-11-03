@@ -1,0 +1,43 @@
+% I-ITSM group report. Build: `make report` (tectonic) -> report/build/main.pdf
+% Chapter order follows the requirements' Deliverables section.
+\documentclass[11pt,a4paper]{report}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{fontspec}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\project}{I-ITSM}
+\newcommand{\repourl}{https://github.com/Siddhant944/i-itsm}
+
+\title{\textbf{\project{}}\\[4pt]
+  \large Intelligent IT Service Management \& Incident Resolution System\\[2pt]
+  \normalsize CS F213 / MAC F212 Object-Oriented Programming, Semester I 2026--27}
+\author{Group 15\\[4pt]
+  Tushar B \and Siddhant L Pathak \and Shri Krishna P \and Ishaan S}
+\date{November 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\include{chapters/01-problem-analysis}
+\include{chapters/02-requirements}
+\include{chapters/03-architecture}
+\include{chapters/04-uml}
+\include{chapters/05-technology}
+\include{chapters/06-repository}
+\include{chapters/07-database}
+\include{chapters/08-testing}
+\include{chapters/09-security}
+\include{chapters/10-oop-patterns}
+\include{chapters/11-traceability}
+\include{chapters/12-team-and-ai}
+
+\end{document}
