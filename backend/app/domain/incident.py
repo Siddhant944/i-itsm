@@ -1,7 +1,7 @@
 """The Incident aggregate (blueprint §3, §4).
 
 An Incident composes its work notes, resolution and feedback: they live and die with it
-(the SLA clock joins in P1.5). Its status changes only through intention-revealing methods,
+and its SLA clock. Its status changes only through intention-revealing methods,
 each of which asks the current State object whether the move is legal, applies the change,
 and records a domain event for audit and notifications.
 """
@@ -24,6 +24,7 @@ from app.domain.events import (
     WorkNoteAdded,
 )
 from app.domain.priority import Priority, PriorityAssessment
+from app.domain.sla import SLAClock, SLATarget
 from app.domain.states import IncidentState, IncidentStatus, state_for
 
 MAX_TITLE_LENGTH = 200
@@ -104,6 +105,7 @@ class Incident:
         self.__closed_at: datetime | None = None
         self.__reopen_count = 0
         self.__priority: Priority | None = None
+        self.__sla_clock: SLAClock | None = None
         self.__priority_score: int | None = None
         self.__priority_overridden = False
         self.__notes: list[WorkNote] = []
@@ -194,6 +196,17 @@ class Incident:
         return self.__priority_overridden
 
     @property
+    def sla_clock(self) -> SLAClock | None:
+        return self.__sla_clock
+
+    def apply_sla(self, target: SLATarget) -> None:
+        """Start the SLA clock from creation, or retarget it after a priority change."""
+        if self.__sla_clock is None:
+            self.__sla_clock = SLAClock(self.__created_at, target)
+        else:
+            self.__sla_clock.retarget(target)
+
+    @property
     def notes(self) -> tuple[WorkNote, ...]:
         return tuple(self.__notes)
 
@@ -237,6 +250,8 @@ class Incident:
         target = self.__state.acknowledge()
         if self.__acknowledged_at is None:
             self.__acknowledged_at = clock.now()
+        if self.__sla_clock is not None:
+            self.__sla_clock.respond(clock.now())
         self._move(target, actor_id, clock, "Technician acknowledged the incident")
 
     def start(self, actor_id: int, clock: Clock) -> None:
@@ -246,16 +261,22 @@ class Incident:
         """Ask the reporter for information; the resolution clock pauses (BR-07)."""
         target = self.__state.hold()
         self._add(actor_id, clock, NoteKind.INFO_REQUEST, _text(question, "question"))
+        if self.__sla_clock is not None:
+            self.__sla_clock.pause(clock.now())
         self._move(target, actor_id, clock, "Waiting for information from the reporter")
 
     def resume(self, actor_id: int, clock: Clock) -> None:
-        self._move(self.__state.resume(), actor_id, clock, "Work resumed")
+        target = self.__state.resume()
+        self._resume_sla(clock)
+        self._move(target, actor_id, clock, "Work resumed")
 
     def provide_info(self, actor_id: int, clock: Clock, answer: str) -> None:
         """The reporter answers; an incident on hold resumes (D-006)."""
         self._add(actor_id, clock, NoteKind.INFO_RESPONSE, _text(answer, "answer"))
         if self.__state.status is IncidentStatus.ON_HOLD:
-            self._move(self.__state.resume(), actor_id, clock, "Reporter provided information")
+            target = self.__state.resume()
+            self._resume_sla(clock)
+            self._move(target, actor_id, clock, "Reporter provided information")
 
     def resolve(self, actor_id: int, clock: Clock, summary: str) -> None:
         """Resolving requires a resolution summary (BR-04)."""
@@ -265,6 +286,7 @@ class Incident:
             raise InvalidIncidentError(msg)
         self.__resolution = Resolution(actor_id, clock.now(), summary.strip())
         self.__resolved_at = clock.now()
+        self._stop_sla(clock)
         self._move(target, actor_id, clock, "Resolution provided")
 
     def verify(self, actor_id: int, clock: Clock, rating: int, comment: str = "") -> None:
@@ -284,6 +306,8 @@ class Incident:
         self.__resolution = None
         self.__resolved_at = None
         self.__reopen_count += 1
+        if self.__sla_clock is not None:
+            self.__sla_clock.restart(clock.now())
         self._move(target, actor_id, clock, "Reporter rejected the fix; incident reopened")
 
     def close(self, actor_id: int | None, clock: Clock) -> None:
@@ -305,6 +329,7 @@ class Incident:
             msg = "A duplicate must name the incident it duplicates."
             raise InvalidIncidentError(msg)
         self.__cancel_reason = reason
+        self._stop_sla(clock)
         self.__parent_id = duplicate_of
         self.__closed_at = clock.now()
         label = f"duplicate of {duplicate_of}" if duplicate_of else reason.value
@@ -345,6 +370,14 @@ class Incident:
         self.__notes.append(note)
         self.__events.append(WorkNoteAdded(clock.now(), self.__id, actor_id, kind.value))
         return note
+
+    def _resume_sla(self, clock: Clock) -> None:
+        if self.__sla_clock is not None:
+            self.__sla_clock.resume(clock.now())
+
+    def _stop_sla(self, clock: Clock) -> None:
+        if self.__sla_clock is not None:
+            self.__sla_clock.stop(clock.now())
 
     def _require_reporter(self, actor_id: int) -> None:
         if actor_id != self.__reporter_id:

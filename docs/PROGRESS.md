@@ -4,11 +4,11 @@ Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECIS
 
 ## Status: P1 Domain core, in progress (3 Nov)
 
-P0 merged in PR #1. P1.1 to P1.4 were done at the end of the P0 session, on `claude/funny-fermi-bjxlhr`
+P0 merged in PR #1. P1.1 to P1.5 were done at the end of the P0 session, on `claude/funny-fermi-bjxlhr`
 restarted from main; it is not in a PR yet.
 
 **Next session, first step:** `git fetch origin claude/funny-fermi-bjxlhr` and merge it into the
-new session branch, so P1.1 to P1.4 carry into the P1 PR. Then continue with P1.5.
+new session branch, so P1.1 to P1.5 carry into the P1 PR. Then continue with P1.6.
 
 ### Done
 - P1.1 Clock and errors (tests first): `app/core/clock.py` (Clock ABC; SystemClock, the only
@@ -30,9 +30,14 @@ new session branch, so P1.1 to P1.4 carry into the P1 PR. Then continue with P1.
   the floor applied once in `assess`; WeightedProduct S = I × U × C with the §5.1 thresholds;
   an editable impact × urgency Matrix) and `Incident.prioritise` / `override_priority` (reason
   required, PriorityChanged event). All 27 combinations give 4/6/10/7; 48 new tests.
+- P1.5 SLA (tests first): `app/domain/sla.py` (tiers, the §5.2 table with Silver ×2 and Bronze
+  ×4, SLAPolicyBook with MissingSLAConfigurationError and the Gold fallback (D-016), SLAClock with
+  respond, pause, resume, stop and restart, ThresholdRiskEstimator at 75 %). The Incident now owns
+  its SLA clock: acknowledge meets the response SLA, hold pauses, resume and the reporter's answer
+  resume, resolve and cancel stop, reopen restarts without counting resolved time. 13 new tests.
 
 ### Next
-- P1.5 SLA (policy book, SLAClock with pause and resume, 75 % and deadline boundaries), which also adds the SLA clock to Incident; then P1.6 Assignment.
+- P1.6 Assignment (Template Method; Skill, Load and Smart strategies; capacity cap), then P1.7 Escalation, P1.8 Ports and in-memory repositories, P1.9 phase close.
 
 ## Previous: P0 Foundations (merged 3 Nov, PR #1)
 
