@@ -2,13 +2,10 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P1 Domain core, in progress (3 Nov)
+## Status: P1 Domain core, in review (3 Nov)
 
-P0 merged in PR #1. P1.1 to P1.7 were done at the end of the P0 session, on `claude/funny-fermi-bjxlhr`
-restarted from main; it is not in a PR yet.
-
-**Next session, first step:** `git fetch origin claude/funny-fermi-bjxlhr` and merge it into the
-new session branch, so P1.1 to P1.7 carry into the P1 PR. Then continue with P1.8.
+All P1 packages are done on `claude/funny-fermi-bjxlhr` and in the P1 PR. Domain coverage 97 %;
+286 backend tests. Merge the PR, then start P2 in a fresh session with "continue".
 
 ### Done
 - P1.1 Clock and errors (tests first): `app/core/clock.py` (Clock ABC; SystemClock, the only
@@ -44,8 +41,19 @@ new session branch, so P1.1 to P1.7 carry into the P1 PR. Then continue with P1.
   target, strictly after each multiple; a resolution breach goes to the Team Lead; no repeat
   escalation to the current level). 10 new tests including BR-08.
 
+- P1.9 Phase close: subagent review found 5 issues, all fixed with regression tests
+  (refused actions now leave the incident unchanged; the SLA clock starts only before assignment;
+  response time stops counting after cancellation; met SLA results are frozen against later
+  retargets (D-017); IncidentState is an ABC). Deferred to P6.1: `scripts/gen_state_diagram.py`.
+
 ### Next
-- P1.8 Ports and in-memory repositories, then P1.9 phase close (subagent review, PR).
+- P2 Persistence, services, API: P2.1 ORM and migrations first (the SQLAlchemy repositories join
+  `tests/contract/test_repository_contract.py`).
+
+### Needs a human
+1. Merge the P1 PR once CI is green (add the `e2e` label only at phase ends that touch the UI).
+2. Before P2.10 / P3: create the hosting accounts we will propose. Before P4: a Gemini API key.
+3. Confirm the video file-name year with the IC.
 
 ## Previous: P0 Foundations (merged 3 Nov, PR #1)
 

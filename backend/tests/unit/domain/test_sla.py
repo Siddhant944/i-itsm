@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.core.clock import FakeClock
-from app.domain.errors import MissingSLAConfigurationError
+from app.domain.errors import InvalidIncidentError, MissingSLAConfigurationError
 from app.domain.incident import Incident, IncidentFactory
 from app.domain.priority import Priority
 from app.domain.sla import (
@@ -154,3 +154,38 @@ def test_retargeting_keeps_the_start_and_pauses() -> None:
     incident.apply_sla(GOLD_P1.scaled(2))
     assert incident.sla_clock is not None
     assert incident.sla_clock.response_deadline == T0 + 10 * MIN
+
+
+def test_review_cancelled_incident_stops_counting_response_time() -> None:
+    sla = make_clock()
+    sla.stop(T0 + 2 * MIN)
+    assert sla.response_status(T0 + 62 * MIN) is SLAStatus.ON_TRACK
+
+
+def test_review_retarget_cannot_turn_a_met_target_into_a_breach() -> None:
+    p4 = SLATarget(timedelta(hours=4), timedelta(hours=24))
+    sla = SLAClock(T0, p4)
+    sla.respond(T0 + 30 * MIN)
+    sla.stop(T0 + 60 * MIN)
+    sla.retarget(GOLD_P1)
+    assert sla.response_status(T0 + 61 * MIN) is SLAStatus.ON_TRACK
+    assert sla.resolution_status(T0 + 61 * MIN) is SLAStatus.ON_TRACK
+
+
+def test_review_sla_clock_must_start_before_assignment() -> None:
+    incident, clock = scenario()
+    fresh = IncidentFactory.create(
+        sequence=2,
+        clock=clock,
+        reporter_id=1,
+        title="t",
+        description="d",
+        service_id=1,
+        impact=1,
+        urgency=1,
+    )
+    fresh.classify(category_id=1, actor_id=None, clock=clock)
+    fresh.assign(2, actor_id=None, clock=clock)
+    with pytest.raises(InvalidIncidentError):
+        fresh.apply_sla(GOLD_P1)
+    incident.apply_sla(GOLD_P1)  # retargeting an existing clock is always allowed

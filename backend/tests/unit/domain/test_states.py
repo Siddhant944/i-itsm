@@ -84,3 +84,8 @@ def test_registry_returns_one_state_object_per_status() -> None:
     for status in IncidentStatus:
         assert state_for(status).status is status
         assert state_for(status) is state_for(status)
+
+
+def test_review_incident_state_is_an_abstract_base_class() -> None:
+    with pytest.raises(TypeError):
+        IncidentState()  # type: ignore[abstract]

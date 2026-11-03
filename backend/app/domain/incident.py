@@ -32,6 +32,9 @@ MIN_RATING, MAX_RATING = 1, 5
 MIN_FACTOR, MAX_FACTOR = 1, 3  # impact and urgency answers (blueprint §5.1)
 
 
+_SLA_START_STATES = frozenset({IncidentStatus.NEW, IncidentStatus.CLASSIFIED})
+
+
 class NoteKind(StrEnum):
     NOTE = "note"
     INFO_REQUEST = "info_request"
@@ -200,8 +203,15 @@ class Incident:
         return self.__sla_clock
 
     def apply_sla(self, target: SLATarget) -> None:
-        """Start the SLA clock from creation, or retarget it after a priority change."""
+        """Start the SLA clock from creation, or retarget it after a priority change.
+
+        A clock can only be started before assignment, so it never misses a pause, stop or
+        acknowledgement that already happened.
+        """
         if self.__sla_clock is None:
+            if self.__state.status not in _SLA_START_STATES:
+                msg = f"The SLA clock must start before assignment (status {self.status})."
+                raise InvalidIncidentError(msg)
             self.__sla_clock = SLAClock(self.__created_at, target)
         else:
             self.__sla_clock.retarget(target)
@@ -260,9 +270,10 @@ class Incident:
     def hold(self, actor_id: int, clock: Clock, question: str) -> None:
         """Ask the reporter for information; the resolution clock pauses (BR-07)."""
         target = self.__state.hold()
-        self._add(actor_id, clock, NoteKind.INFO_REQUEST, _text(question, "question"))
+        text = _text(question, "question")
         if self.__sla_clock is not None:
             self.__sla_clock.pause(clock.now())
+        self._add(actor_id, clock, NoteKind.INFO_REQUEST, text)
         self._move(target, actor_id, clock, "Waiting for information from the reporter")
 
     def resume(self, actor_id: int, clock: Clock) -> None:
@@ -272,11 +283,14 @@ class Incident:
 
     def provide_info(self, actor_id: int, clock: Clock, answer: str) -> None:
         """The reporter answers; an incident on hold resumes (D-006)."""
-        self._add(actor_id, clock, NoteKind.INFO_RESPONSE, _text(answer, "answer"))
+        text = _text(answer, "answer")
         if self.__state.status is IncidentStatus.ON_HOLD:
             target = self.__state.resume()
             self._resume_sla(clock)
+            self._add(actor_id, clock, NoteKind.INFO_RESPONSE, text)
             self._move(target, actor_id, clock, "Reporter provided information")
+        else:
+            self._add(actor_id, clock, NoteKind.INFO_RESPONSE, text)
 
     def resolve(self, actor_id: int, clock: Clock, summary: str) -> None:
         """Resolving requires a resolution summary (BR-04)."""
@@ -302,12 +316,13 @@ class Incident:
         """Only the reporter rejects (BR-03); reopening is possible only from RESOLVED (BR-04)."""
         self._require_reporter(actor_id)
         target = self.__state.reject()
-        self._add(actor_id, clock, NoteKind.NOTE, f"Fix rejected: {_text(reason, 'reason')}")
+        why = _text(reason, "reason")
+        if self.__sla_clock is not None:
+            self.__sla_clock.restart(clock.now())
+        self._add(actor_id, clock, NoteKind.NOTE, f"Fix rejected: {why}")
         self.__resolution = None
         self.__resolved_at = None
         self.__reopen_count += 1
-        if self.__sla_clock is not None:
-            self.__sla_clock.restart(clock.now())
         self._move(target, actor_id, clock, "Reporter rejected the fix; incident reopened")
 
     def close(self, actor_id: int | None, clock: Clock) -> None:

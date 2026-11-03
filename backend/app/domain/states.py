@@ -6,6 +6,7 @@ of relying on scattered if-statements. Every trigger on the base class raises
 InvalidStateTransitionError; each concrete state overrides only its legal triggers.
 """
 
+from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from enum import StrEnum
 from types import MappingProxyType
@@ -29,13 +30,16 @@ class IncidentStatus(StrEnum):
 S = IncidentStatus
 
 
-class IncidentState:
-    """Base state: every trigger is illegal unless a subclass allows it.
+class IncidentState(ABC):
+    """Abstract state: every trigger is illegal unless a subclass allows it.
 
     Each trigger returns the status the incident moves to.
     """
 
-    status: S = S.NEW  # overridden by every concrete state
+    @property
+    @abstractmethod
+    def status(self) -> S:
+        """The status this state represents (each concrete state sets it)."""
 
     def _refuse(self, target: S) -> S:
         raise InvalidStateTransitionError(self.status.value, target.value)

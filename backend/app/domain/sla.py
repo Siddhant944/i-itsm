@@ -131,6 +131,8 @@ class SLAClock:
         self.__pauses: list[tuple[datetime, datetime]] = []
         self.__paused_since: datetime | None = None
         self.__stopped_at: datetime | None = None
+        self.__response_met: bool | None = None  # decided at the first acknowledgement
+        self.__resolution_target_at_stop: timedelta | None = None
 
     @property
     def started_at(self) -> datetime:
@@ -165,6 +167,7 @@ class SLAClock:
         """Record the first acknowledgement; later ones do not count (BR-07)."""
         if self.__responded_at is None:
             self.__responded_at = at
+            self.__response_met = at <= self.response_deadline
 
     def pause(self, at: datetime) -> None:
         if self.is_paused or self.is_stopped:
@@ -186,6 +189,7 @@ class SLAClock:
         if self.is_paused:
             self.resume(at)
         self.__stopped_at = at
+        self.__resolution_target_at_stop = self.__target.resolution
 
     def restart(self, at: datetime) -> None:
         """Reopen: the time spent stopped does not count."""
@@ -194,6 +198,7 @@ class SLAClock:
             raise InvalidIncidentError(msg)
         self.__pauses.append((self.__stopped_at, at))
         self.__stopped_at = None
+        self.__resolution_target_at_stop = None
 
     # ------------------------------------------------------------ measurements
     def _effective(self, now: datetime) -> datetime:
@@ -215,10 +220,12 @@ class SLAClock:
         return self.__started_at + self.__target.resolution + self.paused_total(now)
 
     def response_status(self, now: datetime, estimator: RiskEstimator = _THRESHOLD) -> SLAStatus:
-        if self.__responded_at is not None:
-            late = self.__responded_at > self.response_deadline
-            return SLAStatus.BREACHED if late else SLAStatus.ON_TRACK
-        return _status(now - self.__started_at, self.__target.response, estimator)
+        """Decided once at the first acknowledgement; a later retarget cannot change it."""
+        if self.__response_met is not None:
+            return SLAStatus.ON_TRACK if self.__response_met else SLAStatus.BREACHED
+        elapsed = self._effective(now) - self.__started_at
+        return _status(elapsed, self.__target.response, estimator)
 
     def resolution_status(self, now: datetime, estimator: RiskEstimator = _THRESHOLD) -> SLAStatus:
-        return _status(self.resolution_elapsed(now), self.__target.resolution, estimator)
+        target = self.__resolution_target_at_stop or self.__target.resolution
+        return _status(self.resolution_elapsed(now), target, estimator)

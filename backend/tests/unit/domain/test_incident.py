@@ -206,3 +206,12 @@ def test_event_bus_delivers_events_to_subscribers(clock: FakeClock) -> None:
     for event in incident.pull_events():
         bus.publish(event)
     assert [e.to_status for e in received] == [S.CLASSIFIED]
+
+
+def test_review_refused_actions_leave_the_incident_unchanged(clock: FakeClock) -> None:
+    incident = in_progress(clock)
+    incident.resolve(TECH, clock, summary="fixed")
+    with pytest.raises(InvalidUserInputError):
+        incident.reject(REPORTER, clock, reason="  ")
+    assert (incident.status, incident.reopen_count, incident.notes) == (S.RESOLVED, 0, ())
+    assert incident.resolution is not None
