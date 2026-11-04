@@ -2,12 +2,19 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P2 Persistence, services, API — in progress (4 Nov)
+## Status: P2 Persistence, services, API — P2.1 to P2.10 done, in review (4 Nov)
 
-On `claude/jolly-newton-82k47h`, cut from main after the P1 PR merged. P2.1, P2.2 and P2.3 are
-done and pushed, together with the audit half of P2.4. `make verify` passes (442 backend tests,
-98 % coverage) and the whole suite also passes against PostgreSQL 16, migrations and a full seed
-included.
+On `claude/jolly-newton-82k47h`, cut from main after the P1 PR merged. Every package from P2.1
+to P2.10 is done and pushed; P2.11 (the phase review and the PR) is what remains.
+
+`make verify` passes: 775 backend tests, 97 % coverage. The whole suite also passes against a
+real PostgreSQL 16, migrations, a full seed and the authorisation matrix included — which is
+where three portability bugs turned up that SQLite alone would have hidden.
+
+The API now has 45 endpoints and the backend is feature-complete for the MVP: an employee can
+report an incident and follow it, a technician can work it, an admin can search, configure and
+watch the SLAs, and the monitor escalates and auto-closes on its own. The frontend (P3) is the
+next phase.
 
 ### Done
 - **P2.1 ORM and migrations.** `app/domain/catalogue.py` adds the entities the schema needed:
@@ -39,24 +46,119 @@ included.
   table in one place, request dependencies (`Depends(requires(permission))` so a route cannot
   forget its check) and POST /auth/register, POST /auth/login, GET /auth/me. The typed TS client
   is regenerated.
-- **P2.4 part 1: audit.** `app/domain/audit.py` implements h_i = SHA256(h_(i-1) || record_i) over
-  a canonical JSON rendering; `app/services/audit.py` appends through the caller's Unit of Work
-  (never commits) and reads the head under a row lock. Five integration tests edit, delete and
-  replay rows in `audit_log` with raw SQL and the admin's verify finds every tampering, across
-  page boundaries; the unique hash blocks a replay outright. Revision 0002 adds
-  `users.last_login_at`.
+- **P2.4 Audit and the IncidentService facade.** `app/domain/audit.py` implements
+  h_i = SHA256(h_(i-1) || record_i) over a canonical JSON rendering; `app/services/audit.py`
+  appends through the caller's Unit of Work (never commits) and reads the head under a row lock.
+  Five integration tests edit, delete and replay rows in `audit_log` with raw SQL and the
+  admin's verify finds every tampering, across page boundaries; the unique hash blocks a replay
+  outright. Revision 0002 adds `users.last_login_at`.
+  `app/services/incident_service.py` is the facade the routers call: one method per thing a
+  caller can do, each loading the aggregate, checking who is asking, letting the aggregate
+  decide whether the move is legal, saving, auditing in the same transaction, committing, then
+  notifying. `app/domain/access.py` holds BR-01, BR-02 and BR-03 as functions over the role's
+  permissions and the incident's own reporter, assignee and team — no isinstance anywhere.
+  Reporting runs the whole §4 opening (suggest, prioritise, set the SLA, classify, rank under
+  the 10-point cap, assign); nobody with capacity queues it for the Team Lead, and nothing
+  classifiable leaves it NEW for triage, because §4 runs NEW → CLASSIFIED → ASSIGNED.
+  `PostCommitDispatcher` delivers events only after the commit, so a failing subscriber is
+  logged and a failed commit leaves neither the change nor its audit record.
+- **P2.5 Notifications.** The §5.4 table is data in `app/domain/notifications.py` — ten events,
+  their audiences and channels, including the two conditions the blueprint writes in prose (the
+  Team Lead only at P1/P2, Telegram only at P1/P2); a parametrised test walks every row.
+  Channels are a factory over one port (in-app, email, a Telegram placeholder until P4.9), the
+  SMTP adapter falls back to the console when `SMTP_HOST` is empty, and every notification is
+  stored before it is sent so the bell reads it and the three retries are visible. Found and
+  fixed two real bugs: `configure_logging` replaced the root handler list, and Alembic's
+  `fileConfig` disabled every existing logger.
+- **P2.6 API routers.** 30 routes then: report, the while-typing suggestion, my incidents, my
+  queue, one incident in full, assignment advice, the twelve lifecycle actions, the bell and the
+  catalogue reads. The role check is a route dependency so it appears in the OpenAPI document;
+  responses carry the live SLA status with both deadlines. Fixed an ordering bug: reporting
+  audited the incident before inserting its row, so the audit foreign key failed whenever the
+  opening steps had something to say.
+- **P2.7 Search, CSV export and the dashboards.** The nine §9 filters plus free text are one
+  immutable `IncidentQuery`, narrowed by the service to what the caller may see before it runs.
+  The dashboards are one call: the overview cards, MTTA, MTTR, SLA compliance, CSAT, the reopen
+  rate, the workload table against the 10-point cap, the service analysis and the trend; the
+  repository counts and `app/domain/analytics.py` divides, so "nothing resolved yet" reads as no
+  average rather than zero. Incidents store four moments derived from their SLA clock so the
+  status filter is an indexable comparison (D-018, revision 0003). A 38-case contract suite runs
+  every filter and figure against both repository implementations and caught three real
+  disagreements between them.
+- **P2.8 SLA monitor.** One `tick()` warns at 75 %, records a breach once per cycle, asks the
+  escalation chain and auto-closes after 72 hours — all idempotent, because it runs every 30 s.
+  BR-08 end to end: an unacknowledged P1 escalates just after 5, 10 and 15 minutes to the team's
+  lead, an administrator, then the IT manager, and stops. BR-03 closes an unanswered resolution
+  strictly after 72 hours with no actor on the record. The scheduler converts 30 clock seconds
+  into real seconds through the clock itself (D-003), so the demo's ×10 clock runs it every 3 s.
+  `/dev/clock` moves time in test and demo only, and prod refuses `CLOCK_MODE=fake` (D-009).
+- **P2.9 Authorisation matrix.** `tests/integration/test_authz_matrix.py` declares, for all 45
+  operations, which of the six roles may call each, and proves it — 92 cases, plus a check that
+  everything but `/health`, `/auth/register` and `/auth/login` answers 401 without a token, and
+  a comparison with the OpenAPI document in both directions so a new endpoint cannot be added
+  without saying who may call it.
+
+- **P2.10 Hosting proposal.** Checked against the providers' own pages on 4 Nov 2026 (free
+  tiers have shrunk a lot this year; Railway, Fly.io and Koyeb no longer have a usable one —
+  Koyeb now wants a $29 card hold).
+
+  **Recommended: Render for the API and the web app, Neon for PostgreSQL.** Neither needs a
+  credit card.
+
+  | | Render free | Neon free |
+  |---|---|---|
+  | What we would run on it | the FastAPI service and the static frontend | the database |
+  | Size | 0.1 CPU, 512 MB RAM | 1 GB storage per project, autoscales to 2 CU |
+  | Allowance | 750 instance hours per workspace per month | 100 CU-hours and 5 GB transfer per project per month |
+  | Idle behaviour | spins down after 15 min; ~1 min cold start | compute scales to zero after 5 min, back in a few hundred ms |
+  | Expiry | none | none — "the Free plan is permanent (not a trial)" |
+
+  Why not Render's own free PostgreSQL: it is 1 GB and one per workspace, but it **expires 30
+  days after creation**, with a 14-day grace period after which Render deletes the database and
+  its data. Created in early November it would survive the 21 Nov submission and then vanish,
+  so anyone opening our link in December would find an empty app. Neon's free plan has no
+  expiry, which is worth the second account.
+
+  **Two consequences for our code, both already handled:**
+  1. *A spun-down service runs no scheduler.* Our SLA monitor ticks every 30 s of clock time
+     (D-003), and a Render free service that has had no traffic for 15 minutes is not running at
+     all, so escalations and the 72-hour auto-close would only catch up when someone next opens
+     the app. For the demo we keep the service warm (open it a few minutes before recording, or
+     ping `/health` on a schedule); `POST /sla/tick` also runs the monitor on demand. Worth one
+     sentence in the report's deployment section rather than a surprise on camera.
+  2. *Render free blocks outbound ports 25, 465 and 587*, which is exactly what SMTP email
+     needs. Our email adapter already falls back to the console when `SMTP_HOST` is empty
+     (§5.4, §7), so the deployment simply runs without email and everything else works; in-app
+     notifications are unaffected. If we want real email later it has to be an HTTP API rather
+     than SMTP.
+
+  Also note Render's free filesystem is ephemeral and has no persistent disk, so the deployed
+  app must use PostgreSQL, never the SQLite file — which is what `DATABASE_URL` already decides.
+
+  **Fallback, if we would rather keep one account:** Render for all three (web service, static
+  site, Postgres), accepting the 30-day database expiry. Simpler to set up, fine for the
+  submission window, not fine afterwards.
+
+  **What a human needs to do before P3.6:** create a Render account and a Neon account (no card
+  for either), make one Neon project in the region nearest Render's, and put its connection
+  string in Render as `DATABASE_URL` plus a strong `JWT_SECRET`. The API image already runs
+  `alembic upgrade head` before serving, so the schema builds itself on first deploy.
 
 ### Next
-- P2.4 part 2: the IncidentService facade (BR-01, BR-02, BR-03, BR-10), publishing incident
-  events into the audit chain in-transaction and notifications after commit.
-- Then P2.5 notifications, P2.6 routers and errors for incidents, P2.7 search and analytics,
-  P2.8 SLA monitor, P2.9 authorisation matrix and client, P2.10 hosting research, P2.11 close.
+- P2.11 phase close: a fresh subagent reviews the phase diff, fix its findings, update this
+  file, open the PR.
 
 ### Needs a human
-1. Nothing blocking yet this phase. At P2.10 we will propose hosting; create those accounts
-   before P3.6.
-2. Before P4: a Gemini API key and model names.
-3. Confirm the video file-name year with the IC.
+1. **Review this phase and merge the PR.** Add the `e2e` label only at a phase end that touches
+   the UI; this one does not, so Playwright can stay off.
+2. **Create the hosting accounts before P3.6** — Render and Neon, per the P2.10 proposal above.
+   Neither needs a credit card. One person doing both takes about ten minutes.
+3. Before P4: a Gemini API key and the model names from Google AI Studio.
+4. Confirm the video file-name year with the IC.
+5. A note for the report's deployment section: on Render's free tier the service sleeps after 15
+   minutes, so the SLA monitor is not ticking while nobody is using the app, and outbound SMTP
+   is blocked so deployed email falls back to the console. Both are consequences of the free
+   tier rather than of our design, and both are covered in the P2.10 proposal.
 
 ## Previous: P1 Domain core (merged 4 Nov, PR #2)
 
