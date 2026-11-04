@@ -646,3 +646,26 @@ def test_an_unknown_notification_raises_not_found(uow: UnitOfWork) -> None:
         uow.notifications.get(404)
     with pytest.raises(NotFoundError):
         uow.notifications.save(a_notification(1, ChannelName.IN_APP))
+
+
+def test_a_new_skill_does_not_collide_with_a_seeded_one(uow: UnitOfWork) -> None:
+    """The catalogue is seeded with explicit ids, which on PostgreSQL leaves the table's
+    sequence at the start; a skill created afterwards must still get a free id."""
+    uow.catalogue.save_skill(Skill(1, "networking"))
+    uow.catalogue.save_skill(Skill(2, "database"))
+    uow.commit()
+
+    uow.users.add(
+        UserFactory.create(
+            Role.TECHNICIAN,
+            user_id=30,
+            email="t30@campus.edu",
+            full_name="New Technician",
+            skills=SkillSet({"printing"}),  # a skill nobody seeded
+        )
+    )
+    uow.commit()
+
+    stored = uow.users.get(30)
+    assert isinstance(stored, Technician)
+    assert stored.skills.names == ("printing",)

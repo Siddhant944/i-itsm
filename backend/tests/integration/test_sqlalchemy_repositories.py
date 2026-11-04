@@ -13,11 +13,12 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import StatementError
 
 from app.core.clock import FakeClock
-from app.domain.catalogue import Category, ITService
+from app.domain.catalogue import Category, ITService, Skill
 from app.domain.errors import ConcurrentModificationError
 from app.domain.incident import Incident, IncidentFactory
 from app.domain.permissions import Role
-from app.domain.users import UserFactory
+from app.domain.users import Technician, UserFactory
+from app.domain.value_objects import SkillSet
 from app.repositories.database import make_engine
 from app.repositories.sqlalchemy.models import Base, IncidentRow
 from app.repositories.sqlalchemy.repos import (
@@ -143,3 +144,37 @@ def test_an_uncommitted_change_is_rolled_back(engine: Engine) -> None:
     fresh = SqlAlchemyUnitOfWork(sessions, clock)
     assert fresh.incidents.get(incident.id).category_id is None
     fresh.close()
+
+
+def test_a_technicians_new_skill_joins_the_catalogue_without_colliding(
+    unit_of_work: SqlAlchemyUnitOfWork,
+) -> None:
+    """``technician_skills`` is a real foreign key, so a new skill becomes a catalogue row.
+
+    The catalogue is seeded with explicit ids, and on PostgreSQL an explicit insert leaves the
+    table's sequence at the start — so the id has to be chosen by the application, or the first
+    skill a technician brings would collide with a seeded one.
+    """
+    unit_of_work.catalogue.save_skill(Skill(1, "networking"))
+    unit_of_work.catalogue.save_skill(Skill(2, "database"))
+    unit_of_work.commit()
+
+    unit_of_work.users.add(
+        UserFactory.create(
+            Role.TECHNICIAN,
+            user_id=40,
+            email="t40@campus.edu",
+            full_name="New Technician",
+            skills=SkillSet({"printing", "networking"}),
+        )
+    )
+    unit_of_work.commit()
+
+    assert dict(unit_of_work.catalogue.skill_names()) == {
+        1: "networking",
+        2: "database",
+        3: "printing",
+    }
+    stored = unit_of_work.users.get(40)
+    assert isinstance(stored, Technician)
+    assert stored.skills.names == ("networking", "printing")

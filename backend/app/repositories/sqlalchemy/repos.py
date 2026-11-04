@@ -514,14 +514,20 @@ class SqlAlchemyUserRepository(UserRepository):
         self.__session.flush()
 
     def __skill_id(self, name: str) -> int:
-        """The id of ``name``, creating the skill when a technician brings a new one."""
+        """The id of ``name``, creating the skill when a technician brings a new one.
+
+        The id is chosen here rather than left to the database. The catalogue is seeded with
+        explicit ids so that two machines hold the same data, and on PostgreSQL an explicit
+        insert does not advance the table's sequence — so letting the database pick would
+        collide with a seeded row.
+        """
         found = self.__session.scalars(select(SkillRow).where(SkillRow.name == name)).one_or_none()
         if found is not None:
             return found.id
-        row = SkillRow(name=name)
-        self.__session.add(row)
+        next_id = int(self.__session.scalar(select(func.max(SkillRow.id))) or 0) + 1
+        self.__session.add(SkillRow(id=next_id, name=name))
         self.__session.flush()
-        return row.id
+        return next_id
 
 
 class SqlAlchemyAuditRepository(AuditRepository):
