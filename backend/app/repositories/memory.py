@@ -7,7 +7,9 @@ that the caller is writing the object the repository already holds.
 from collections import defaultdict
 from collections.abc import Mapping
 
+from app.domain.audit import AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
+from app.domain.credentials import Credentials
 from app.domain.errors import (
     IncidentNotFoundError,
     NotFoundError,
@@ -16,7 +18,9 @@ from app.domain.errors import (
 from app.domain.incident import Incident
 from app.domain.priority import Priority
 from app.domain.repositories import (
+    AuditRepository,
     CatalogueRepository,
+    CredentialsRepository,
     IncidentRepository,
     UnitOfWork,
     UserRepository,
@@ -76,6 +80,54 @@ class InMemoryUserRepository(UserRepository):
 
     def technicians(self) -> tuple[Technician, ...]:
         return tuple(u for u in self.__items.values() if isinstance(u, Technician))
+
+
+class InMemoryAuditRepository(AuditRepository):
+    def __init__(self) -> None:
+        self.__records: list[AuditRecord] = []
+
+    def append(self, record: AuditRecord) -> None:
+        self.__records.append(record)
+
+    def head_for_append(self) -> AuditRecord | None:
+        return self.__records[-1] if self.__records else None
+
+    def records(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[AuditRecord, ...]:
+        found = self.__selected(incident_id)
+        return tuple(found[offset : offset + limit])
+
+    def count(self, *, incident_id: str | None = None) -> int:
+        return len(self.__selected(incident_id))
+
+    def hash_before(self, offset: int) -> str | None:
+        return self.__records[offset - 1].hash if 0 < offset <= len(self.__records) else None
+
+    def __selected(self, incident_id: str | None) -> list[AuditRecord]:
+        if incident_id is None:
+            return list(self.__records)
+        return [r for r in self.__records if r.incident_id == incident_id]
+
+
+class InMemoryCredentialsRepository(CredentialsRepository):
+    """Sign-in state beside the users it belongs to."""
+
+    def __init__(self, users: InMemoryUserRepository) -> None:
+        self.__users = users
+        self.__items: dict[int, Credentials] = {}
+
+    def get(self, user_id: int) -> Credentials:
+        self.__users.get(user_id)  # raises NotFoundError for an unknown account
+        return self.__items.setdefault(user_id, Credentials(user_id=user_id))
+
+    def find_by_email(self, email: EmailAddress) -> Credentials | None:
+        user = self.__users.find_by_email(email)
+        return None if user is None else self.get(user.id)
+
+    def save(self, credentials: Credentials) -> None:
+        self.__users.get(credentials.user_id)
+        self.__items[credentials.user_id] = credentials
 
 
 class InMemoryCatalogueRepository(CatalogueRepository):
@@ -152,7 +204,9 @@ class InMemoryUnitOfWork(UnitOfWork):
     def __init__(self) -> None:
         self.incidents = InMemoryIncidentRepository()
         self.users = InMemoryUserRepository()
+        self.credentials = InMemoryCredentialsRepository(self.users)
         self.catalogue = InMemoryCatalogueRepository(self.users)
+        self.audit = InMemoryAuditRepository()
         self.committed = 0
 
     def commit(self) -> None:

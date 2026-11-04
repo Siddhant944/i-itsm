@@ -10,13 +10,16 @@ The same classes run on SQLite and PostgreSQL. Optimistic locking rides on
 """
 
 from collections.abc import Mapping
+from typing import Any
 
-from sqlalchemy import Engine, delete, func, select
+from sqlalchemy import Engine, Select, delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.orm.exc import StaleDataError
 
 from app.core.clock import Clock, SystemClock
+from app.domain.audit import AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
+from app.domain.credentials import Credentials
 from app.domain.errors import (
     ConcurrentModificationError,
     IncidentNotFoundError,
@@ -26,7 +29,9 @@ from app.domain.errors import (
 from app.domain.incident import Incident
 from app.domain.priority import Priority
 from app.domain.repositories import (
+    AuditRepository,
     CatalogueRepository,
+    CredentialsRepository,
     IncidentRepository,
     UnitOfWork,
     UserRepository,
@@ -36,6 +41,7 @@ from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress, SkillSet
 from app.repositories.sqlalchemy import mappers
 from app.repositories.sqlalchemy.models import (
+    AuditRecordRow,
     Base,
     CategoryRow,
     FeedbackRow,
@@ -274,6 +280,80 @@ class SqlAlchemyUserRepository(UserRepository):
         return row.id
 
 
+class SqlAlchemyAuditRepository(AuditRepository):
+    """The hash chain in ``audit_log``: insert only, and appends are serialised on the head.
+
+    ``head_for_append`` takes a row lock on the newest record, so two transactions cannot both
+    read the same predecessor and write two records claiming the same place in the chain. On
+    SQLite the write lock already serialises them and the FOR UPDATE clause is simply omitted.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self.__session = session
+
+    def append(self, record: AuditRecord) -> None:
+        self.__session.add(mappers.audit_to_row(record))
+        self.__session.flush()
+
+    def head_for_append(self) -> AuditRecord | None:
+        row = self.__session.scalars(
+            select(AuditRecordRow).order_by(AuditRecordRow.id.desc()).limit(1).with_for_update()
+        ).one_or_none()
+        return None if row is None else mappers.row_to_audit(row)
+
+    def records(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[AuditRecord, ...]:
+        statement = self.__filtered(select(AuditRecordRow), incident_id)
+        rows = self.__session.scalars(
+            statement.order_by(AuditRecordRow.id).limit(limit).offset(offset)
+        ).all()
+        return tuple(mappers.row_to_audit(row) for row in rows)
+
+    def count(self, *, incident_id: str | None = None) -> int:
+        statement = self.__filtered(select(func.count()).select_from(AuditRecordRow), incident_id)
+        return int(self.__session.scalar(statement) or 0)
+
+    def hash_before(self, offset: int) -> str | None:
+        if offset <= 0:
+            return None
+        return self.__session.scalar(
+            select(AuditRecordRow.hash).order_by(AuditRecordRow.id).limit(1).offset(offset - 1)
+        )
+
+    @staticmethod
+    def __filtered(statement: Select[Any], incident_id: str | None) -> Select[Any]:
+        if incident_id is None:
+            return statement
+        return statement.where(AuditRecordRow.incident_id == incident_id)
+
+
+class SqlAlchemyCredentialsRepository(CredentialsRepository):
+    """The sign-in columns of ``users``, read and written on their own."""
+
+    def __init__(self, session: Session) -> None:
+        self.__session = session
+
+    def get(self, user_id: int) -> Credentials:
+        row = self.__session.get(UserRow, user_id)
+        if row is None:
+            raise NotFoundError(f"No user {user_id}.")
+        return mappers.row_to_credentials(row)
+
+    def find_by_email(self, email: EmailAddress) -> Credentials | None:
+        row = self.__session.scalars(
+            select(UserRow).where(UserRow.email == str(email))
+        ).one_or_none()
+        return None if row is None else mappers.row_to_credentials(row)
+
+    def save(self, credentials: Credentials) -> None:
+        row = self.__session.get(UserRow, credentials.user_id)
+        if row is None:
+            raise NotFoundError(f"No user {credentials.user_id}.")
+        mappers.credentials_to_row(credentials, row)
+        self.__session.flush()
+
+
 class SqlAlchemyCatalogueRepository(CatalogueRepository):
     """Skills, categories, services and their dependencies, teams and the SLA policy table."""
 
@@ -431,7 +511,9 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.__session = session_factory()
         self.incidents = SqlAlchemyIncidentRepository(self.__session)
         self.users = SqlAlchemyUserRepository(self.__session, self.__clock)
+        self.credentials = SqlAlchemyCredentialsRepository(self.__session)
         self.catalogue = SqlAlchemyCatalogueRepository(self.__session)
+        self.audit = SqlAlchemyAuditRepository(self.__session)
 
     @property
     def session(self) -> Session:

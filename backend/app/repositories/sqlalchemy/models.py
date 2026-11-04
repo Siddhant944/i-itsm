@@ -99,6 +99,7 @@ class UserRow(Base):
     created_at: Mapped[datetime]
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None]
+    last_login_at: Mapped[datetime | None]
     telegram_chat_id: Mapped[str | None] = mapped_column(String(64))
     google_subject: Mapped[str | None] = mapped_column(String(64), unique=True)
 

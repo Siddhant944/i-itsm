@@ -165,9 +165,10 @@ def _team_leads(uow: SqlAlchemyUnitOfWork, teams: dict[str, int]) -> None:
 def _credentials(uow: SqlAlchemyUnitOfWork, hash_password: PasswordHasher) -> None:
     """Give every demo account the documented demo password (blueprint §14)."""
     digest = hash_password(people.DEMO_PASSWORD)
-    for row in uow.session.scalars(select(UserRow)).all():
-        row.password_hash = digest
-    uow.session.flush()
+    for seed_data in people.ALL_USERS:
+        credentials = uow.credentials.get(seed_data.user_id)
+        credentials.set_password_hash(digest)
+        uow.credentials.save(credentials)
 
 
 # ---------------------------------------------------------------- history

@@ -10,7 +10,9 @@ from collections.abc import Mapping
 from types import TracebackType
 from typing import Self
 
+from app.domain.audit import AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
+from app.domain.credentials import Credentials
 from app.domain.incident import Incident
 from app.domain.priority import Priority
 from app.domain.sla import SLAPolicyBook, SLATarget, SLATier
@@ -57,6 +59,47 @@ class UserRepository(ABC):
     @abstractmethod
     def technicians(self) -> tuple[Technician, ...]:
         """Every technician and team lead."""
+
+
+class AuditRepository(ABC):
+    """Append-only storage for the hash chain (BR-10): no update, no delete."""
+
+    @abstractmethod
+    def append(self, record: AuditRecord) -> None:
+        """Add one record. Callers must hold the head (see ``head_for_append``)."""
+
+    @abstractmethod
+    def head_for_append(self) -> AuditRecord | None:
+        """The newest record, locked against concurrent appends, or None on an empty chain."""
+
+    @abstractmethod
+    def records(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[AuditRecord, ...]:
+        """A page of the chain, oldest first."""
+
+    @abstractmethod
+    def count(self, *, incident_id: str | None = None) -> int: ...
+
+    @abstractmethod
+    def hash_before(self, offset: int) -> str | None:
+        """The hash of the record just before ``offset``, so one page can be verified alone."""
+
+
+class CredentialsRepository(ABC):
+    """Sign-in state, kept apart from the user so a route can never read a password hash."""
+
+    @abstractmethod
+    def get(self, user_id: int) -> Credentials:
+        """Raise NotFoundError when the user does not exist."""
+
+    @abstractmethod
+    def find_by_email(self, email: EmailAddress) -> Credentials | None:
+        """The credentials of the account with this email, or None."""
+
+    @abstractmethod
+    def save(self, credentials: Credentials) -> None:
+        """Write the hash and the failure counters back."""
 
 
 class CatalogueRepository(ABC):
@@ -119,7 +162,9 @@ class UnitOfWork(ABC):
 
     incidents: IncidentRepository
     users: UserRepository
+    credentials: CredentialsRepository
     catalogue: CatalogueRepository
+    audit: AuditRepository
 
     def __enter__(self) -> Self:
         return self

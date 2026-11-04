@@ -14,7 +14,9 @@ import pytest
 from sqlalchemy import Engine
 
 from app.core.clock import FakeClock
+from app.domain.audit import AuditAction, ChainVerification, verify_chain
 from app.domain.catalogue import Category, ITService, Skill, Team
+from app.domain.credentials import LOCKOUT_DURATION, MAX_FAILED_ATTEMPTS
 from app.domain.errors import IncidentNotFoundError, NotFoundError, ServiceNotFoundError
 from app.domain.incident import Incident, IncidentFactory
 from app.domain.permissions import Role
@@ -31,6 +33,7 @@ from app.repositories.sqlalchemy.repos import (
     create_schema,
     make_session_factory,
 )
+from app.services.audit import AuditService
 
 NOW = datetime(2026, 11, 6, 9, 0, tzinfo=UTC)
 TARGET = SLATarget(timedelta(minutes=15), timedelta(hours=2))
@@ -439,3 +442,128 @@ def test_the_sla_policy_table_round_trips_and_falls_back_to_gold(uow: UnitOfWork
     )
     assert used_default is True
     assert target == GOLD_TARGETS[Priority.P3]
+
+
+# ---------------------------------------------------------------- credentials
+def test_credentials_are_stored_apart_from_the_user(uow: UnitOfWork) -> None:
+    uow.users.add(UserFactory.create(Role.EMPLOYEE, user_id=1, email="e@campus.edu", full_name="E"))
+    uow.commit()
+
+    fresh = uow.credentials.get(1)
+    assert fresh.has_password is False
+    assert fresh.failed_attempts == 0
+
+    fresh.set_password_hash("$argon2id$v=19$stored")
+    fresh.record_failure(NOW)
+    uow.credentials.save(fresh)
+    uow.commit()
+
+    stored = uow.credentials.get(1)
+    assert stored.password_hash == "$argon2id$v=19$stored"
+    assert stored.failed_attempts == 1
+    assert stored.locked_until is None
+
+
+def test_credentials_are_found_by_email_and_keep_the_lock(uow: UnitOfWork) -> None:
+    uow.users.add(UserFactory.create(Role.EMPLOYEE, user_id=1, email="e@campus.edu", full_name="E"))
+    uow.commit()
+
+    credentials = uow.credentials.get(1)
+    credentials.set_password_hash("$argon2id$v=19$stored")
+    for _ in range(MAX_FAILED_ATTEMPTS):
+        credentials.record_failure(NOW)
+    uow.credentials.save(credentials)
+    uow.commit()
+
+    found = uow.credentials.find_by_email(EmailAddress("E@campus.edu"))
+    assert found is not None
+    assert found.is_locked(NOW) is True
+    assert found.locked_for(NOW) == LOCKOUT_DURATION
+    assert uow.credentials.find_by_email(EmailAddress("nobody@campus.edu")) is None
+
+
+def test_a_successful_sign_in_is_recorded(uow: UnitOfWork) -> None:
+    uow.users.add(UserFactory.create(Role.EMPLOYEE, user_id=1, email="e@campus.edu", full_name="E"))
+    uow.commit()
+    credentials = uow.credentials.get(1)
+    credentials.record_success(NOW)
+    uow.credentials.save(credentials)
+    uow.commit()
+    assert uow.credentials.get(1).last_login_at == NOW
+
+
+def test_credentials_for_an_unknown_user_raise_not_found(uow: UnitOfWork) -> None:
+    with pytest.raises(NotFoundError):
+        uow.credentials.get(404)
+
+
+# ---------------------------------------------------------------- audit (BR-10)
+def audited_incident(backend: Backend, uow: UnitOfWork) -> str:
+    """A real reporter and incident, because audit rows reference both."""
+    clock = FakeClock(NOW)
+    backend.with_catalogue(uow)
+    reporter(uow)
+    incident = new_incident(uow, clock)
+    uow.incidents.add(incident)
+    uow.commit()
+    return incident.id
+
+
+def test_BR10_the_audit_chain_is_append_only_and_verifiable(
+    backend: Backend, uow: UnitOfWork
+) -> None:
+    incident_id = audited_incident(backend, uow)
+    audit = AuditService(uow.audit, FakeClock(NOW))
+    first = audit.record(AuditAction.LOGIN_SUCCEEDED, actor_id=1)
+    second = audit.record(
+        AuditAction.INCIDENT_CREATED, actor_id=1, incident_id=incident_id, details={"p": "P1"}
+    )
+    uow.commit()
+
+    assert first.previous_hash is None
+    assert second.previous_hash == first.hash
+    assert audit.verify() == ChainVerification(True, 2, None)
+    assert uow.audit.count() == 2
+    assert uow.audit.count(incident_id=incident_id) == 1
+    assert [r.hash for r in audit.history()] == [first.hash, second.hash]
+    assert [r.hash for r in audit.history(incident_id=incident_id)] == [second.hash]
+
+
+def test_the_audit_chain_survives_a_fresh_read(backend: Backend, uow: UnitOfWork) -> None:
+    incident_id = audited_incident(backend, uow)
+    clock = FakeClock(NOW)
+    audit = AuditService(uow.audit, clock)
+    for _ in range(5):
+        clock.advance(timedelta(seconds=1))
+        audit.record(AuditAction.INCIDENT_NOTE_ADDED, actor_id=1, incident_id=incident_id)
+    uow.commit()
+
+    reloaded = uow.audit.records(limit=50)
+    assert len(reloaded) == 5
+    assert verify_chain(reloaded).intact is True
+    assert uow.audit.hash_before(0) is None
+    assert uow.audit.hash_before(3) == reloaded[2].hash
+
+
+def test_the_audit_chain_pages_in_order(backend: Backend, uow: UnitOfWork) -> None:
+    audited_incident(backend, uow)
+    clock = FakeClock(NOW)
+    audit = AuditService(uow.audit, clock)
+    hashes = []
+    for _ in range(7):
+        clock.advance(timedelta(seconds=1))
+        hashes.append(audit.record(AuditAction.CONFIGURATION_CHANGED, actor_id=1).hash)
+    uow.commit()
+
+    page = uow.audit.records(limit=3, offset=3)
+    assert [r.hash for r in page] == hashes[3:6]
+    assert verify_chain(page, uow.audit.hash_before(3)).intact is True
+
+
+def test_a_record_with_no_actor_and_no_incident_is_allowed(uow: UnitOfWork) -> None:
+    """The SLA monitor and the auto-close job act with no user behind them."""
+    audit = AuditService(uow.audit, FakeClock(NOW))
+    record = audit.record(AuditAction.SLA_VIOLATED)
+    uow.commit()
+    assert record.actor_id is None
+    assert uow.audit.records()[0].hash == record.hash

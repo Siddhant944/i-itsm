@@ -8,12 +8,15 @@ their private attributes.
 
 from datetime import datetime, timedelta
 
+from app.domain.audit import AuditAction, AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
+from app.domain.credentials import Credentials
 from app.domain.incident import Feedback, Incident, Resolution, WorkNote
 from app.domain.sla import SLAClock, SLATarget
 from app.domain.users import Technician, User, UserFactory
 from app.domain.value_objects import SkillSet
 from app.repositories.sqlalchemy.models import (
+    AuditRecordRow,
     CategoryRow,
     FeedbackRow,
     IncidentRow,
@@ -81,6 +84,49 @@ def row_to_user(
         experience_level=profile.experience_level if profile else None,
         available=profile.available if profile else None,
         team_id=profile.team_id if profile else None,
+    )
+
+
+def credentials_to_row(credentials: Credentials, row: UserRow) -> UserRow:
+    """Write only the sign-in columns, so saving credentials never touches the profile."""
+    row.password_hash = credentials.password_hash
+    row.failed_login_count = credentials.failed_attempts
+    row.locked_until = credentials.locked_until
+    row.last_login_at = credentials.last_login_at
+    return row
+
+
+def row_to_credentials(row: UserRow) -> Credentials:
+    return Credentials(
+        user_id=row.id,
+        password_hash=row.password_hash,
+        failed_attempts=row.failed_login_count,
+        locked_until=row.locked_until,
+        last_login_at=row.last_login_at,
+    )
+
+
+def audit_to_row(record: AuditRecord) -> AuditRecordRow:
+    return AuditRecordRow(
+        incident_id=record.incident_id,
+        actor_id=record.actor_id,
+        action=record.action.value,
+        details=dict(record.details),
+        created_at=record.occurred_at,
+        previous_hash=record.previous_hash,
+        hash=record.hash,
+    )
+
+
+def row_to_audit(row: AuditRecordRow) -> AuditRecord:
+    return AuditRecord(
+        previous_hash=row.previous_hash,
+        occurred_at=row.created_at,
+        action=AuditAction(row.action),
+        actor_id=row.actor_id,
+        incident_id=row.incident_id,
+        details=dict(row.details),
+        hash=row.hash,
     )
 
 
