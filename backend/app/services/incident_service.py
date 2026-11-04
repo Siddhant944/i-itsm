@@ -184,6 +184,10 @@ class IncidentService:
             urgency=urgency,
         )
 
+        # The row must exist before anything audits it: audit_log.incident_id is a real
+        # foreign key, and §4's opening steps all write audit records about this incident.
+        self.__uow.incidents.add(incident)
+
         suggestion = None
         category = None
         if category_id is not None:
@@ -208,7 +212,7 @@ class IncidentService:
             incident.classify(category.id, None, self.__clock)
             chosen, queued = self.__auto_assign(incident)
 
-        self.__uow.incidents.add(incident)
+        self.__uow.incidents.save(incident)
         self.__commit(incident)
         return ReportedIncident(incident, suggestion, chosen, queued, needs_triage=category is None)
 

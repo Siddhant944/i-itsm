@@ -64,6 +64,80 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/catalogue/categories": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Categories
+     * @description The categories, with the keywords the rule-based classifier uses (§6.1).
+     */
+    get: operations["categories_catalogue_categories_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/catalogue/services": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Services
+     * @description The services someone can report an incident against.
+     */
+    get: operations["services_catalogue_services_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/catalogue/skills": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Skills */
+    get: operations["skills_catalogue_skills_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/catalogue/teams": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Teams */
+    get: operations["teams_catalogue_teams_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/health": {
     parameters: {
       query?: never;
@@ -84,10 +158,518 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Report
+     * @description Report an incident. It is classified, prioritised, given an SLA and assigned.
+     */
+    post: operations["report_incidents_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/classify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Classify
+     * @description Suggest a category for what the reporter has typed. Advice only (§6.1).
+     */
+    post: operations["classify_incidents_classify_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/mine": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Mine
+     * @description What the caller reported (BR-01).
+     */
+    get: operations["mine_incidents_mine_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/queue": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Queue
+     * @description What the calling technician is carrying.
+     */
+    get: operations["queue_incidents_queue_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Detail
+     * @description One incident, if the caller may see it (BR-01). 403 otherwise, never a leak.
+     */
+    get: operations["detail_incidents__incident_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/acknowledge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Acknowledge
+     * @description BR-02, BR-07: acknowledging meets the response SLA.
+     */
+    post: operations["acknowledge_incidents__incident_id__acknowledge_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/assignment-advice": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Assignment Advice
+     * @description The ranked technicians and the reasons behind the ranking (§5.3, §6).
+     */
+    get: operations["assignment_advice_incidents__incident_id__assignment_advice_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel
+     * @description The reporter withdraws their own; an admin may cancel any, including as a duplicate.
+     */
+    post: operations["cancel_incidents__incident_id__cancel_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/category": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Override Category
+     * @description Correct the category, whether the AI or the reporter chose it (§6.1).
+     */
+    post: operations["override_category_incidents__incident_id__category_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/close": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Close */
+    post: operations["close_incidents__incident_id__close_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/information": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Provide Information
+     * @description The reporter answers; an incident on hold resumes (D-006).
+     */
+    post: operations["provide_information_incidents__incident_id__information_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/notes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Add Note */
+    post: operations["add_note_incidents__incident_id__notes_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/priority": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Override Priority
+     * @description BR-05: the reason is required and the override is audited.
+     */
+    post: operations["override_priority_incidents__incident_id__priority_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/reassign": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reassign
+     * @description BR-06: refused when the technician is unavailable or would exceed the cap.
+     */
+    post: operations["reassign_incidents__incident_id__reassign_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/reject": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reject
+     * @description BR-03, BR-04: only the reporter rejects, and only from RESOLVED.
+     */
+    post: operations["reject_incidents__incident_id__reject_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/request-information": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Request Information
+     * @description Ask the reporter a question; the resolution clock pauses (BR-07).
+     */
+    post: operations["request_information_incidents__incident_id__request_information_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Resolve
+     * @description BR-04: a resolution summary is required.
+     */
+    post: operations["resolve_incidents__incident_id__resolve_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/resume": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resume */
+    post: operations["resume_incidents__incident_id__resume_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start */
+    post: operations["start_incidents__incident_id__start_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/verify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Verify
+     * @description BR-03: only the reporter verifies, and the rating feeds the CSAT figure.
+     */
+    post: operations["verify_incidents__incident_id__verify_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/notifications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Bell
+     * @description The caller's own unread count and latest in-app notifications.
+     */
+    get: operations["bell_notifications_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/notifications/{notification_id}/read": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Mark Read
+     * @description Mark one of the caller's own notifications read; somebody else's is a 403.
+     */
+    post: operations["mark_read_notifications__notification_id__read_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /** AssignmentAdviceResponse */
+    AssignmentAdviceResponse: {
+      /** Ranked */
+      ranked: components["schemas"]["CandidateScoreResponse"][];
+      /** Strategy */
+      strategy: string;
+    };
+    /**
+     * CancelReason
+     * @enum {string}
+     */
+    CancelReason: "withdrawn" | "duplicate";
+    /** CancelRequest */
+    CancelRequest: {
+      /** Duplicate Of */
+      duplicate_of?: string | null;
+      /** @default withdrawn */
+      reason: components["schemas"]["CancelReason"];
+    };
+    /**
+     * CandidateScoreResponse
+     * @description One ranked technician, with the reasons a human can check (§5.3, §6).
+     */
+    CandidateScoreResponse: {
+      /** Reasons */
+      reasons: string[];
+      /** Score */
+      score: number;
+      /** Technician Id */
+      technician_id: number;
+    };
+    /** CategoryOverrideRequest */
+    CategoryOverrideRequest: {
+      /** Category Id */
+      category_id: number;
+    };
+    /** CategoryResponse */
+    CategoryResponse: {
+      /** Active */
+      active: boolean;
+      /** Id */
+      id: number;
+      /** Keywords */
+      keywords: string[];
+      minimum_priority: components["schemas"]["Priority"] | null;
+      /** Name */
+      name: string;
+      /** Required Skill Id */
+      required_skill_id: number | null;
+    };
+    /**
+     * ChannelName
+     * @enum {string}
+     */
+    ChannelName: "in_app" | "email" | "telegram";
+    /**
+     * ClassifyRequest
+     * @description What the reporter has typed so far, for the while-typing suggestion (§6.1).
+     */
+    ClassifyRequest: {
+      /** Text */
+      text: string;
+    };
+    /**
+     * DeliveryStatus
+     * @enum {string}
+     */
+    DeliveryStatus: "pending" | "sent" | "failed";
+    /** FeedbackResponse */
+    FeedbackResponse: {
+      /** Comment */
+      comment: string;
+      /**
+       * Given At
+       * Format: date-time
+       */
+      given_at: string;
+      /** Rating */
+      rating: number;
+    };
     /**
      * HealthResponse
      * @description Health status of the API and its database.
@@ -109,6 +691,102 @@ export interface components {
       status: "ok" | "degraded";
       /** Version */
       version: string;
+    };
+    /**
+     * IncidentResponse
+     * @description One incident in full, for the detail page and the timeline.
+     */
+    IncidentResponse: {
+      /** Acknowledged At */
+      acknowledged_at: string | null;
+      /** Assignee Id */
+      assignee_id: number | null;
+      cancel_reason: components["schemas"]["CancelReason"] | null;
+      /** Category Id */
+      category_id: number | null;
+      /** Closed At */
+      closed_at: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Description */
+      description: string;
+      /** Escalation Level */
+      escalation_level: number;
+      feedback: components["schemas"]["FeedbackResponse"] | null;
+      /** Id */
+      id: string;
+      /** Impact */
+      impact: number;
+      /** Notes */
+      notes: components["schemas"]["WorkNoteResponse"][];
+      /** Parent Id */
+      parent_id: string | null;
+      priority: components["schemas"]["Priority"] | null;
+      /** Priority Overridden */
+      priority_overridden: boolean;
+      /** Priority Score */
+      priority_score: number | null;
+      /** Reopen Count */
+      reopen_count: number;
+      /** Reporter Id */
+      reporter_id: number;
+      resolution: components["schemas"]["ResolutionResponse"] | null;
+      /** Resolved At */
+      resolved_at: string | null;
+      /** Service Id */
+      service_id: number;
+      sla: components["schemas"]["SLAResponse"] | null;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
+      /** Urgency */
+      urgency: number;
+    };
+    /**
+     * IncidentStatus
+     * @enum {string}
+     */
+    IncidentStatus:
+      | "NEW"
+      | "CLASSIFIED"
+      | "ASSIGNED"
+      | "ACKNOWLEDGED"
+      | "IN_PROGRESS"
+      | "ON_HOLD"
+      | "RESOLVED"
+      | "VERIFIED"
+      | "CLOSED"
+      | "CANCELLED";
+    /**
+     * IncidentSummaryResponse
+     * @description One row in a queue or list.
+     */
+    IncidentSummaryResponse: {
+      /** Assignee Id */
+      assignee_id: number | null;
+      /** Category Id */
+      category_id: number | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Escalation Level */
+      escalation_level: number;
+      /** Id */
+      id: string;
+      priority: components["schemas"]["Priority"] | null;
+      /** Reporter Id */
+      reporter_id: number;
+      /** Service Id */
+      service_id: number;
+      sla: components["schemas"]["SLAResponse"] | null;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
     };
     /**
      * LoginRequest
@@ -143,6 +821,63 @@ export interface components {
       technician?: components["schemas"]["TechnicianProfileResponse"] | null;
     };
     /**
+     * NoteKind
+     * @enum {string}
+     */
+    NoteKind: "note" | "info_request" | "info_response";
+    /** NoteRequest */
+    NoteRequest: {
+      /** Text */
+      text: string;
+    };
+    /**
+     * NotificationEvent
+     * @description The nine rows of the §5.4 table.
+     * @enum {string}
+     */
+    NotificationEvent:
+      | "created"
+      | "assigned"
+      | "priority_changed"
+      | "info_requested"
+      | "info_provided"
+      | "sla_approaching"
+      | "sla_violated"
+      | "escalated"
+      | "resolved"
+      | "closed";
+    /** NotificationResponse */
+    NotificationResponse: {
+      /** Body */
+      body: string;
+      channel: components["schemas"]["ChannelName"];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      event: components["schemas"]["NotificationEvent"];
+      /** Id */
+      id: number;
+      /** Incident Id */
+      incident_id: string | null;
+      /** Read At */
+      read_at: string | null;
+      status: components["schemas"]["DeliveryStatus"];
+      /** Subject */
+      subject: string;
+    };
+    /**
+     * NotificationSummaryResponse
+     * @description What the bell shows: the unread count and the latest few.
+     */
+    NotificationSummaryResponse: {
+      /** Latest */
+      latest: components["schemas"]["NotificationResponse"][];
+      /** Unread */
+      unread: number;
+    };
+    /**
      * Permission
      * @enum {string}
      */
@@ -173,6 +908,40 @@ export interface components {
       | "audit:view"
       | "audit:verify";
     /**
+     * Priority
+     * @enum {string}
+     */
+    Priority: "P1" | "P2" | "P3" | "P4";
+    /**
+     * PriorityOverrideRequest
+     * @description BR-05: an override needs a reason and is audited.
+     */
+    PriorityOverrideRequest: {
+      priority: components["schemas"]["Priority"];
+      /** Reason */
+      reason: string;
+    };
+    /** RatingRequest */
+    RatingRequest: {
+      /**
+       * Comment
+       * @default
+       */
+      comment: string;
+      /** Rating */
+      rating: number;
+    };
+    /** ReasonRequest */
+    ReasonRequest: {
+      /** Reason */
+      reason: string;
+    };
+    /** ReassignRequest */
+    ReassignRequest: {
+      /** Technician Id */
+      technician_id: number;
+    };
+    /**
      * RegisterRequest
      * @description Self-registration (D-008). The role is never taken from the request.
      */
@@ -188,10 +957,148 @@ export interface components {
       password: string;
     };
     /**
+     * ReportIncidentRequest
+     * @description The plain-language report form (§1: no jargon, three simple questions).
+     */
+    ReportIncidentRequest: {
+      /**
+       * Category Id
+       * @description The confirmed category; omitted lets the AI suggest one
+       */
+      category_id?: number | null;
+      /** Description */
+      description: string;
+      /**
+       * Impact
+       * @description 1 just me, 2 my team, 3 everyone
+       */
+      impact: number;
+      /** Service Id */
+      service_id: number;
+      /** Title */
+      title: string;
+      /**
+       * Urgency
+       * @description 1 when convenient, 2 today, 3 right now
+       */
+      urgency: number;
+    };
+    /**
+     * ReportedIncidentResponse
+     * @description What the report form gets back: the incident, plus what the system did and why.
+     */
+    ReportedIncidentResponse: {
+      assignment: components["schemas"]["CandidateScoreResponse"] | null;
+      incident: components["schemas"]["IncidentResponse"];
+      /** Needs Triage */
+      needs_triage: boolean;
+      /** Queued For Team Lead */
+      queued_for_team_lead: boolean;
+      suggestion: components["schemas"]["SuggestionResponse"] | null;
+    };
+    /** ResolutionResponse */
+    ResolutionResponse: {
+      /**
+       * Resolved At
+       * Format: date-time
+       */
+      resolved_at: string;
+      /** Resolver Id */
+      resolver_id: number;
+      /** Summary */
+      summary: string;
+    };
+    /**
+     * ResolveRequest
+     * @description BR-04: resolving requires a summary.
+     */
+    ResolveRequest: {
+      /** Summary */
+      summary: string;
+    };
+    /**
      * Role
      * @enum {string}
      */
     Role: "employee" | "technician" | "team_lead" | "administrator" | "it_manager";
+    /**
+     * SLAResponse
+     * @description The live SLA picture the chips and countdowns need (§5.2).
+     */
+    SLAResponse: {
+      /** Paused */
+      paused: boolean;
+      /**
+       * Resolution Deadline
+       * Format: date-time
+       */
+      resolution_deadline: string;
+      resolution_status: components["schemas"]["SLAStatus"];
+      /** Responded At */
+      responded_at: string | null;
+      /**
+       * Response Deadline
+       * Format: date-time
+       */
+      response_deadline: string;
+      response_status: components["schemas"]["SLAStatus"];
+    };
+    /**
+     * SLAStatus
+     * @enum {string}
+     */
+    SLAStatus: "on_track" | "at_risk" | "breached";
+    /**
+     * SLATier
+     * @enum {string}
+     */
+    SLATier: "gold" | "silver" | "bronze";
+    /** ServiceResponse */
+    ServiceResponse: {
+      /** Active */
+      active: boolean;
+      /** Criticality */
+      criticality: number;
+      /** Depends On */
+      depends_on: number[];
+      /** Id */
+      id: number;
+      /** Name */
+      name: string;
+      /** Required Skill Id */
+      required_skill_id: number | null;
+      sla_tier: components["schemas"]["SLATier"];
+    };
+    /** SkillResponse */
+    SkillResponse: {
+      /** Id */
+      id: number;
+      /** Name */
+      name: string;
+    };
+    /**
+     * SuggestionResponse
+     * @description An AI suggestion, always shown with its confidence and never applied silently.
+     */
+    SuggestionResponse: {
+      /** Category Id */
+      category_id: number | null;
+      /** Confidence */
+      confidence: number;
+      /** Source */
+      source: string;
+    };
+    /** TeamResponse */
+    TeamResponse: {
+      /** Id */
+      id: number;
+      /** Lead Id */
+      lead_id: number | null;
+      /** Member Ids */
+      member_ids: number[];
+      /** Name */
+      name: string;
+    };
     /**
      * TechnicianProfileResponse
      * @description The technician-only part of ``/me``.
@@ -227,6 +1134,19 @@ export interface components {
       token_type: string;
       /** User Id */
       user_id: number;
+    };
+    /** WorkNoteResponse */
+    WorkNoteResponse: {
+      /** Author Id */
+      author_id: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      kind: components["schemas"]["NoteKind"];
+      /** Text */
+      text: string;
     };
   };
   responses: never;
@@ -326,6 +1246,114 @@ export interface operations {
       };
     };
   };
+  categories_catalogue_categories_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CategoryResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  services_catalogue_services_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ServiceResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  skills_catalogue_skills_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SkillResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  teams_catalogue_teams_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   health_health_get: {
     parameters: {
       query?: never;
@@ -342,6 +1370,686 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["HealthResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  report_incidents_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReportIncidentRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReportedIncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  classify_incidents_classify_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ClassifyRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuggestionResponse"] | null;
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  mine_incidents_mine_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentSummaryResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  queue_incidents_queue_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentSummaryResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  detail_incidents__incident_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  acknowledge_incidents__incident_id__acknowledge_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  assignment_advice_incidents__incident_id__assignment_advice_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssignmentAdviceResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  cancel_incidents__incident_id__cancel_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CancelRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  override_category_incidents__incident_id__category_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CategoryOverrideRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  close_incidents__incident_id__close_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  provide_information_incidents__incident_id__information_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["NoteRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  add_note_incidents__incident_id__notes_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["NoteRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  override_priority_incidents__incident_id__priority_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PriorityOverrideRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reassign_incidents__incident_id__reassign_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReassignRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reject_incidents__incident_id__reject_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReasonRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  request_information_incidents__incident_id__request_information_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["NoteRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  resolve_incidents__incident_id__resolve_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResolveRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  resume_incidents__incident_id__resume_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  start_incidents__incident_id__start_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  verify_incidents__incident_id__verify_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RatingRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  bell_notifications_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NotificationSummaryResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  mark_read_notifications__notification_id__read_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        notification_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NotificationResponse"];
         };
       };
       /** @description Validation error */
