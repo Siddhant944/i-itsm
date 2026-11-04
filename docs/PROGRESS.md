@@ -147,6 +147,15 @@ next phase.
 ### Next
 - P2.11 phase close: a fresh subagent reviews the phase diff, fix its findings, update this
   file, open the PR.
+- Then P3: the frontend. The backend is ready for it — 45 endpoints and a regenerated typed
+  client.
+- One thing for **P5.5** (`make demo-reset`), noticed while smoke-testing a real deployment:
+  the seeded history was never watched by the monitor, so the first tick after a seed catches up
+  on the whole backlog at once (173 breaches recorded, 62 escalations, 30 auto-closes). That is
+  the monitor behaving correctly on three months of unmonitored history, but it is not what we
+  want on camera. `demo-reset` should either record the violations the history implies as it
+  seeds, or stage a smaller backlog, and should keep the resolved-awaiting-verification
+  incidents inside the 72-hour window so the first tick does not close them.
 
 ### Needs a human
 1. **Review this phase and merge the PR.** Add the `e2e` label only at a phase end that touches
