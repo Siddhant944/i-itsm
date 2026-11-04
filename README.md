@@ -46,8 +46,10 @@ uv run scripts/dev.py setup
 uv run scripts/dev.py dev
 ```
 
-The database is a local SQLite file (`backend/itsm.db`); nothing else is needed. Every `make <target>`
-below works as `uv run scripts/dev.py <target>`. The git hook also needs gitleaks (`scoop install gitleaks`).
+The database is a local SQLite file (`backend/itsm.db`); nothing else is needed. Create its tables
+with `make migrate` (Alembic), which is also what the Docker image runs before it serves. Every
+`make <target>` below works as `uv run scripts/dev.py <target>`. The git hook also needs gitleaks
+(`scoop install gitleaks`).
 
 ## Docker (API + web + PostgreSQL)
 
@@ -67,6 +69,7 @@ Then open http://localhost:8080.
 | `make verify` | Lint, format, types, layer contracts, generated-client check and all tests; must pass before every commit |
 | `make e2e` | Playwright end-to-end tests |
 | `make gen-client` | Regenerate the typed TypeScript client from the API's OpenAPI document |
+| `make migrate` | Bring the database at `DATABASE_URL` up to the latest Alembic migration |
 | `make seed` / `make demo-reset` | Seed data / reset the demo (from P2 and P5) |
 | `make diagrams` / `make report` | Render PlantUML diagrams / build the report PDF with tectonic |
 
@@ -100,6 +103,9 @@ make test
 ```
 
 The backend suite runs on SQLite by default; set `TEST_DATABASE_URL` to a PostgreSQL URL to run it there (CI runs both).
+The repository contract suite (`backend/tests/contract`) runs every test against the in-memory and the
+SQLAlchemy repositories, and `backend/tests/integration/test_migrations.py` fails if the models and the
+migrations drift apart.
 
 ## Documentation
 

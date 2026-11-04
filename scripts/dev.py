@@ -221,6 +221,11 @@ def not_yet(phase: str) -> Callable[[argparse.Namespace], None]:
     return task
 
 
+def migrate(_: argparse.Namespace) -> None:
+    """Bring the database named by DATABASE_URL up to the latest migration."""
+    run(["uv", "run", "alembic", "upgrade", "head"], BACKEND)
+
+
 def diagrams(_: argparse.Namespace) -> None:
     """Render every PlantUML source under docs/diagrams/ to SVG next to it."""
     sources = sorted(str(p) for p in DIAGRAMS.rglob("*.puml"))
@@ -259,6 +264,7 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], None]] = {
     "e2e": e2e,
     "secrets": secrets,
     "secrets-staged": secrets_staged,
+    "migrate": migrate,
     "seed": not_yet("P2.2"),
     "demo-reset": not_yet("P5.5"),
     "diagrams": diagrams,

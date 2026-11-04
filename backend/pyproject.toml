@@ -53,13 +53,15 @@ known-first-party = ["app", "tests", "scripts"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "ANN", "S105", "S106", "N802"]  # N802: test names carry BR-xx IDs
+# Alembic writes these; the shape is Alembic's, not ours.
+"alembic/versions/*" = ["E501", "D", "I001", "RUF"]
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests", "scripts"]
+files = ["app", "tests", "scripts", "alembic"]
 
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
