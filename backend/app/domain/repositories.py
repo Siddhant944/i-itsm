@@ -60,6 +60,10 @@ class UserRepository(ABC):
     def technicians(self) -> tuple[Technician, ...]:
         """Every technician and team lead."""
 
+    @abstractmethod
+    def next_id(self) -> int:
+        """The next free user id, for self-registration."""
+
 
 class AuditRepository(ABC):
     """Append-only storage for the hash chain (BR-10): no update, no delete."""
@@ -183,3 +187,7 @@ class UnitOfWork(ABC):
 
     @abstractmethod
     def rollback(self) -> None: ...
+
+    def close(self) -> None:
+        """Release whatever the transaction held; in memory there is nothing to release."""
+        return

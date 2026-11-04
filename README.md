@@ -70,7 +70,8 @@ Then open http://localhost:8080.
 | `make e2e` | Playwright end-to-end tests |
 | `make gen-client` | Regenerate the typed TypeScript client from the API's OpenAPI document |
 | `make migrate` | Bring the database at `DATABASE_URL` up to the latest Alembic migration |
-| `make seed` / `make demo-reset` | Seed data / reset the demo (from P2 and P5) |
+| `make seed` | Migrate, then load the campus catalogue, the demo accounts and 420 historical incidents |
+| `make demo-reset` | Reset the demo: reseed on an accelerated clock (from P5) |
 | `make diagrams` / `make report` | Render PlantUML diagrams / build the report PDF with tectonic |
 
 Configuration lives in environment variables; copy `.env.example` to `.env` (never commit it).
@@ -95,6 +96,20 @@ A layered modular monolith; every dependency points inward to a framework-free d
 
 Frontend: React + TypeScript + Tailwind (`frontend/`), talking to the API only through the client generated from OpenAPI.
 Data: SQLite locally, PostgreSQL in Docker and deployment.
+
+## Demo accounts
+
+`make seed` creates one account per role, all with the password `demo1234`:
+
+| Email | Role | Portal |
+| --- | --- | --- |
+| `employee@campus.edu` | Employee | Employee |
+| `technician@campus.edu` | Technician | Technician |
+| `lead@campus.edu` | Team Lead | Technician |
+| `admin@campus.edu` | Administrator | Admin |
+| `manager@campus.edu` | IT Manager | Admin |
+
+These are development credentials for a seeded database; a deployment seeds its own.
 
 ## Tests
 

@@ -4,6 +4,66 @@
  */
 
 export interface paths {
+  "/auth/login": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Login
+     * @description Sign in. Five failures lock the account for fifteen minutes (blueprint §8).
+     */
+    post: operations["login_auth_login_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Me
+     * @description The signed-in user, their portal and their permissions.
+     */
+    get: operations["me_auth_me_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/register": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Register
+     * @description Create an Employee account and sign the new user straight in.
+     */
+    post: operations["register_auth_register_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/health": {
     parameters: {
       query?: never;
@@ -50,6 +110,124 @@ export interface components {
       /** Version */
       version: string;
     };
+    /**
+     * LoginRequest
+     * @description Sign-in. The password is not length-checked here, so a wrong one still counts.
+     */
+    LoginRequest: {
+      /** Email */
+      email: string;
+      /** Password */
+      password: string;
+    };
+    /**
+     * MeResponse
+     * @description Who the caller is, where they belong and what they may do.
+     */
+    MeResponse: {
+      /** Active */
+      active: boolean;
+      /** Email */
+      email: string;
+      /** Escalation Level */
+      escalation_level: number | null;
+      /** Full Name */
+      full_name: string;
+      /** Id */
+      id: number;
+      /** Permissions */
+      permissions: components["schemas"]["Permission"][];
+      /** Portal */
+      portal: string;
+      role: components["schemas"]["Role"];
+      technician?: components["schemas"]["TechnicianProfileResponse"] | null;
+    };
+    /**
+     * Permission
+     * @enum {string}
+     */
+    Permission:
+      | "incident:create"
+      | "incident:view_own"
+      | "incident:add_info"
+      | "incident:verify"
+      | "incident:cancel_own"
+      | "incident:view_assigned"
+      | "incident:work"
+      | "incident:override_priority"
+      | "incident:override_category"
+      | "incident:confirm_duplicate"
+      | "workload:view_own"
+      | "incident:view_team"
+      | "incident:reassign"
+      | "workload:view_team"
+      | "incident:view_all"
+      | "incident:cancel_any"
+      | "users:manage"
+      | "technicians:manage"
+      | "catalogue:manage"
+      | "sla:manage"
+      | "strategy:manage"
+      | "sla:view_violations"
+      | "reports:view"
+      | "audit:view"
+      | "audit:verify";
+    /**
+     * RegisterRequest
+     * @description Self-registration (D-008). The role is never taken from the request.
+     */
+    RegisterRequest: {
+      /**
+       * Email
+       * Format: email
+       */
+      email: string;
+      /** Full Name */
+      full_name: string;
+      /** Password */
+      password: string;
+    };
+    /**
+     * Role
+     * @enum {string}
+     */
+    Role: "employee" | "technician" | "team_lead" | "administrator" | "it_manager";
+    /**
+     * TechnicianProfileResponse
+     * @description The technician-only part of ``/me``.
+     */
+    TechnicianProfileResponse: {
+      /** Available */
+      available: boolean;
+      /** Experience Level */
+      experience_level: number;
+      /** Skills */
+      skills: string[];
+      /** Team Id */
+      team_id: number | null;
+    };
+    /**
+     * TokenResponse
+     * @description A short-lived access token and just enough about the user to render the shell.
+     */
+    TokenResponse: {
+      /** Access Token */
+      access_token: string;
+      /** Expires In */
+      expires_in: number;
+      /** Full Name */
+      full_name: string;
+      /** Portal */
+      portal: string;
+      role: components["schemas"]["Role"];
+      /**
+       * Token Type
+       * @default bearer
+       */
+      token_type: string;
+      /** User Id */
+      user_id: number;
+    };
   };
   responses: never;
   parameters: never;
@@ -59,6 +237,95 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  login_auth_login_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LoginRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TokenResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  me_auth_me_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MeResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  register_auth_register_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RegisterRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TokenResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   health_health_get: {
     parameters: {
       query?: never;
@@ -76,6 +343,13 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["HealthResponse"];
         };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

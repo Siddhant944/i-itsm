@@ -81,6 +81,9 @@ class InMemoryUserRepository(UserRepository):
     def technicians(self) -> tuple[Technician, ...]:
         return tuple(u for u in self.__items.values() if isinstance(u, Technician))
 
+    def next_id(self) -> int:
+        return max(self.__items, default=0) + 1
+
 
 class InMemoryAuditRepository(AuditRepository):
     def __init__(self) -> None:

@@ -42,6 +42,258 @@
         ],
         "title": "HealthResponse",
         "type": "object"
+      },
+      "LoginRequest": {
+        "description": "Sign-in. The password is not length-checked here, so a wrong one still counts.",
+        "properties": {
+          "email": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "MeResponse": {
+        "description": "Who the caller is, where they belong and what they may do.",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "escalation_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Level"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "portal": {
+            "title": "Portal",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "technician": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TechnicianProfileResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "role",
+          "portal",
+          "active",
+          "escalation_level",
+          "permissions"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
+      "Permission": {
+        "enum": [
+          "incident:create",
+          "incident:view_own",
+          "incident:add_info",
+          "incident:verify",
+          "incident:cancel_own",
+          "incident:view_assigned",
+          "incident:work",
+          "incident:override_priority",
+          "incident:override_category",
+          "incident:confirm_duplicate",
+          "workload:view_own",
+          "incident:view_team",
+          "incident:reassign",
+          "workload:view_team",
+          "incident:view_all",
+          "incident:cancel_any",
+          "users:manage",
+          "technicians:manage",
+          "catalogue:manage",
+          "sla:manage",
+          "strategy:manage",
+          "sla:view_violations",
+          "reports:view",
+          "audit:view",
+          "audit:verify"
+        ],
+        "title": "Permission",
+        "type": "string"
+      },
+      "RegisterRequest": {
+        "description": "Self-registration (D-008). The role is never taken from the request.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "full_name",
+          "password"
+        ],
+        "title": "RegisterRequest",
+        "type": "object"
+      },
+      "Role": {
+        "enum": [
+          "employee",
+          "technician",
+          "team_lead",
+          "administrator",
+          "it_manager"
+        ],
+        "title": "Role",
+        "type": "string"
+      },
+      "TechnicianProfileResponse": {
+        "description": "The technician-only part of ``/me``.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "experience_level": {
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Experience Level",
+            "type": "integer"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "required": [
+          "skills",
+          "experience_level",
+          "available",
+          "team_id"
+        ],
+        "title": "TechnicianProfileResponse",
+        "type": "object"
+      },
+      "TokenResponse": {
+        "description": "A short-lived access token and just enough about the user to render the shell.",
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "portal": {
+            "title": "Portal",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "access_token",
+          "expires_in",
+          "user_id",
+          "role",
+          "portal",
+          "full_name"
+        ],
+        "title": "TokenResponse",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -51,6 +303,106 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/auth/login": {
+      "post": {
+        "description": "Sign in. Five failures lock the account for fifteen minutes (blueprint \u00a78).",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "description": "The signed-in user, their portal and their permissions.",
+        "operationId": "me_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "description": "Create an Employee account and sign the new user straight in.",
+        "operationId": "register_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "description": "Report whether the API is up and the database reachable.",
@@ -65,6 +417,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
           }
         },
         "summary": "Health",

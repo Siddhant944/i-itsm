@@ -2,6 +2,7 @@
 
 from app.core.clock import SystemClock
 from app.core.config import get_settings
+from app.core.security import Argon2PasswordHasher
 from app.repositories.database import make_engine
 from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session_factory
 from app.seed.runner import seed
@@ -13,7 +14,8 @@ def main() -> int:
     try:
         uow = SqlAlchemyUnitOfWork(make_session_factory(engine), SystemClock())
         try:
-            print(seed(uow, SystemClock()).summary())
+            hasher = Argon2PasswordHasher()
+            print(seed(uow, SystemClock(), hash_password=hasher.hash).summary())
         finally:
             uow.close()
     finally:

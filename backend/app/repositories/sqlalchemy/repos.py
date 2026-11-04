@@ -226,6 +226,9 @@ class SqlAlchemyUserRepository(UserRepository):
             user for user in (self.__load(row) for row in rows) if isinstance(user, Technician)
         )
 
+    def next_id(self) -> int:
+        return int(self.__session.scalar(select(func.max(UserRow.id))) or 0) + 1
+
     # ------------------------------------------------------------ internals
     def __load(self, row: UserRow) -> User:
         profile = self.__session.get(TechnicianProfileRow, row.id)
