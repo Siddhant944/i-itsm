@@ -30,7 +30,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from app.domain.incident import CancelReason, NoteKind
 from app.domain.permissions import Role
 from app.domain.priority import Priority
-from app.domain.sla import SLATier
+from app.domain.sla import SLATier, ViolationKind
 from app.domain.states import IncidentStatus
 from app.repositories.sqlalchemy.types import Seconds, UtcDateTime
 
@@ -69,15 +69,6 @@ class Base(DeclarativeBase):
         list[str]: JSON,
         list[float]: JSON,
     }
-
-
-class ViolationKind(StrEnum):
-    """What the SLA monitor recorded; each one is written at most once per incident cycle."""
-
-    RESPONSE_WARNING = "response_warning"
-    RESPONSE_BREACH = "response_breach"
-    RESOLUTION_WARNING = "resolution_warning"
-    RESOLUTION_BREACH = "resolution_breach"
 
 
 class NotificationStatus(StrEnum):
@@ -251,6 +242,7 @@ class IncidentRow(Base):
     # Derived from the clock and kept by the mapper, so a search can ask "breached?" with a
     # comparison instead of datetime arithmetic SQLite and PostgreSQL spell differently (D-018).
     sla_response_deadline: Mapped[datetime | None]
+    sla_response_risk_at: Mapped[datetime | None]
     sla_resolution_deadline: Mapped[datetime | None]
     sla_resolution_risk_at: Mapped[datetime | None]
 

@@ -25,7 +25,7 @@ from app.domain.incident import Incident
 from app.domain.notifications import Notification
 from app.domain.priority import Priority
 from app.domain.search import IncidentQuery, Page
-from app.domain.sla import SLAPolicyBook, SLATarget, SLATier
+from app.domain.sla import SLAPolicyBook, SLATarget, SLATier, SLAViolation
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress
 
@@ -57,6 +57,18 @@ class IncidentRepository(ABC):
     @abstractmethod
     def past_fixes(self, service_id: int) -> Mapping[int, int]:
         """How many incidents on ``service_id`` each technician has resolved (§5.3 n_t,s)."""
+
+    @abstractmethod
+    def awaiting_auto_close(self, resolved_before: datetime) -> tuple[Incident, ...]:
+        """Resolved incidents the reporter has not answered; BR-03 closes them after 72 h.
+
+        Strictly before ``resolved_before``: at the 72-hour mark the incident still stands,
+        exactly as an SLA is not breached at its deadline (§5.2).
+        """
+
+    @abstractmethod
+    def needing_sla_attention(self, now: datetime) -> tuple[Incident, ...]:
+        """Live incidents at risk or already breached, for the monitor to act on (§5.2)."""
 
     @abstractmethod
     def search(self, query: IncidentQuery, now: datetime) -> Page[Incident]:
@@ -147,6 +159,24 @@ class AnalyticsRepository(ABC):
     @abstractmethod
     def trend(self, since: datetime, until: datetime) -> tuple[TrendPoint, ...]:
         """Reported and resolved per day, oldest first."""
+
+
+class SLAViolationRepository(ABC):
+    """What the monitor has already reported, so a tick can never report it twice."""
+
+    @abstractmethod
+    def record(self, violation: SLAViolation) -> bool:
+        """Store it, or return False when this incident, kind and cycle is already recorded."""
+
+    @abstractmethod
+    def for_incident(self, incident_id: str) -> tuple[SLAViolation, ...]: ...
+
+    @abstractmethod
+    def recent(self, limit: int = 50) -> tuple[SLAViolation, ...]:
+        """The newest violations, for the admin's SLA violations screen."""
+
+    @abstractmethod
+    def count(self, *, breaches_only: bool = False) -> int: ...
 
 
 class NotificationRepository(ABC):
@@ -255,6 +285,7 @@ class UnitOfWork(ABC):
     audit: AuditRepository
     notifications: NotificationRepository
     analytics: AnalyticsRepository
+    violations: SLAViolationRepository
 
     def __enter__(self) -> Self:
         return self

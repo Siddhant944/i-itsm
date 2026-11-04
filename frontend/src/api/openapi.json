@@ -1746,6 +1746,41 @@
         "title": "TechnicianProfileResponse",
         "type": "object"
       },
+      "TickResponse": {
+        "description": "What one monitor run did; the demo and the tests read this.",
+        "properties": {
+          "auto_closed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Auto Closed",
+            "type": "array"
+          },
+          "breached": {
+            "title": "Breached",
+            "type": "integer"
+          },
+          "escalated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Escalated",
+            "type": "array"
+          },
+          "warned": {
+            "title": "Warned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "warned",
+          "breached",
+          "escalated",
+          "auto_closed"
+        ],
+        "title": "TickResponse",
+        "type": "object"
+      },
       "TokenResponse": {
         "description": "A short-lived access token and just enough about the user to render the shell.",
         "properties": {
@@ -1811,6 +1846,68 @@
           "resolved"
         ],
         "title": "TrendPointResponse",
+        "type": "object"
+      },
+      "ViolationKind": {
+        "description": "What the monitor noticed. Each is recorded at most once per incident cycle (\u00a75.2).",
+        "enum": [
+          "response_warning",
+          "response_breach",
+          "resolution_warning",
+          "resolution_breach"
+        ],
+        "title": "ViolationKind",
+        "type": "string"
+      },
+      "ViolationResponse": {
+        "properties": {
+          "cycle": {
+            "title": "Cycle",
+            "type": "integer"
+          },
+          "deadline": {
+            "format": "date-time",
+            "title": "Deadline",
+            "type": "string"
+          },
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "escalated_to_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalated To Level"
+          },
+          "incident_id": {
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "is_breach": {
+            "title": "Is Breach",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ViolationKind"
+          }
+        },
+        "required": [
+          "incident_id",
+          "kind",
+          "cycle",
+          "deadline",
+          "detected_at",
+          "escalated_to_level",
+          "is_breach"
+        ],
+        "title": "ViolationResponse",
         "type": "object"
       },
       "WorkNoteResponse": {
@@ -3597,6 +3694,129 @@
         "summary": "Workload Csv",
         "tags": [
           "reports"
+        ]
+      }
+    },
+    "/sla/tick": {
+      "post": {
+        "description": "Run the monitor now and report what it did (the scheduler does this on a timer).",
+        "operationId": "tick_sla_tick_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TickResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Tick",
+        "tags": [
+          "sla"
+        ]
+      }
+    },
+    "/sla/violations": {
+      "get": {
+        "description": "Everything the monitor has recorded, newest first.",
+        "operationId": "violations_sla_violations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ViolationResponse"
+                  },
+                  "title": "Response Violations Sla Violations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Violations",
+        "tags": [
+          "sla"
+        ]
+      }
+    },
+    "/sla/violations/{incident_id}": {
+      "get": {
+        "description": "One incident's own history of warnings and breaches, oldest first.",
+        "operationId": "for_incident_sla_violations__incident_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ViolationResponse"
+                  },
+                  "title": "Response For Incident Sla Violations  Incident Id  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "For Incident",
+        "tags": [
+          "sla"
         ]
       }
     }

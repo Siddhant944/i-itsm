@@ -61,12 +61,25 @@ from app.domain.repositories import (
     CredentialsRepository,
     IncidentRepository,
     NotificationRepository,
+    SLAViolationRepository,
     UnitOfWork,
     UserRepository,
 )
 from app.domain.search import IncidentQuery, Page, SortField
-from app.domain.sla import SLAPolicyBook, SLAStatus, SLATarget, SLATier
-from app.domain.states import AWAITING_REPORTER, OPEN_STATUSES, TERMINAL_STATUSES
+from app.domain.sla import (
+    SLAPolicyBook,
+    SLAStatus,
+    SLATarget,
+    SLATier,
+    SLAViolation,
+    ViolationKind,
+)
+from app.domain.states import (
+    AWAITING_REPORTER,
+    OPEN_STATUSES,
+    TERMINAL_STATUSES,
+    IncidentStatus,
+)
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress, SkillSet
 from app.repositories.sqlalchemy import mappers
@@ -82,6 +95,7 @@ from app.repositories.sqlalchemy.models import (
     ServiceRow,
     SkillRow,
     SLAPolicyRow,
+    SLAViolationRow,
     SystemConfigRow,
     TeamRow,
     TechnicianProfileRow,
@@ -186,6 +200,30 @@ class SqlAlchemyIncidentRepository(IncidentRepository):
             .group_by(IncidentRow.assignee_id)
         ).all()
         return {assignee_id: count for assignee_id, count in rows if assignee_id is not None}
+
+    def awaiting_auto_close(self, resolved_before: datetime) -> tuple[Incident, ...]:
+        rows = self.__session.scalars(
+            select(IncidentRow)
+            .where(IncidentRow.status == IncidentStatus.RESOLVED)
+            .where(IncidentRow.resolved_at.is_not(None))
+            .where(IncidentRow.resolved_at < resolved_before)
+            .order_by(IncidentRow.resolved_at)
+        ).all()
+        return tuple(self.__load(row) for row in rows)
+
+    def needing_sla_attention(self, now: datetime) -> tuple[Incident, ...]:
+        rows = self.__session.scalars(
+            select(IncidentRow)
+            .where(IncidentRow.status.notin_(tuple(TERMINAL_STATUSES)))
+            .where(
+                or_(
+                    _sla_condition(SLAStatus.AT_RISK, now),
+                    _sla_condition(SLAStatus.BREACHED, now),
+                )
+            )
+            .order_by(IncidentRow.created_at)
+        ).all()
+        return tuple(self.__load(row) for row in rows)
 
     def search(self, query: IncidentQuery, now: datetime) -> Page[Incident]:
         """One page of matches plus the total, as two queries over the same filters (§9)."""
@@ -338,26 +376,30 @@ def _resolution_breached(now: datetime) -> ColumnElement[bool]:
     return _resolution_moment(now) > IncidentRow.sla_resolution_deadline
 
 
+def _at_risk(now: datetime) -> ColumnElement[bool]:
+    """Either clock has reached 75 % of its target. A responded clock is never at risk."""
+    return or_(
+        and_(
+            IncidentRow.sla_responded_at.is_(None),
+            _response_moment(now) >= IncidentRow.sla_response_risk_at,
+        ),
+        _resolution_moment(now) >= IncidentRow.sla_resolution_risk_at,
+    )
+
+
 def _sla_condition(status: SLAStatus, now: datetime) -> ColumnElement[bool]:
     """Turn an SLA status into comparisons against the stored deadlines (D-018).
 
-    The same rules as ``SLAClock.response_status`` and ``resolution_status``, which is what the
-    contract suite checks by running every case against both implementations.
+    The status is the worse of the two clocks, exactly as ``SLAClock.response_status`` and
+    ``resolution_status`` combine in the in-memory implementation; the contract suite runs
+    every case against both.
     """
     breached = and_(_has_clock(), or_(_response_breached(now), _resolution_breached(now)))
     if status is SLAStatus.BREACHED:
         return breached
     if status is SLAStatus.AT_RISK:
-        return and_(
-            _has_clock(),
-            ~breached,
-            _resolution_moment(now) >= IncidentRow.sla_resolution_risk_at,
-        )
-    return and_(
-        _has_clock(),
-        ~breached,
-        _resolution_moment(now) < IncidentRow.sla_resolution_risk_at,
-    )
+        return and_(_has_clock(), ~breached, _at_risk(now))
+    return and_(_has_clock(), ~breached, ~_at_risk(now))
 
 
 def _ordering(query: IncidentQuery) -> tuple[ColumnElement[Any], ...]:
@@ -762,6 +804,72 @@ class SqlAlchemyCatalogueRepository(CatalogueRepository):
         self.__session.flush()
 
 
+class SqlAlchemySLAViolationRepository(SLAViolationRepository):
+    """``sla_violations``, whose unique key is what stops a tick reporting twice."""
+
+    def __init__(self, session: Session) -> None:
+        self.__session = session
+
+    def record(self, violation: SLAViolation) -> bool:
+        existing = self.__session.scalars(
+            select(SLAViolationRow)
+            .where(SLAViolationRow.incident_id == violation.incident_id)
+            .where(SLAViolationRow.kind == violation.kind)
+            .where(SLAViolationRow.cycle == violation.cycle)
+        ).one_or_none()
+        if existing is not None:
+            return False
+        self.__session.add(
+            SLAViolationRow(
+                incident_id=violation.incident_id,
+                kind=violation.kind,
+                cycle=violation.cycle,
+                deadline=violation.deadline,
+                detected_at=violation.detected_at,
+                escalated_to_level=violation.escalated_to_level,
+            )
+        )
+        self.__session.flush()
+        return True
+
+    def for_incident(self, incident_id: str) -> tuple[SLAViolation, ...]:
+        rows = self.__session.scalars(
+            select(SLAViolationRow)
+            .where(SLAViolationRow.incident_id == incident_id)
+            .order_by(SLAViolationRow.id)
+        ).all()
+        return tuple(_to_violation(row) for row in rows)
+
+    def recent(self, limit: int = 50) -> tuple[SLAViolation, ...]:
+        rows = self.__session.scalars(
+            select(SLAViolationRow)
+            .order_by(SLAViolationRow.detected_at.desc(), SLAViolationRow.id.desc())
+            .limit(limit)
+        ).all()
+        return tuple(_to_violation(row) for row in rows)
+
+    def count(self, *, breaches_only: bool = False) -> int:
+        statement = select(func.count()).select_from(SLAViolationRow)
+        if breaches_only:
+            statement = statement.where(
+                SLAViolationRow.kind.in_(
+                    (ViolationKind.RESPONSE_BREACH, ViolationKind.RESOLUTION_BREACH)
+                )
+            )
+        return int(self.__session.scalar(statement) or 0)
+
+
+def _to_violation(row: SLAViolationRow) -> SLAViolation:
+    return SLAViolation(
+        incident_id=row.incident_id,
+        kind=row.kind,
+        cycle=row.cycle,
+        deadline=row.deadline,
+        detected_at=row.detected_at,
+        escalated_to_level=row.escalated_to_level,
+    )
+
+
 class SqlAlchemyAnalyticsRepository(AnalyticsRepository):
     """The dashboard figures as grouped queries (blueprint §9).
 
@@ -1036,6 +1144,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.audit = SqlAlchemyAuditRepository(self.__session)
         self.notifications = SqlAlchemyNotificationRepository(self.__session)
         self.analytics = SqlAlchemyAnalyticsRepository(self.__session)
+        self.violations = SqlAlchemySLAViolationRepository(self.__session)
 
     @property
     def session(self) -> Session:

@@ -23,6 +23,23 @@ class SLATier(StrEnum):
     BRONZE = "bronze"
 
 
+class ViolationKind(StrEnum):
+    """What the monitor noticed. Each is recorded at most once per incident cycle (§5.2)."""
+
+    RESPONSE_WARNING = "response_warning"
+    RESPONSE_BREACH = "response_breach"
+    RESOLUTION_WARNING = "resolution_warning"
+    RESOLUTION_BREACH = "resolution_breach"
+
+    @property
+    def is_breach(self) -> bool:
+        return self in (ViolationKind.RESPONSE_BREACH, ViolationKind.RESOLUTION_BREACH)
+
+    @property
+    def is_response(self) -> bool:
+        return self in (ViolationKind.RESPONSE_WARNING, ViolationKind.RESPONSE_BREACH)
+
+
 class SLAStatus(StrEnum):
     ON_TRACK = "on_track"
     AT_RISK = "at_risk"
@@ -93,6 +110,22 @@ class SLAPolicyBook:
             return GOLD_TARGETS[priority], True
 
 
+@dataclass(frozen=True, slots=True)
+class SLAViolation:
+    """One thing the monitor recorded about one incident (blueprint §9 ``sla_violations``).
+
+    ``cycle`` is the incident's reopen count, so a fix that does not hold can breach again
+    without the monitor thinking it has already reported this one.
+    """
+
+    incident_id: str
+    kind: ViolationKind
+    cycle: int
+    deadline: datetime
+    detected_at: datetime
+    escalated_to_level: int | None = None
+
+
 class RiskEstimator(ABC):
     """Interface: is an incident at risk of breaching, given elapsed time and its target?"""
 
@@ -123,6 +156,13 @@ def _status(elapsed: timedelta, target: timedelta, estimator: RiskEstimator) -> 
     if estimator.is_at_risk(elapsed, target):
         return SLAStatus.AT_RISK
     return SLAStatus.ON_TRACK
+
+
+def _fraction(estimator: RiskEstimator | None) -> float:
+    """The threshold an estimator uses, or the §5.2 default of 75 %."""
+    if isinstance(estimator, ThresholdRiskEstimator):
+        return estimator.fraction
+    return AT_RISK_FRACTION
 
 
 class SLAClock:
@@ -222,12 +262,13 @@ class SLAClock:
         return self.__started_at + self.__target.resolution + self.__paused_total
 
     def risk_at(self, estimator: RiskEstimator | None = None) -> datetime:
-        """When this incident becomes AT_RISK, on the same "at rest" basis (§5.2)."""
-        fraction = AT_RISK_FRACTION
-        if isinstance(estimator, ThresholdRiskEstimator):
-            fraction = estimator.fraction
+        """When the resolution clock becomes AT_RISK, on the "at rest" basis (§5.2)."""
         target = self.__resolution_target_at_stop or self.__target.resolution
-        return self.__started_at + target * fraction + self.__paused_total
+        return self.__started_at + target * _fraction(estimator) + self.__paused_total
+
+    def response_risk_at(self, estimator: RiskEstimator | None = None) -> datetime:
+        """When the response clock becomes AT_RISK. The response clock is never paused."""
+        return self.__started_at + self.__target.response * _fraction(estimator)
 
     # ------------------------------------------------------------ changes
     def retarget(self, target: SLATarget) -> None:

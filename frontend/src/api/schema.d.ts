@@ -771,6 +771,66 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/sla/tick": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Tick
+     * @description Run the monitor now and report what it did (the scheduler does this on a timer).
+     */
+    post: operations["tick_sla_tick_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sla/violations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Violations
+     * @description Everything the monitor has recorded, newest first.
+     */
+    get: operations["violations_sla_violations_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sla/violations/{incident_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * For Incident
+     * @description One incident's own history of warnings and breaches, oldest first.
+     */
+    get: operations["for_incident_sla_violations__incident_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1450,6 +1510,20 @@ export interface components {
       team_id: number | null;
     };
     /**
+     * TickResponse
+     * @description What one monitor run did; the demo and the tests read this.
+     */
+    TickResponse: {
+      /** Auto Closed */
+      auto_closed: string[];
+      /** Breached */
+      breached: number;
+      /** Escalated */
+      escalated: string[];
+      /** Warned */
+      warned: number;
+    };
+    /**
      * TokenResponse
      * @description A short-lived access token and just enough about the user to render the shell.
      */
@@ -1482,6 +1556,35 @@ export interface components {
       reported: number;
       /** Resolved */
       resolved: number;
+    };
+    /**
+     * ViolationKind
+     * @description What the monitor noticed. Each is recorded at most once per incident cycle (§5.2).
+     * @enum {string}
+     */
+    ViolationKind:
+      "response_warning" | "response_breach" | "resolution_warning" | "resolution_breach";
+    /** ViolationResponse */
+    ViolationResponse: {
+      /** Cycle */
+      cycle: number;
+      /**
+       * Deadline
+       * Format: date-time
+       */
+      deadline: string;
+      /**
+       * Detected At
+       * Format: date-time
+       */
+      detected_at: string;
+      /** Escalated To Level */
+      escalated_to_level: number | null;
+      /** Incident Id */
+      incident_id: string;
+      /** Is Breach */
+      is_breach: boolean;
+      kind: components["schemas"]["ViolationKind"];
     };
     /** WorkNoteResponse */
     WorkNoteResponse: {
@@ -2718,6 +2821,91 @@ export interface operations {
         content: {
           "text/csv": unknown;
           "text/plain": string;
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  tick_sla_tick_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TickResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  violations_sla_violations_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ViolationResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  for_incident_sla_violations__incident_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ViolationResponse"][];
         };
       };
       /** @description Validation error */

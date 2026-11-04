@@ -38,12 +38,25 @@ from app.domain.repositories import (
     CredentialsRepository,
     IncidentRepository,
     NotificationRepository,
+    SLAViolationRepository,
     UnitOfWork,
     UserRepository,
 )
 from app.domain.search import IncidentQuery, Page, SortField
-from app.domain.sla import SLAPolicyBook, SLAStatus, SLATarget, SLATier, default_policies
-from app.domain.states import AWAITING_REPORTER, OPEN_STATUSES, TERMINAL_STATUSES
+from app.domain.sla import (
+    SLAPolicyBook,
+    SLAStatus,
+    SLATarget,
+    SLATier,
+    SLAViolation,
+    default_policies,
+)
+from app.domain.states import (
+    AWAITING_REPORTER,
+    OPEN_STATUSES,
+    TERMINAL_STATUSES,
+    IncidentStatus,
+)
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress
 
@@ -95,6 +108,25 @@ class InMemoryIncidentRepository(IncidentRepository):
             ):
                 fixes[incident.assignee_id] += 1
         return dict(fixes)
+
+    def awaiting_auto_close(self, resolved_before: datetime) -> tuple[Incident, ...]:
+        return tuple(
+            i
+            for i in self.__items.values()
+            if i.status is IncidentStatus.RESOLVED
+            and i.resolved_at is not None
+            and i.resolved_at < resolved_before
+        )
+
+    def needing_sla_attention(self, now: datetime) -> tuple[Incident, ...]:
+        found = [
+            i
+            for i in self.__items.values()
+            if i.status not in TERMINAL_STATUSES
+            and i.sla_clock is not None
+            and sla_status_of(i, now) in (SLAStatus.AT_RISK, SLAStatus.BREACHED)
+        ]
+        return tuple(sorted(found, key=lambda i: i.created_at))
 
     def search(self, query: IncidentQuery, now: datetime) -> Page[Incident]:
         matched = [i for i in self.__items.values() if _matches(i, query, now)]
@@ -348,6 +380,28 @@ class InMemoryCatalogueRepository(CatalogueRepository):
         return SLAPolicyBook(self.__policies)
 
 
+class InMemorySLAViolationRepository(SLAViolationRepository):
+    def __init__(self) -> None:
+        self.__items: list[SLAViolation] = []
+
+    def record(self, violation: SLAViolation) -> bool:
+        key = (violation.incident_id, violation.kind, violation.cycle)
+        if any((v.incident_id, v.kind, v.cycle) == key for v in self.__items):
+            return False
+        self.__items.append(violation)
+        return True
+
+    def for_incident(self, incident_id: str) -> tuple[SLAViolation, ...]:
+        return tuple(v for v in self.__items if v.incident_id == incident_id)
+
+    def recent(self, limit: int = 50) -> tuple[SLAViolation, ...]:
+        newest = sorted(self.__items, key=lambda v: v.detected_at, reverse=True)
+        return tuple(newest[:limit])
+
+    def count(self, *, breaches_only: bool = False) -> int:
+        return sum(1 for v in self.__items if v.kind.is_breach or not breaches_only)
+
+
 class InMemoryAnalyticsRepository(AnalyticsRepository):
     """The same figures the SQL version computes, walked in Python over the stored incidents.
 
@@ -511,6 +565,7 @@ class InMemoryUnitOfWork(UnitOfWork):
         self.audit = InMemoryAuditRepository()
         self.notifications = InMemoryNotificationRepository()
         self.analytics = InMemoryAnalyticsRepository(self.incidents, self.users, self.catalogue)
+        self.violations = InMemorySLAViolationRepository()
         self.committed = 0
 
     def commit(self) -> None:

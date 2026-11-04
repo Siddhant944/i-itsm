@@ -573,3 +573,28 @@ def test_the_trend_has_one_point_per_day_with_something_on_it(uow: UnitOfWork) -
 
     narrow = uow.analytics.trend(NOW - timedelta(hours=2), NOW)
     assert sum(point.reported for point in narrow) == 4  # 1, 2, 5 and 6
+
+
+def test_an_unacknowledged_incident_is_at_risk_on_its_response_clock(uow: UnitOfWork) -> None:
+    """The status is the worse of the two clocks, so a late acknowledgement shows up too."""
+    created = NOW - timedelta(minutes=12)  # 80 % of the 15-minute response target
+    _make(
+        uow,
+        sequence=10,
+        created_at=created,
+        reporter_id=REPORTER,
+        service_id=WIFI,
+        title="Laptop will not charge",
+        description="The dock does nothing",
+    )
+    waiting = uow.incidents.get("INC-2026-0010")
+    _open(uow, waiting, created, TECH, Priority.P3)  # assigned, never acknowledged
+
+    at_risk = ids(uow, IncidentQuery(sla_statuses=(SLAStatus.AT_RISK,)))
+    assert "INC-2026-0010" in at_risk
+    assert "INC-2026-0010" not in ids(uow, IncidentQuery(sla_statuses=(SLAStatus.ON_TRACK,)))
+    assert "INC-2026-0010" in [i.id for i in uow.incidents.needing_sla_attention(NOW)]
+
+    stored = uow.incidents.get("INC-2026-0010")
+    assert stored.sla_clock is not None
+    assert stored.sla_clock.response_status(NOW) is SLAStatus.AT_RISK

@@ -29,6 +29,7 @@ from app.services.incident_service import IncidentService
 from app.services.notifications import EmailChannel, default_factory
 from app.services.notifications.service import NotificationService
 from app.services.search import SearchService
+from app.services.sla_monitor import SLAMonitor
 
 #: ``auto_error=False`` so a missing header becomes our own 401 body, not FastAPI's.
 bearer = HTTPBearer(auto_error=False, scheme_name="Bearer")
@@ -128,6 +129,16 @@ def get_analytics_service(services: ServicesDep, uow: UowDep) -> AnalyticsServic
 
 
 AnalyticsDep = Annotated[AnalyticsService, Depends(get_analytics_service)]
+
+
+def get_sla_monitor(
+    services: ServicesDep, uow: UowDep, notifications: NotificationsDep
+) -> SLAMonitor:
+    """The monitor for this request, notifying through the §5.4 channels after its tick."""
+    return SLAMonitor(uow, services.clock, notify=notifications.notify)
+
+
+MonitorDep = Annotated[SLAMonitor, Depends(get_sla_monitor)]
 
 
 def get_current_user(

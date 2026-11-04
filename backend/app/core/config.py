@@ -31,6 +31,8 @@ class ClockMode(StrEnum):
 
     SYSTEM = "system"
     ACCELERATED = "accelerated"
+    #: Stands still until ``/dev/clock`` moves it; only for tests and the demo (D-009).
+    FAKE = "fake"
 
 
 class Settings(BaseSettings):
@@ -56,6 +58,8 @@ class Settings(BaseSettings):
     # --- clock (blueprint §5.2, §14)
     clock_mode: ClockMode = ClockMode.SYSTEM
     clock_acceleration: float = 10.0
+    #: D-003: the SLA monitor ticks every 30 s of clock time. 0 disables the scheduler.
+    sla_tick_seconds: int = 30
 
     # --- Gemini (blueprint §6)
     gemini_api_key: SecretStr | None = None
@@ -76,6 +80,18 @@ class Settings(BaseSettings):
     # --- Google Sign-In (blueprint §8)
     google_client_id: str = ""
     google_hd_domain: str = ""
+
+    @property
+    def clock_control_enabled(self) -> bool:
+        """D-009: ``/dev/clock`` exists only in the test and demo environments."""
+        return self.app_env in (AppEnv.TEST, AppEnv.DEMO)
+
+    @model_validator(mode="after")
+    def _refuse_a_fake_clock_in_prod(self) -> Self:
+        if self.app_env is AppEnv.PROD and self.clock_mode is ClockMode.FAKE:
+            msg = "CLOCK_MODE=fake is for tests and the demo, never for prod"
+            raise ValueError(msg)
+        return self
 
     @model_validator(mode="after")
     def _refuse_weak_secret_in_prod(self) -> Self:
