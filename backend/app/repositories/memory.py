@@ -5,9 +5,20 @@ that the caller is writing the object the repository already holds.
 """
 
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from datetime import date, datetime, timedelta
+from typing import Any
 
-from app.domain.assignment import WORKLOAD_COST
+from app.domain.analytics import (
+    DurationStats,
+    Metrics,
+    Overview,
+    SatisfactionStats,
+    ServiceMetrics,
+    TechnicianWorkload,
+    TrendPoint,
+)
+from app.domain.assignment import MAX_LOAD, WORKLOAD_COST
 from app.domain.audit import AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import Credentials
@@ -21,6 +32,7 @@ from app.domain.notifications import ChannelName, Notification
 from app.domain.permissions import Role
 from app.domain.priority import Priority
 from app.domain.repositories import (
+    AnalyticsRepository,
     AuditRepository,
     CatalogueRepository,
     CredentialsRepository,
@@ -29,8 +41,9 @@ from app.domain.repositories import (
     UnitOfWork,
     UserRepository,
 )
-from app.domain.sla import SLAPolicyBook, SLATarget, SLATier, default_policies
-from app.domain.states import OPEN_STATUSES
+from app.domain.search import IncidentQuery, Page, SortField
+from app.domain.sla import SLAPolicyBook, SLAStatus, SLATarget, SLATier, default_policies
+from app.domain.states import AWAITING_REPORTER, OPEN_STATUSES, TERMINAL_STATUSES
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress
 
@@ -83,9 +96,66 @@ class InMemoryIncidentRepository(IncidentRepository):
                 fixes[incident.assignee_id] += 1
         return dict(fixes)
 
+    def search(self, query: IncidentQuery, now: datetime) -> Page[Incident]:
+        matched = [i for i in self.__items.values() if _matches(i, query, now)]
+        matched.sort(key=_sort_key(query.sort_by), reverse=query.descending)
+        window = matched[query.offset : query.offset + query.limit]
+        return Page(tuple(window), len(matched), query.offset, query.limit)
+
+    def all_incidents(self) -> tuple[Incident, ...]:
+        """Every incident; the in-memory analytics walk this instead of running SQL."""
+        return tuple(self.__items.values())
+
     def next_sequence(self, year: int) -> int:
         self.__sequences[year] += 1
         return self.__sequences[year]
+
+
+def sla_status_of(incident: Incident, now: datetime) -> SLAStatus | None:
+    """The worse of the two SLA statuses, or None before the incident was prioritised."""
+    clock = incident.sla_clock
+    if clock is None:
+        return None
+    statuses = (clock.response_status(now), clock.resolution_status(now))
+    for worst in (SLAStatus.BREACHED, SLAStatus.AT_RISK):
+        if worst in statuses:
+            return worst
+    return SLAStatus.ON_TRACK
+
+
+def _matches(incident: Incident, query: IncidentQuery, now: datetime) -> bool:
+    checks = (
+        not query.incident_id or query.incident_id.lower() in incident.id.lower(),
+        not query.statuses or incident.status in query.statuses,
+        not query.priorities or incident.priority in query.priorities,
+        not query.category_ids or incident.category_id in query.category_ids,
+        not query.service_ids or incident.service_id in query.service_ids,
+        not query.assignee_ids or incident.assignee_id in query.assignee_ids,
+        not query.reporter_ids or incident.reporter_id in query.reporter_ids,
+        query.created_from is None or incident.created_at >= query.created_from,
+        query.created_to is None or incident.created_at <= query.created_to,
+        not query.sla_statuses or sla_status_of(incident, now) in query.sla_statuses,
+        not query.text or _text_matches(incident, query.text),
+    )
+    return all(checks)
+
+
+def _text_matches(incident: Incident, text: str) -> bool:
+    needle = text.lower()
+    return any(
+        needle in haystack.lower()
+        for haystack in (incident.id, incident.title, incident.description)
+    )
+
+
+def _sort_key(field: SortField) -> "Callable[[Incident], Any]":
+    if field is SortField.PRIORITY:
+        return lambda i: (i.priority.rank if i.priority else 9, i.created_at)
+    if field is SortField.STATUS:
+        return lambda i: (i.status.value, i.created_at)
+    if field is SortField.ID:
+        return lambda i: i.id
+    return lambda i: (i.created_at, i.id)
 
 
 class InMemoryUserRepository(UserRepository):
@@ -278,6 +348,160 @@ class InMemoryCatalogueRepository(CatalogueRepository):
         return SLAPolicyBook(self.__policies)
 
 
+class InMemoryAnalyticsRepository(AnalyticsRepository):
+    """The same figures the SQL version computes, walked in Python over the stored incidents.
+
+    Keeping both means every dashboard number is checked twice: the contract suite runs these
+    tests against this implementation and against the SQL one, so a mistake in either shows up.
+    """
+
+    def __init__(
+        self,
+        incidents: InMemoryIncidentRepository,
+        users: InMemoryUserRepository,
+        catalogue: "InMemoryCatalogueRepository",
+    ) -> None:
+        self.__incidents = incidents
+        self.__users = users
+        self.__catalogue = catalogue
+
+    def overview(self, now: datetime, since: datetime | None = None) -> Overview:
+        found = self.__window(since)
+        breached = at_risk = 0
+        for incident in found:
+            status = sla_status_of(incident, now)
+            if incident.status in TERMINAL_STATUSES:
+                continue
+            if status is SLAStatus.BREACHED:
+                breached += 1
+            elif status is SLAStatus.AT_RISK:
+                at_risk += 1
+        return Overview(
+            total=len(found),
+            open_count=sum(1 for i in found if i.status in OPEN_STATUSES),
+            unassigned=sum(
+                1 for i in found if i.assignee_id is None and i.status not in TERMINAL_STATUSES
+            ),
+            awaiting_reporter=sum(1 for i in found if i.status in AWAITING_REPORTER),
+            breached=breached,
+            at_risk=at_risk,
+            critical_open=sum(
+                1 for i in found if i.priority is Priority.P1 and i.status not in TERMINAL_STATUSES
+            ),
+            resolved_in_window=sum(1 for i in found if i.resolved_at is not None),
+        )
+
+    def metrics(self, since: datetime | None = None) -> Metrics:
+        found = self.__window(since)
+        acknowledged = [i for i in found if i.acknowledged_at is not None]
+        resolved = [i for i in found if i.resolved_at is not None]
+        rated = [i for i in found if i.feedback is not None]
+        measured = [i for i in found if i.sla_clock is not None and i.resolved_at is not None]
+        met = sum(
+            1
+            for i in measured
+            if i.sla_clock is not None
+            and i.sla_clock.resolution_status(i.resolved_at or i.created_at)
+            is not SLAStatus.BREACHED
+        )
+        finished = [i for i in found if i.resolved_at is not None or i.closed_at is not None]
+        return Metrics(
+            acknowledgement=DurationStats(
+                sum(
+                    ((i.acknowledged_at or i.created_at) - i.created_at for i in acknowledged),
+                    timedelta(),
+                ),
+                len(acknowledged),
+            ),
+            resolution=DurationStats(
+                sum(
+                    ((i.resolved_at or i.created_at) - i.created_at for i in resolved), timedelta()
+                ),
+                len(resolved),
+            ),
+            sla_met=met,
+            sla_measured=len(measured),
+            satisfaction=SatisfactionStats(
+                sum(i.feedback.rating for i in rated if i.feedback is not None), len(rated)
+            ),
+            reopened=sum(1 for i in found if i.reopen_count > 0),
+            resolved_or_closed=len(finished),
+        )
+
+    def workload(self) -> tuple[TechnicianWorkload, ...]:
+        loads = self.__incidents.workloads()
+        rows = []
+        for technician in sorted(self.__users.technicians(), key=lambda t: t.id):
+            carried = [
+                i
+                for i in self.__incidents.all_incidents()
+                if i.assignee_id == technician.id and i.status in OPEN_STATUSES
+            ]
+            fixed = sum(
+                1
+                for i in self.__incidents.all_incidents()
+                if i.assignee_id == technician.id and i.resolution is not None
+            )
+            rows.append(
+                TechnicianWorkload(
+                    technician_id=technician.id,
+                    name=technician.full_name,
+                    available=technician.available and technician.active,
+                    open_count=len(carried),
+                    weighted_load=loads.get(technician.id, 0),
+                    max_load=MAX_LOAD,
+                    resolved=fixed,
+                )
+            )
+        return tuple(rows)
+
+    def by_service(self, since: datetime | None = None) -> tuple[ServiceMetrics, ...]:
+        found = self.__window(since)
+        rows = []
+        for service in self.__catalogue.services():
+            mine = [i for i in found if i.service_id == service.id]
+            resolved = [i for i in mine if i.resolved_at is not None]
+            rows.append(
+                ServiceMetrics(
+                    service_id=service.id,
+                    name=service.name,
+                    incidents=len(mine),
+                    breached=sum(
+                        1
+                        for i in mine
+                        if i.sla_clock is not None
+                        and i.sla_clock.resolution_status(i.resolved_at or i.created_at)
+                        is SLAStatus.BREACHED
+                    ),
+                    resolution=DurationStats(
+                        sum(
+                            ((i.resolved_at or i.created_at) - i.created_at for i in resolved),
+                            timedelta(),
+                        ),
+                        len(resolved),
+                    ),
+                )
+            )
+        return tuple(rows)
+
+    def trend(self, since: datetime, until: datetime) -> tuple[TrendPoint, ...]:
+        reported: defaultdict[date, int] = defaultdict(int)
+        resolved: defaultdict[date, int] = defaultdict(int)
+        for incident in self.__incidents.all_incidents():
+            if since <= incident.created_at <= until:
+                reported[incident.created_at.date()] += 1
+            if incident.resolved_at is not None and since <= incident.resolved_at <= until:
+                resolved[incident.resolved_at.date()] += 1
+        days = sorted(set(reported) | set(resolved))
+        return tuple(TrendPoint(day, reported[day], resolved[day]) for day in days)
+
+    def __window(self, since: datetime | None) -> tuple[Incident, ...]:
+        found = self.__incidents.all_incidents()
+        if since is None:
+            return found
+        return tuple(i for i in found if i.created_at >= since)
+
+
 class InMemoryUnitOfWork(UnitOfWork):
     def __init__(self) -> None:
         self.incidents = InMemoryIncidentRepository()
@@ -286,6 +510,7 @@ class InMemoryUnitOfWork(UnitOfWork):
         self.catalogue = InMemoryCatalogueRepository(self.users)
         self.audit = InMemoryAuditRepository()
         self.notifications = InMemoryNotificationRepository()
+        self.analytics = InMemoryAnalyticsRepository(self.incidents, self.users, self.catalogue)
         self.committed = 0
 
     def commit(self) -> None:

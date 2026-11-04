@@ -21,12 +21,14 @@ from app.domain.permissions import Permission
 from app.domain.ports import AIAdvisor, EmailSender
 from app.domain.repositories import UnitOfWork
 from app.domain.users import User
+from app.services.analytics import AnalyticsService
 from app.services.audit import AuditService
 from app.services.auth_service import AuthPolicy, AuthService
 from app.services.dispatcher import PostCommitDispatcher
 from app.services.incident_service import IncidentService
 from app.services.notifications import EmailChannel, default_factory
 from app.services.notifications.service import NotificationService
+from app.services.search import SearchService
 
 #: ``auto_error=False`` so a missing header becomes our own 401 body, not FastAPI's.
 bearer = HTTPBearer(auto_error=False, scheme_name="Bearer")
@@ -112,6 +114,20 @@ def get_incident_service(
 
 
 IncidentsDep = Annotated[IncidentService, Depends(get_incident_service)]
+
+
+def get_search_service(services: ServicesDep, uow: UowDep) -> SearchService:
+    return SearchService(uow, services.clock)
+
+
+SearchDep = Annotated[SearchService, Depends(get_search_service)]
+
+
+def get_analytics_service(services: ServicesDep, uow: UowDep) -> AnalyticsService:
+    return AnalyticsService(uow, services.clock)
+
+
+AnalyticsDep = Annotated[AnalyticsService, Depends(get_analytics_service)]
 
 
 def get_current_user(

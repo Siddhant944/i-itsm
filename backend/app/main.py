@@ -22,6 +22,7 @@ from app.api.routers import auth as auth_router
 from app.api.routers import catalogue as catalogue_router
 from app.api.routers import incidents as incidents_router
 from app.api.routers import notifications as notifications_router
+from app.api.routers import reports as reports_router
 from app.core.clock import AcceleratedClock, Clock, SystemClock
 from app.core.config import AppEnv, ClockMode, Settings, get_settings
 from app.core.logging import configure_logging
@@ -103,6 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(catalogue_router.router)
     app.include_router(incidents_router.router)
     app.include_router(notifications_router.router)
+    app.include_router(reports_router.router)
     if settings.app_env in (AppEnv.TEST, AppEnv.DEMO):
         # D-009: the clock-control endpoint exists only where it is safe (P2.8 fills it in).
         app.state.clock_control_enabled = True

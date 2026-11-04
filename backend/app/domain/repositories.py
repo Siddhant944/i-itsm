@@ -7,15 +7,24 @@ against every implementation.
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
+from datetime import datetime
 from types import TracebackType
 from typing import Self
 
+from app.domain.analytics import (
+    Metrics,
+    Overview,
+    ServiceMetrics,
+    TechnicianWorkload,
+    TrendPoint,
+)
 from app.domain.audit import AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import Credentials
 from app.domain.incident import Incident
 from app.domain.notifications import Notification
 from app.domain.priority import Priority
+from app.domain.search import IncidentQuery, Page
 from app.domain.sla import SLAPolicyBook, SLATarget, SLATier
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress
@@ -48,6 +57,13 @@ class IncidentRepository(ABC):
     @abstractmethod
     def past_fixes(self, service_id: int) -> Mapping[int, int]:
         """How many incidents on ``service_id`` each technician has resolved (§5.3 n_t,s)."""
+
+    @abstractmethod
+    def search(self, query: IncidentQuery, now: datetime) -> Page[Incident]:
+        """One page of the incidents the query matches, with the total that match.
+
+        ``now`` decides the SLA filters, so the caller's clock governs them too.
+        """
 
     @abstractmethod
     def next_sequence(self, year: int) -> int:
@@ -105,6 +121,32 @@ class AuditRepository(ABC):
     @abstractmethod
     def hash_before(self, offset: int) -> str | None:
         """The hash of the record just before ``offset``, so one page can be verified alone."""
+
+
+class AnalyticsRepository(ABC):
+    """The aggregate queries behind the dashboards (blueprint §9).
+
+    These return numbers, never aggregates: counting ten thousand incidents must not mean
+    loading ten thousand objects.
+    """
+
+    @abstractmethod
+    def overview(self, now: datetime, since: datetime | None = None) -> Overview: ...
+
+    @abstractmethod
+    def metrics(self, since: datetime | None = None) -> Metrics:
+        """MTTA, MTTR, SLA compliance, CSAT and the reopen rate."""
+
+    @abstractmethod
+    def workload(self) -> tuple[TechnicianWorkload, ...]:
+        """One row per technician: open count, weighted load and how much they have fixed."""
+
+    @abstractmethod
+    def by_service(self, since: datetime | None = None) -> tuple[ServiceMetrics, ...]: ...
+
+    @abstractmethod
+    def trend(self, since: datetime, until: datetime) -> tuple[TrendPoint, ...]:
+        """Reported and resolved per day, oldest first."""
 
 
 class NotificationRepository(ABC):
@@ -212,6 +254,7 @@ class UnitOfWork(ABC):
     catalogue: CatalogueRepository
     audit: AuditRepository
     notifications: NotificationRepository
+    analytics: AnalyticsRepository
 
     def __enter__(self) -> Self:
         return self

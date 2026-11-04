@@ -248,6 +248,11 @@ class IncidentRow(Base):
     sla_stopped_at: Mapped[datetime | None]
     sla_response_met: Mapped[bool | None]
     sla_resolution_target_at_stop: Mapped[timedelta | None]
+    # Derived from the clock and kept by the mapper, so a search can ask "breached?" with a
+    # comparison instead of datetime arithmetic SQLite and PostgreSQL spell differently (D-018).
+    sla_response_deadline: Mapped[datetime | None]
+    sla_resolution_deadline: Mapped[datetime | None]
+    sla_resolution_risk_at: Mapped[datetime | None]
 
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
@@ -261,6 +266,7 @@ class IncidentRow(Base):
         Index("ix_incidents_status_priority", "status", "priority"),
         Index("ix_incidents_assignee_id_status", "assignee_id", "status"),
         Index("ix_incidents_created_at", "created_at"),
+        Index("ix_incidents_status_sla_resolution_deadline", "status", "sla_resolution_deadline"),
         CheckConstraint("impact BETWEEN 1 AND 3", name="impact_between_1_and_3"),
         CheckConstraint("urgency BETWEEN 1 AND 3", name="urgency_between_1_and_3"),
     )

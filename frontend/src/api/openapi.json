@@ -172,6 +172,52 @@
         "title": "ClassifyRequest",
         "type": "object"
       },
+      "DashboardResponse": {
+        "description": "Everything an admin dashboard shows, in one call.",
+        "properties": {
+          "metrics": {
+            "$ref": "#/components/schemas/MetricsResponse"
+          },
+          "overview": {
+            "$ref": "#/components/schemas/OverviewResponse"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceRowResponse"
+            },
+            "title": "Services",
+            "type": "array"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPointResponse"
+            },
+            "title": "Trend",
+            "type": "array"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          },
+          "workload": {
+            "items": {
+              "$ref": "#/components/schemas/WorkloadRowResponse"
+            },
+            "title": "Workload",
+            "type": "array"
+          }
+        },
+        "required": [
+          "window_days",
+          "overview",
+          "metrics",
+          "workload",
+          "services",
+          "trend"
+        ],
+        "title": "DashboardResponse",
+        "type": "object"
+      },
       "DeliveryStatus": {
         "enum": [
           "pending",
@@ -245,6 +291,53 @@
           "database"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "IncidentPageResponse": {
+        "description": "One page of results, with what the pager needs to draw itself.",
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "page_count": {
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "page_number": {
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit",
+          "page_number",
+          "page_count",
+          "has_more"
+        ],
+        "title": "IncidentPageResponse",
         "type": "object"
       },
       "IncidentResponse": {
@@ -663,6 +756,86 @@
         "title": "MeResponse",
         "type": "object"
       },
+      "MetricsResponse": {
+        "description": "The five figures \u00a79 names, with None where there is nothing to average yet.",
+        "properties": {
+          "acknowledged": {
+            "title": "Acknowledged",
+            "type": "integer"
+          },
+          "csat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Csat"
+          },
+          "csat_responses": {
+            "title": "Csat Responses",
+            "type": "integer"
+          },
+          "mtta_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtta Hours"
+          },
+          "mttr_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mttr Hours"
+          },
+          "reopen_rate": {
+            "title": "Reopen Rate",
+            "type": "number"
+          },
+          "reopened": {
+            "title": "Reopened",
+            "type": "integer"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "integer"
+          },
+          "sla_compliance": {
+            "title": "Sla Compliance",
+            "type": "number"
+          },
+          "sla_measured": {
+            "title": "Sla Measured",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mtta_hours",
+          "mttr_hours",
+          "acknowledged",
+          "resolved",
+          "sla_compliance",
+          "sla_measured",
+          "csat",
+          "csat_responses",
+          "reopen_rate",
+          "reopened"
+        ],
+        "title": "MetricsResponse",
+        "type": "object"
+      },
       "NoteKind": {
         "enum": [
           "note",
@@ -790,6 +963,64 @@
           "latest"
         ],
         "title": "NotificationSummaryResponse",
+        "type": "object"
+      },
+      "OverviewResponse": {
+        "properties": {
+          "at_risk": {
+            "title": "At Risk",
+            "type": "integer"
+          },
+          "awaiting_reporter": {
+            "title": "Awaiting Reporter",
+            "type": "integer"
+          },
+          "breached": {
+            "title": "Breached",
+            "type": "integer"
+          },
+          "breached_share": {
+            "title": "Breached Share",
+            "type": "number"
+          },
+          "critical_open": {
+            "title": "Critical Open",
+            "type": "integer"
+          },
+          "open_count": {
+            "title": "Open Count",
+            "type": "integer"
+          },
+          "open_share": {
+            "title": "Open Share",
+            "type": "number"
+          },
+          "resolved_in_window": {
+            "title": "Resolved In Window",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unassigned": {
+            "title": "Unassigned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "open_count",
+          "unassigned",
+          "awaiting_reporter",
+          "breached",
+          "at_risk",
+          "critical_open",
+          "resolved_in_window",
+          "open_share",
+          "breached_share"
+        ],
+        "title": "OverviewResponse",
         "type": "object"
       },
       "Permission": {
@@ -1151,6 +1382,132 @@
         "title": "SLATier",
         "type": "string"
       },
+      "SearchFilters": {
+        "description": "The nine filters of \u00a79 plus free text, sorting and paging, as one query body.",
+        "properties": {
+          "assignee_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Assignee Ids",
+            "type": "array"
+          },
+          "category_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Category Ids",
+            "type": "array"
+          },
+          "created_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created From"
+          },
+          "created_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created To"
+          },
+          "descending": {
+            "default": true,
+            "title": "Descending",
+            "type": "boolean"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "limit": {
+            "default": 25,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "priorities": {
+            "items": {
+              "$ref": "#/components/schemas/Priority"
+            },
+            "title": "Priorities",
+            "type": "array"
+          },
+          "reporter_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Reporter Ids",
+            "type": "array"
+          },
+          "service_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Service Ids",
+            "type": "array"
+          },
+          "sla_statuses": {
+            "items": {
+              "$ref": "#/components/schemas/SLAStatus"
+            },
+            "title": "Sla Statuses",
+            "type": "array"
+          },
+          "sort_by": {
+            "$ref": "#/components/schemas/SortField",
+            "default": "created_at"
+          },
+          "statuses": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentStatus"
+            },
+            "title": "Statuses",
+            "type": "array"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "SearchFilters",
+        "type": "object"
+      },
       "ServiceResponse": {
         "properties": {
           "active": {
@@ -1203,6 +1560,51 @@
         "title": "ServiceResponse",
         "type": "object"
       },
+      "ServiceRowResponse": {
+        "properties": {
+          "breach_share": {
+            "title": "Breach Share",
+            "type": "number"
+          },
+          "breached": {
+            "title": "Breached",
+            "type": "integer"
+          },
+          "incidents": {
+            "title": "Incidents",
+            "type": "integer"
+          },
+          "mttr_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mttr Hours"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "service_id",
+          "name",
+          "incidents",
+          "breached",
+          "breach_share",
+          "mttr_hours"
+        ],
+        "title": "ServiceRowResponse",
+        "type": "object"
+      },
       "SkillResponse": {
         "properties": {
           "id": {
@@ -1220,6 +1622,17 @@
         ],
         "title": "SkillResponse",
         "type": "object"
+      },
+      "SortField": {
+        "description": "What a list can be ordered by; the UI offers these columns.",
+        "enum": [
+          "created_at",
+          "priority",
+          "status",
+          "id"
+        ],
+        "title": "SortField",
+        "type": "string"
       },
       "SuggestionResponse": {
         "description": "An AI suggestion, always shown with its confidence and never applied silently.",
@@ -1376,6 +1789,30 @@
         "title": "TokenResponse",
         "type": "object"
       },
+      "TrendPointResponse": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "reported": {
+            "title": "Reported",
+            "type": "integer"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "reported",
+          "resolved"
+        ],
+        "title": "TrendPointResponse",
+        "type": "object"
+      },
       "WorkNoteResponse": {
         "properties": {
           "author_id": {
@@ -1402,6 +1839,59 @@
           "text"
         ],
         "title": "WorkNoteResponse",
+        "type": "object"
+      },
+      "WorkloadRowResponse": {
+        "properties": {
+          "at_capacity": {
+            "title": "At Capacity",
+            "type": "boolean"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "capacity_free": {
+            "title": "Capacity Free",
+            "type": "number"
+          },
+          "max_load": {
+            "title": "Max Load",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "open_count": {
+            "title": "Open Count",
+            "type": "integer"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "integer"
+          },
+          "technician_id": {
+            "title": "Technician Id",
+            "type": "integer"
+          },
+          "weighted_load": {
+            "title": "Weighted Load",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "technician_id",
+          "name",
+          "available",
+          "open_count",
+          "weighted_load",
+          "max_load",
+          "capacity_free",
+          "at_capacity",
+          "resolved"
+        ],
+        "title": "WorkloadRowResponse",
         "type": "object"
       }
     },
@@ -1844,6 +2334,87 @@
         "summary": "Queue",
         "tags": [
           "incidents"
+        ]
+      }
+    },
+    "/incidents/search": {
+      "post": {
+        "description": "The nine filters plus free text, paged. Scoped to what the caller may see (BR-01).",
+        "operationId": "search_incidents_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchFilters"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentPageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Search",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/incidents/search/export": {
+      "post": {
+        "description": "The same filtered list as a CSV download (\u00a79).",
+        "operationId": "export_incidents_search_export_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchFilters"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {},
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The filtered list as CSV"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Export",
+        "tags": [
+          "reports"
         ]
       }
     },
@@ -2681,6 +3252,351 @@
         "summary": "Mark Read",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/reports/dashboard": {
+      "get": {
+        "description": "Everything the admin dashboard shows, in one call.",
+        "operationId": "dashboard_reports_dashboard_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Dashboard",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/metrics": {
+      "get": {
+        "description": "MTTA, MTTR, SLA compliance, CSAT and the reopen rate.",
+        "operationId": "metrics_reports_metrics_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Metrics",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/overview": {
+      "get": {
+        "operationId": "overview_reports_overview_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Overview",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/services": {
+      "get": {
+        "operationId": "services_reports_services_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceRowResponse"
+                  },
+                  "title": "Response Services Reports Services Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Services",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/services/export": {
+      "get": {
+        "operationId": "services_csv_reports_services_export_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {},
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Service analysis as CSV"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Services Csv",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/trend": {
+      "get": {
+        "operationId": "trend_reports_trend_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrendPointResponse"
+                  },
+                  "title": "Response Trend Reports Trend Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Trend",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/workload": {
+      "get": {
+        "description": "Every technician's load for a lead or an admin; a technician sees only their own.",
+        "operationId": "workload_reports_workload_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkloadRowResponse"
+                  },
+                  "title": "Response Workload Reports Workload Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Workload",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/workload/export": {
+      "get": {
+        "operationId": "workload_csv_reports_workload_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {},
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Workload as CSV"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Workload Csv",
+        "tags": [
+          "reports"
         ]
       }
     }

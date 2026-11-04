@@ -150,7 +150,7 @@ def test_a_sent_notification_records_when_and_stops_retrying() -> None:
     assert sent.can_retry is False
 
 
-def test_three_failures_give_up(caplog: pytest.LogCaptureFixture) -> None:
+def test_three_failures_give_up() -> None:
     """§5.4: a failed send is retried up to three times."""
     failing = note()
     for attempt in range(1, MAX_SEND_ATTEMPTS):

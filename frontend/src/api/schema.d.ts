@@ -238,6 +238,46 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Search
+     * @description The nine filters plus free text, paged. Scoped to what the caller may see (BR-01).
+     */
+    post: operations["search_incidents_search_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/search/export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Export
+     * @description The same filtered list as a CSV download (§9).
+     */
+    post: operations["export_incidents_search_export_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/incidents/{incident_id}": {
     parameters: {
       query?: never;
@@ -586,6 +626,151 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/reports/dashboard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Dashboard
+     * @description Everything the admin dashboard shows, in one call.
+     */
+    get: operations["dashboard_reports_dashboard_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/reports/metrics": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Metrics
+     * @description MTTA, MTTR, SLA compliance, CSAT and the reopen rate.
+     */
+    get: operations["metrics_reports_metrics_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/reports/overview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Overview */
+    get: operations["overview_reports_overview_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/reports/services": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Services */
+    get: operations["services_reports_services_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/reports/services/export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Services Csv */
+    get: operations["services_csv_reports_services_export_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/reports/trend": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Trend */
+    get: operations["trend_reports_trend_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/reports/workload": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Workload
+     * @description Every technician's load for a lead or an admin; a technician sees only their own.
+     */
+    get: operations["workload_reports_workload_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/reports/workload/export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Workload Csv */
+    get: operations["workload_csv_reports_workload_export_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -654,6 +839,22 @@ export interface components {
       text: string;
     };
     /**
+     * DashboardResponse
+     * @description Everything an admin dashboard shows, in one call.
+     */
+    DashboardResponse: {
+      metrics: components["schemas"]["MetricsResponse"];
+      overview: components["schemas"]["OverviewResponse"];
+      /** Services */
+      services: components["schemas"]["ServiceRowResponse"][];
+      /** Trend */
+      trend: components["schemas"]["TrendPointResponse"][];
+      /** Window Days */
+      window_days: number;
+      /** Workload */
+      workload: components["schemas"]["WorkloadRowResponse"][];
+    };
+    /**
      * DeliveryStatus
      * @enum {string}
      */
@@ -691,6 +892,26 @@ export interface components {
       status: "ok" | "degraded";
       /** Version */
       version: string;
+    };
+    /**
+     * IncidentPageResponse
+     * @description One page of results, with what the pager needs to draw itself.
+     */
+    IncidentPageResponse: {
+      /** Has More */
+      has_more: boolean;
+      /** Items */
+      items: components["schemas"]["IncidentSummaryResponse"][];
+      /** Limit */
+      limit: number;
+      /** Offset */
+      offset: number;
+      /** Page Count */
+      page_count: number;
+      /** Page Number */
+      page_number: number;
+      /** Total */
+      total: number;
     };
     /**
      * IncidentResponse
@@ -821,6 +1042,32 @@ export interface components {
       technician?: components["schemas"]["TechnicianProfileResponse"] | null;
     };
     /**
+     * MetricsResponse
+     * @description The five figures §9 names, with None where there is nothing to average yet.
+     */
+    MetricsResponse: {
+      /** Acknowledged */
+      acknowledged: number;
+      /** Csat */
+      csat: number | null;
+      /** Csat Responses */
+      csat_responses: number;
+      /** Mtta Hours */
+      mtta_hours: number | null;
+      /** Mttr Hours */
+      mttr_hours: number | null;
+      /** Reopen Rate */
+      reopen_rate: number;
+      /** Reopened */
+      reopened: number;
+      /** Resolved */
+      resolved: number;
+      /** Sla Compliance */
+      sla_compliance: number;
+      /** Sla Measured */
+      sla_measured: number;
+    };
+    /**
      * NoteKind
      * @enum {string}
      */
@@ -876,6 +1123,29 @@ export interface components {
       latest: components["schemas"]["NotificationResponse"][];
       /** Unread */
       unread: number;
+    };
+    /** OverviewResponse */
+    OverviewResponse: {
+      /** At Risk */
+      at_risk: number;
+      /** Awaiting Reporter */
+      awaiting_reporter: number;
+      /** Breached */
+      breached: number;
+      /** Breached Share */
+      breached_share: number;
+      /** Critical Open */
+      critical_open: number;
+      /** Open Count */
+      open_count: number;
+      /** Open Share */
+      open_share: number;
+      /** Resolved In Window */
+      resolved_in_window: number;
+      /** Total */
+      total: number;
+      /** Unassigned */
+      unassigned: number;
     };
     /**
      * Permission
@@ -1053,6 +1323,51 @@ export interface components {
      * @enum {string}
      */
     SLATier: "gold" | "silver" | "bronze";
+    /**
+     * SearchFilters
+     * @description The nine filters of §9 plus free text, sorting and paging, as one query body.
+     */
+    SearchFilters: {
+      /** Assignee Ids */
+      assignee_ids?: number[];
+      /** Category Ids */
+      category_ids?: number[];
+      /** Created From */
+      created_from?: string | null;
+      /** Created To */
+      created_to?: string | null;
+      /**
+       * Descending
+       * @default true
+       */
+      descending: boolean;
+      /** Incident Id */
+      incident_id?: string | null;
+      /**
+       * Limit
+       * @default 25
+       */
+      limit: number;
+      /**
+       * Offset
+       * @default 0
+       */
+      offset: number;
+      /** Priorities */
+      priorities?: components["schemas"]["Priority"][];
+      /** Reporter Ids */
+      reporter_ids?: number[];
+      /** Service Ids */
+      service_ids?: number[];
+      /** Sla Statuses */
+      sla_statuses?: components["schemas"]["SLAStatus"][];
+      /** @default created_at */
+      sort_by: components["schemas"]["SortField"];
+      /** Statuses */
+      statuses?: components["schemas"]["IncidentStatus"][];
+      /** Text */
+      text?: string | null;
+    };
     /** ServiceResponse */
     ServiceResponse: {
       /** Active */
@@ -1069,6 +1384,21 @@ export interface components {
       required_skill_id: number | null;
       sla_tier: components["schemas"]["SLATier"];
     };
+    /** ServiceRowResponse */
+    ServiceRowResponse: {
+      /** Breach Share */
+      breach_share: number;
+      /** Breached */
+      breached: number;
+      /** Incidents */
+      incidents: number;
+      /** Mttr Hours */
+      mttr_hours: number | null;
+      /** Name */
+      name: string;
+      /** Service Id */
+      service_id: number;
+    };
     /** SkillResponse */
     SkillResponse: {
       /** Id */
@@ -1076,6 +1406,12 @@ export interface components {
       /** Name */
       name: string;
     };
+    /**
+     * SortField
+     * @description What a list can be ordered by; the UI offers these columns.
+     * @enum {string}
+     */
+    SortField: "created_at" | "priority" | "status" | "id";
     /**
      * SuggestionResponse
      * @description An AI suggestion, always shown with its confidence and never applied silently.
@@ -1135,6 +1471,18 @@ export interface components {
       /** User Id */
       user_id: number;
     };
+    /** TrendPointResponse */
+    TrendPointResponse: {
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
+      /** Reported */
+      reported: number;
+      /** Resolved */
+      resolved: number;
+    };
     /** WorkNoteResponse */
     WorkNoteResponse: {
       /** Author Id */
@@ -1147,6 +1495,27 @@ export interface components {
       kind: components["schemas"]["NoteKind"];
       /** Text */
       text: string;
+    };
+    /** WorkloadRowResponse */
+    WorkloadRowResponse: {
+      /** At Capacity */
+      at_capacity: boolean;
+      /** Available */
+      available: boolean;
+      /** Capacity Free */
+      capacity_free: number;
+      /** Max Load */
+      max_load: number;
+      /** Name */
+      name: string;
+      /** Open Count */
+      open_count: number;
+      /** Resolved */
+      resolved: number;
+      /** Technician Id */
+      technician_id: number;
+      /** Weighted Load */
+      weighted_load: number;
     };
   };
   responses: never;
@@ -1488,6 +1857,69 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IncidentSummaryResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  search_incidents_search_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SearchFilters"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentPageResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  export_incidents_search_export_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SearchFilters"];
+      };
+    };
+    responses: {
+      /** @description The filtered list as CSV */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/csv": unknown;
+          "text/plain": string;
         };
       };
       /** @description Validation error */
@@ -2050,6 +2482,242 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["NotificationResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  dashboard_reports_dashboard_get: {
+    parameters: {
+      query?: {
+        /** @description How many days the figures cover */
+        window_days?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DashboardResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  metrics_reports_metrics_get: {
+    parameters: {
+      query?: {
+        /** @description How many days the figures cover */
+        window_days?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MetricsResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  overview_reports_overview_get: {
+    parameters: {
+      query?: {
+        /** @description How many days the figures cover */
+        window_days?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OverviewResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  services_reports_services_get: {
+    parameters: {
+      query?: {
+        /** @description How many days the figures cover */
+        window_days?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ServiceRowResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  services_csv_reports_services_export_get: {
+    parameters: {
+      query?: {
+        /** @description How many days the figures cover */
+        window_days?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Service analysis as CSV */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/csv": unknown;
+          "text/plain": string;
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  trend_reports_trend_get: {
+    parameters: {
+      query?: {
+        /** @description How many days the figures cover */
+        window_days?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TrendPointResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  workload_reports_workload_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkloadRowResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  workload_csv_reports_workload_export_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Workload as CSV */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/csv": unknown;
+          "text/plain": string;
         };
       };
       /** @description Validation error */

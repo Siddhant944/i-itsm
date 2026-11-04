@@ -282,6 +282,9 @@ def _sla_to_row(clock: SLAClock | None, row: IncidentRow) -> None:
         row.sla_stopped_at = None
         row.sla_response_met = None
         row.sla_resolution_target_at_stop = None
+        row.sla_response_deadline = None
+        row.sla_resolution_deadline = None
+        row.sla_resolution_risk_at = None
         return
     row.sla_started_at = clock.started_at
     row.sla_response_target = clock.target.response
@@ -292,6 +295,9 @@ def _sla_to_row(clock: SLAClock | None, row: IncidentRow) -> None:
     row.sla_stopped_at = clock.stopped_at
     row.sla_response_met = clock.response_met
     row.sla_resolution_target_at_stop = clock.resolution_target_at_stop
+    row.sla_response_deadline = clock.response_deadline
+    row.sla_resolution_deadline = clock.resolution_deadline_at_rest
+    row.sla_resolution_risk_at = clock.risk_at()
 
 
 def row_to_sla_clock(row: IncidentRow) -> SLAClock | None:

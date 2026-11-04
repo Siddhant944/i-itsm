@@ -10,14 +10,37 @@ The same classes run on SQLite and PostgreSQL. Optimistic locking rides on
 """
 
 from collections.abc import Mapping
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Engine, Select, delete, func, select
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import (
+    Engine,
+    Float,
+    Select,
+    and_,
+    case,
+    cast,
+    delete,
+    func,
+    literal,
+    or_,
+    select,
+)
+from sqlalchemy.orm import Mapped, Session, sessionmaker
 from sqlalchemy.orm.exc import StaleDataError
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.clock import Clock, SystemClock
-from app.domain.assignment import WORKLOAD_COST
+from app.domain.analytics import (
+    DurationStats,
+    Metrics,
+    Overview,
+    SatisfactionStats,
+    ServiceMetrics,
+    TechnicianWorkload,
+    TrendPoint,
+)
+from app.domain.assignment import MAX_LOAD, WORKLOAD_COST
 from app.domain.audit import AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import Credentials
@@ -32,6 +55,7 @@ from app.domain.notifications import ChannelName, Notification
 from app.domain.permissions import Role
 from app.domain.priority import Priority
 from app.domain.repositories import (
+    AnalyticsRepository,
     AuditRepository,
     CatalogueRepository,
     CredentialsRepository,
@@ -40,8 +64,9 @@ from app.domain.repositories import (
     UnitOfWork,
     UserRepository,
 )
-from app.domain.sla import SLAPolicyBook, SLATarget, SLATier
-from app.domain.states import OPEN_STATUSES
+from app.domain.search import IncidentQuery, Page, SortField
+from app.domain.sla import SLAPolicyBook, SLAStatus, SLATarget, SLATier
+from app.domain.states import AWAITING_REPORTER, OPEN_STATUSES, TERMINAL_STATUSES
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress, SkillSet
 from app.repositories.sqlalchemy import mappers
@@ -66,6 +91,7 @@ from app.repositories.sqlalchemy.models import (
 )
 
 SEQUENCE_KEY_PREFIX = "incident_sequence:"
+SECONDS_PER_DAY = 86_400.0
 
 
 class SqlAlchemyIncidentRepository(IncidentRepository):
@@ -161,6 +187,22 @@ class SqlAlchemyIncidentRepository(IncidentRepository):
         ).all()
         return {assignee_id: count for assignee_id, count in rows if assignee_id is not None}
 
+    def search(self, query: IncidentQuery, now: datetime) -> Page[Incident]:
+        """One page of matches plus the total, as two queries over the same filters (§9)."""
+        conditions = _conditions(query, now)
+        total = int(
+            self.__session.scalar(select(func.count()).select_from(IncidentRow).where(*conditions))
+            or 0
+        )
+        rows = self.__session.scalars(
+            select(IncidentRow)
+            .where(*conditions)
+            .order_by(*_ordering(query))
+            .offset(query.offset)
+            .limit(query.limit)
+        ).all()
+        return Page(tuple(self.__load(row) for row in rows), total, query.offset, query.limit)
+
     def next_sequence(self, year: int) -> int:
         """Reserve the next number for ``year``, locking the counter row on PostgreSQL."""
         key = f"{SEQUENCE_KEY_PREFIX}{year}"
@@ -222,6 +264,115 @@ class SqlAlchemyIncidentRepository(IncidentRepository):
                 self.__session.add(mappers.feedback_to_row(incident.feedback, incident.id))
             else:
                 mappers.feedback_to_row(incident.feedback, incident.id, feedback_row)
+
+
+def _conditions(query: IncidentQuery, now: datetime) -> list[ColumnElement[bool]]:
+    """The nine §9 filters and the free text, as WHERE clauses."""
+    where: list[ColumnElement[bool]] = []
+    if query.incident_id:
+        where.append(IncidentRow.id.ilike(f"%{query.incident_id}%"))
+    if query.text:
+        # §9: ilike works the same on SQLite and PostgreSQL, and the ORM parameterises it.
+        pattern = f"%{query.text}%"
+        where.append(
+            or_(
+                IncidentRow.id.ilike(pattern),
+                IncidentRow.title.ilike(pattern),
+                IncidentRow.description.ilike(pattern),
+            )
+        )
+    if query.created_from is not None:
+        where.append(IncidentRow.created_at >= query.created_from)
+    if query.created_to is not None:
+        where.append(IncidentRow.created_at <= query.created_to)
+    if query.statuses:
+        where.append(IncidentRow.status.in_(query.statuses))
+    if query.priorities:
+        where.append(IncidentRow.priority.in_(query.priorities))
+    if query.category_ids:
+        where.append(IncidentRow.category_id.in_(query.category_ids))
+    if query.service_ids:
+        where.append(IncidentRow.service_id.in_(query.service_ids))
+    if query.assignee_ids:
+        where.append(IncidentRow.assignee_id.in_(query.assignee_ids))
+    if query.reporter_ids:
+        where.append(IncidentRow.reporter_id.in_(query.reporter_ids))
+    if query.sla_statuses:
+        where.append(or_(*(_sla_condition(status, now) for status in query.sla_statuses)))
+    return where
+
+
+def _response_moment(now: datetime) -> ColumnElement[datetime]:
+    """When the response clock is measured: at the stop, or now (it is never paused)."""
+    return case(
+        (IncidentRow.sla_stopped_at.is_not(None), IncidentRow.sla_stopped_at),
+        else_=literal(now),
+    )
+
+
+def _resolution_moment(now: datetime) -> ColumnElement[datetime]:
+    """When the resolution clock is measured: at the stop, at the pause, or now (BR-07)."""
+    return case(
+        (IncidentRow.sla_stopped_at.is_not(None), IncidentRow.sla_stopped_at),
+        (IncidentRow.sla_paused_since.is_not(None), IncidentRow.sla_paused_since),
+        else_=literal(now),
+    )
+
+
+def _has_clock() -> ColumnElement[bool]:
+    return IncidentRow.sla_resolution_deadline.is_not(None)
+
+
+def _response_breached(now: datetime) -> ColumnElement[bool]:
+    """Acknowledged too late, or still not acknowledged past the response deadline (§5.2)."""
+    return or_(
+        IncidentRow.sla_response_met.is_(False),
+        and_(
+            IncidentRow.sla_responded_at.is_(None),
+            _response_moment(now) > IncidentRow.sla_response_deadline,
+        ),
+    )
+
+
+def _resolution_breached(now: datetime) -> ColumnElement[bool]:
+    return _resolution_moment(now) > IncidentRow.sla_resolution_deadline
+
+
+def _sla_condition(status: SLAStatus, now: datetime) -> ColumnElement[bool]:
+    """Turn an SLA status into comparisons against the stored deadlines (D-018).
+
+    The same rules as ``SLAClock.response_status`` and ``resolution_status``, which is what the
+    contract suite checks by running every case against both implementations.
+    """
+    breached = and_(_has_clock(), or_(_response_breached(now), _resolution_breached(now)))
+    if status is SLAStatus.BREACHED:
+        return breached
+    if status is SLAStatus.AT_RISK:
+        return and_(
+            _has_clock(),
+            ~breached,
+            _resolution_moment(now) >= IncidentRow.sla_resolution_risk_at,
+        )
+    return and_(
+        _has_clock(),
+        ~breached,
+        _resolution_moment(now) < IncidentRow.sla_resolution_risk_at,
+    )
+
+
+def _ordering(query: IncidentQuery) -> tuple[ColumnElement[Any], ...]:
+    columns = {
+        SortField.CREATED_AT: IncidentRow.created_at,
+        SortField.PRIORITY: IncidentRow.priority,
+        SortField.STATUS: IncidentRow.status,
+        SortField.ID: IncidentRow.id,
+    }
+    column = columns[query.sort_by]
+    # Be explicit about nulls: SQLite and PostgreSQL disagree by default, and an incident with
+    # no priority yet belongs at the end of an ascending list, not the start.
+    primary = column.desc().nulls_first() if query.descending else column.asc().nulls_last()
+    tiebreak = IncidentRow.id.desc() if query.descending else IncidentRow.id.asc()
+    return (primary, tiebreak)
 
 
 class SqlAlchemyUserRepository(UserRepository):
@@ -611,6 +762,266 @@ class SqlAlchemyCatalogueRepository(CatalogueRepository):
         self.__session.flush()
 
 
+class SqlAlchemyAnalyticsRepository(AnalyticsRepository):
+    """The dashboard figures as grouped queries (blueprint §9).
+
+    Everything is counted in the database. The durations come back as totals and counts, and
+    ``app.domain.analytics`` does the division, so the averaging rules are tested once and read
+    the same whichever database is underneath.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self.__session = session
+        self.__dialect = session.get_bind().dialect.name
+
+    def overview(self, now: datetime, since: datetime | None = None) -> Overview:
+        window = _since(since)
+        alive = IncidentRow.status.notin_(tuple(TERMINAL_STATUSES))
+        counts = self.__session.execute(
+            select(
+                func.count(),
+                func.sum(_flag(IncidentRow.status.in_(tuple(OPEN_STATUSES)))),
+                func.sum(_flag(and_(IncidentRow.assignee_id.is_(None), alive))),
+                func.sum(_flag(IncidentRow.status.in_(tuple(AWAITING_REPORTER)))),
+                func.sum(_flag(and_(alive, _sla_condition(SLAStatus.BREACHED, now)))),
+                func.sum(_flag(and_(alive, _sla_condition(SLAStatus.AT_RISK, now)))),
+                func.sum(_flag(and_(alive, IncidentRow.priority == Priority.P1))),
+                func.sum(_flag(IncidentRow.resolved_at.is_not(None))),
+            ).where(*window)
+        ).one()
+        total, open_count, unassigned, waiting, breached, at_risk, critical, resolved = counts
+        return Overview(
+            total=int(total or 0),
+            open_count=int(open_count or 0),
+            unassigned=int(unassigned or 0),
+            awaiting_reporter=int(waiting or 0),
+            breached=int(breached or 0),
+            at_risk=int(at_risk or 0),
+            critical_open=int(critical or 0),
+            resolved_in_window=int(resolved or 0),
+        )
+
+    def metrics(self, since: datetime | None = None) -> Metrics:
+        window = _since(since)
+        acknowledgement = self.__durations(IncidentRow.acknowledged_at, window)
+        resolution = self.__durations(IncidentRow.resolved_at, window)
+
+        # Only resolved incidents with a clock can be measured for compliance.
+        measured = int(
+            self.__session.scalar(
+                select(func.count())
+                .select_from(IncidentRow)
+                .where(*window)
+                .where(IncidentRow.resolved_at.is_not(None))
+                .where(IncidentRow.sla_resolution_deadline.is_not(None))
+            )
+            or 0
+        )
+        # One met its SLA when it was answered in time and finished before its deadline.
+        met = int(
+            self.__session.scalar(
+                select(func.count())
+                .select_from(IncidentRow)
+                .where(*window)
+                .where(IncidentRow.resolved_at.is_not(None))
+                .where(IncidentRow.sla_resolution_deadline.is_not(None))
+                .where(IncidentRow.resolved_at <= IncidentRow.sla_resolution_deadline)
+                .where(
+                    or_(
+                        IncidentRow.sla_response_met.is_(True),
+                        IncidentRow.sla_response_met.is_(None),
+                    )
+                )
+            )
+            or 0
+        )
+
+        ratings, responses = self.__session.execute(
+            select(func.sum(FeedbackRow.rating), func.count())
+            .select_from(FeedbackRow)
+            .join(IncidentRow, IncidentRow.id == FeedbackRow.incident_id)
+            .where(*window)
+        ).one()
+
+        reopened = int(
+            self.__session.scalar(
+                select(func.count())
+                .select_from(IncidentRow)
+                .where(*window)
+                .where(IncidentRow.reopen_count > 0)
+            )
+            or 0
+        )
+        finished = int(
+            self.__session.scalar(
+                select(func.count())
+                .select_from(IncidentRow)
+                .where(*window)
+                .where(
+                    or_(
+                        IncidentRow.resolved_at.is_not(None),
+                        IncidentRow.closed_at.is_not(None),
+                    )
+                )
+            )
+            or 0
+        )
+        return Metrics(
+            acknowledgement=acknowledgement,
+            resolution=resolution,
+            sla_met=met,
+            sla_measured=measured,
+            satisfaction=SatisfactionStats(int(ratings or 0), int(responses or 0)),
+            reopened=reopened,
+            resolved_or_closed=finished,
+        )
+
+    def workload(self) -> tuple[TechnicianWorkload, ...]:
+        rows = self.__session.execute(
+            select(
+                UserRow.id,
+                UserRow.full_name,
+                UserRow.active,
+                TechnicianProfileRow.available,
+            )
+            .join(TechnicianProfileRow, TechnicianProfileRow.user_id == UserRow.id)
+            .order_by(UserRow.id)
+        ).all()
+        open_counts = dict(
+            self.__session.execute(
+                select(IncidentRow.assignee_id, func.count())
+                .where(IncidentRow.status.in_(tuple(OPEN_STATUSES)))
+                .group_by(IncidentRow.assignee_id)
+            ).all()
+        )
+        fixed = dict(
+            self.__session.execute(
+                select(IncidentRow.assignee_id, func.count())
+                .join(ResolutionRow, ResolutionRow.incident_id == IncidentRow.id)
+                .group_by(IncidentRow.assignee_id)
+            ).all()
+        )
+        loads = SqlAlchemyIncidentRepository(self.__session).workloads()
+        return tuple(
+            TechnicianWorkload(
+                technician_id=user_id,
+                name=name,
+                available=bool(active and available),
+                open_count=int(open_counts.get(user_id, 0)),
+                weighted_load=loads.get(user_id, 0),
+                max_load=MAX_LOAD,
+                resolved=int(fixed.get(user_id, 0)),
+            )
+            for user_id, name, active, available in rows
+        )
+
+    def by_service(self, since: datetime | None = None) -> tuple[ServiceMetrics, ...]:
+        window = _since(since)
+        counted = dict(
+            self.__session.execute(
+                select(IncidentRow.service_id, func.count())
+                .where(*window)
+                .group_by(IncidentRow.service_id)
+            ).all()
+        )
+        breached = dict(
+            self.__session.execute(
+                select(IncidentRow.service_id, func.count())
+                .where(*window)
+                .where(IncidentRow.resolved_at.is_not(None))
+                .where(IncidentRow.sla_resolution_deadline.is_not(None))
+                .where(IncidentRow.resolved_at > IncidentRow.sla_resolution_deadline)
+                .group_by(IncidentRow.service_id)
+            ).all()
+        )
+        resolved = {
+            service_id: DurationStats(timedelta(seconds=float(seconds or 0)), int(count or 0))
+            for service_id, seconds, count in self.__session.execute(
+                select(
+                    IncidentRow.service_id,
+                    func.sum(self.__elapsed_seconds(IncidentRow.resolved_at)),
+                    func.count(),
+                )
+                .where(*window)
+                .where(IncidentRow.resolved_at.is_not(None))
+                .group_by(IncidentRow.service_id)
+            ).all()
+        }
+        services = self.__session.execute(
+            select(ServiceRow.id, ServiceRow.name).order_by(ServiceRow.id)
+        ).all()
+        return tuple(
+            ServiceMetrics(
+                service_id=service_id,
+                name=name,
+                incidents=int(counted.get(service_id, 0)),
+                breached=int(breached.get(service_id, 0)),
+                resolution=resolved.get(service_id, DurationStats()),
+            )
+            for service_id, name in services
+        )
+
+    def trend(self, since: datetime, until: datetime) -> tuple[TrendPoint, ...]:
+        reported = self.__per_day(IncidentRow.created_at, since, until)
+        resolved = self.__per_day(IncidentRow.resolved_at, since, until)
+        days = sorted(set(reported) | set(resolved))
+        return tuple(TrendPoint(day, reported.get(day, 0), resolved.get(day, 0)) for day in days)
+
+    # ------------------------------------------------------------ internals
+    def __durations(
+        self, column: Mapped[datetime | None], window: list[ColumnElement[bool]]
+    ) -> DurationStats:
+        seconds, count = self.__session.execute(
+            select(func.sum(self.__elapsed_seconds(column)), func.count())
+            .select_from(IncidentRow)
+            .where(*window)
+            .where(column.is_not(None))
+        ).one()
+        return DurationStats(timedelta(seconds=float(seconds or 0)), int(count or 0))
+
+    def __elapsed_seconds(self, column: Mapped[datetime | None]) -> ColumnElement[float]:
+        """Seconds from creation to ``column``, in whichever dialect is underneath.
+
+        SQLite and PostgreSQL have no shared way to subtract two timestamps, so each is asked
+        in its own terms; the division into an average happens in app.domain.analytics either
+        way, which is where the rule is tested.
+        """
+        if self.__dialect == "sqlite":
+            return (
+                func.julianday(column) - func.julianday(IncidentRow.created_at)
+            ) * SECONDS_PER_DAY
+        return cast(
+            func.extract("epoch", column) - func.extract("epoch", IncidentRow.created_at),
+            Float,
+        )
+
+    def __per_day(
+        self, column: Mapped[datetime | None], since: datetime, until: datetime
+    ) -> dict[date, int]:
+        rows = self.__session.execute(
+            select(IncidentRow.id, column)
+            .where(column.is_not(None))
+            .where(column >= since)
+            .where(column <= until)
+        ).all()
+        counts: dict[date, int] = {}
+        for _, moment in rows:
+            if moment is None:
+                continue
+            day = moment.date()
+            counts[day] = counts.get(day, 0) + 1
+        return counts
+
+
+def _since(since: datetime | None) -> list[ColumnElement[bool]]:
+    return [] if since is None else [IncidentRow.created_at >= since]
+
+
+def _flag(condition: ColumnElement[bool]) -> ColumnElement[int]:
+    """1 when the condition holds, 0 otherwise, so one query can count several things."""
+    return case((condition, 1), else_=0)
+
+
 class SqlAlchemyUnitOfWork(UnitOfWork):
     """One session, one transaction, three repositories."""
 
@@ -624,6 +1035,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.catalogue = SqlAlchemyCatalogueRepository(self.__session)
         self.audit = SqlAlchemyAuditRepository(self.__session)
         self.notifications = SqlAlchemyNotificationRepository(self.__session)
+        self.analytics = SqlAlchemyAnalyticsRepository(self.__session)
 
     @property
     def session(self) -> Session:

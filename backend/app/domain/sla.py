@@ -106,6 +106,10 @@ class ThresholdRiskEstimator(RiskEstimator):
     def __init__(self, fraction: float = AT_RISK_FRACTION) -> None:
         self.__fraction = fraction
 
+    @property
+    def fraction(self) -> float:
+        return self.__fraction
+
     def is_at_risk(self, elapsed: timedelta, target: timedelta) -> bool:
         return elapsed >= target * self.__fraction
 
@@ -206,6 +210,24 @@ class SLAClock:
     @property
     def response_deadline(self) -> datetime:
         return self.__started_at + self.__target.response
+
+    @property
+    def resolution_deadline_at_rest(self) -> datetime:
+        """The resolution deadline, ignoring a pause that is still running.
+
+        Persistence stores this so a search can compare it with "now" directly instead of
+        doing datetime arithmetic in SQL. A paused incident is excluded from breach searches,
+        which is why the current pause does not need to be counted here.
+        """
+        return self.__started_at + self.__target.resolution + self.__paused_total
+
+    def risk_at(self, estimator: RiskEstimator | None = None) -> datetime:
+        """When this incident becomes AT_RISK, on the same "at rest" basis (§5.2)."""
+        fraction = AT_RISK_FRACTION
+        if isinstance(estimator, ThresholdRiskEstimator):
+            fraction = estimator.fraction
+        target = self.__resolution_target_at_stop or self.__target.resolution
+        return self.__started_at + target * fraction + self.__paused_total
 
     # ------------------------------------------------------------ changes
     def retarget(self, target: SLATarget) -> None:
