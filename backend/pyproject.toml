@@ -37,6 +37,8 @@ src = ["app", "tests", "scripts"]
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "N", "SIM", "RUF", "S", "PT", "DTZ", "ANN", "C4", "PIE", "RET", "TID"]
 ignore = ["ANN401"]
+# Math signs used on purpose in user-facing explanations ("3 × 3 × 3 = 27").
+allowed-confusables = ["×", "−"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "datetime.datetime.now".msg = "Inject a Clock (app.core.clock) instead (AGENTS.md: Time)."
@@ -49,7 +51,7 @@ ignore = ["ANN401"]
 known-first-party = ["app", "tests", "scripts"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "ANN", "S105", "S106"]
+"tests/**" = ["S101", "ANN", "S105", "S106", "N802"]  # N802: test names carry BR-xx IDs
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]

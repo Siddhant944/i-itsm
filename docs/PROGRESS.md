@@ -2,7 +2,60 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P0 Foundations, in review (4 Nov)
+## Status: P1 Domain core, in review (3 Nov)
+
+All P1 packages are done on `claude/funny-fermi-bjxlhr` and in the P1 PR. Domain coverage 97 %;
+286 backend tests. Merge the PR, then start P2 in a fresh session with "continue".
+
+### Done
+- P1.1 Clock and errors (tests first): `app/core/clock.py` (Clock ABC; SystemClock, the only
+  wall-clock read; FakeClock that never moves backwards; AcceleratedClock with an injectable
+  monotonic source and `real_seconds()` for D-003) and `app/domain/errors.py` (ITSMError, 8 groups,
+  14 specific errors with stable codes and read-only details). 18 new unit tests.
+- P1.2 Users and permissions (tests first): `app/domain/value_objects.py` (EmailAddress,
+  SkillSet over a frozenset with `coverage()`), `app/domain/permissions.py` (Role, Portal,
+  Permission; the role → permission map built up the is-a hierarchy; escalation levels 0-3) and
+  `app/domain/users.py` (abstract User → Employee, Technician → TeamLead, Administrator →
+  ITManager; name-mangled read-only state; UserFactory). 43 new unit tests.
+- P1.3 Incident aggregate and State (tests first): `app/domain/states.py` (10 states, 20 legal
+  transitions, registry), `app/domain/events.py` (domain events, EventBus) and
+  `app/domain/incident.py` (Incident composing work notes, resolution and feedback;
+  IncidentFactory with INC-YYYY-NNNN IDs). The 100-pair matrix, BR-03 and BR-04 tests pass;
+  domain coverage 98 %. Deferred: the SLA clock inside the incident (joins in P1.5) and
+  `scripts/gen_state_diagram.py` (P6.1, generated from the state registry).
+- P1.4 Priority (tests first): `app/domain/priority.py` (Priority P1-P4; PriorityStrategy with
+  the floor applied once in `assess`; WeightedProduct S = I × U × C with the §5.1 thresholds;
+  an editable impact × urgency Matrix) and `Incident.prioritise` / `override_priority` (reason
+  required, PriorityChanged event). All 27 combinations give 4/6/10/7; 48 new tests.
+- P1.5 SLA (tests first): `app/domain/sla.py` (tiers, the §5.2 table with Silver ×2 and Bronze
+  ×4, SLAPolicyBook with MissingSLAConfigurationError and the Gold fallback (D-016), SLAClock with
+  respond, pause, resume, stop and restart, ThresholdRiskEstimator at 75 %). The Incident now owns
+  its SLA clock: acknowledge meets the response SLA, hold pauses, resume and the reporter's answer
+  resume, resolve and cancel stop, reopen restarts without counting resolved time. 13 new tests.
+- P1.6 Assignment (tests first): `app/domain/assignment.py` (Template Method `select()` filters
+  available, active technicians under the 10-point cap; Skill, Load and Smart strategies with
+  reasons such as "2/2 skills · 60 % capacity free · senior · 5 past fixes on this service";
+  `check_capacity` for manual assignment; registry). 8 new tests including BR-06.
+- P1.7 Escalation: `app/domain/escalation.py` (Chain of Responsibility Technician → Team Lead →
+  Administrator → IT Manager; unacknowledged P1/P2 move up one level per missed response
+  target, strictly after each multiple; a resolution breach goes to the Team Lead; no repeat
+  escalation to the current level). 10 new tests including BR-08.
+
+- P1.9 Phase close: subagent review found 5 issues, all fixed with regression tests
+  (refused actions now leave the incident unchanged; the SLA clock starts only before assignment;
+  response time stops counting after cancellation; met SLA results are frozen against later
+  retargets (D-017); IncidentState is an ABC). Deferred to P6.1: `scripts/gen_state_diagram.py`.
+
+### Next
+- P2 Persistence, services, API: P2.1 ORM and migrations first (the SQLAlchemy repositories join
+  `tests/contract/test_repository_contract.py`).
+
+### Needs a human
+1. Merge the P1 PR once CI is green (add the `e2e` label only at phase ends that touch the UI).
+2. Before P2.10 / P3: create the hosting accounts we will propose. Before P4: a Gemini API key.
+3. Confirm the video file-name year with the IC.
+
+## Previous: P0 Foundations (merged 3 Nov, PR #1)
 
 ### Done
 - P0.1 Sources moved to `docs/source/` and `docs/blueprint.md`; PLAN, PROGRESS and DECISIONS created; AGENTS.md session rules updated (D-001).
