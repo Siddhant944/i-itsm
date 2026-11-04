@@ -225,6 +225,18 @@ class Team:
         self.__lead_id = lead_id
         self.__member_ids: list[int] = []
 
+    @classmethod
+    def restore(
+        cls, team_id: int, name: str, *, lead_id: int | None, member_ids: Iterable[int]
+    ) -> "Team":
+        """Rebuild a stored team. The lead is taken as given: a lead who left the team is a
+        state the admin fixes, not a load error."""
+        team = cls(team_id, name)
+        for member_id in member_ids:
+            team.add_member(member_id)
+        team.__lead_id = lead_id
+        return team
+
     @property
     def id(self) -> int:
         return self.__id
