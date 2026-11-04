@@ -226,6 +226,12 @@ def migrate(_: argparse.Namespace) -> None:
     run(["uv", "run", "alembic", "upgrade", "head"], BACKEND)
 
 
+def seed(args: argparse.Namespace) -> None:
+    """Migrate, then fill the database with the campus catalogue, demo accounts and history."""
+    migrate(args)
+    run(["uv", "run", "python", "-m", "app.seed"], BACKEND)
+
+
 def diagrams(_: argparse.Namespace) -> None:
     """Render every PlantUML source under docs/diagrams/ to SVG next to it."""
     sources = sorted(str(p) for p in DIAGRAMS.rglob("*.puml"))
@@ -265,7 +271,7 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], None]] = {
     "secrets": secrets,
     "secrets-staged": secrets_staged,
     "migrate": migrate,
-    "seed": not_yet("P2.2"),
+    "seed": seed,
     "demo-reset": not_yet("P5.5"),
     "diagrams": diagrams,
     "report": report,

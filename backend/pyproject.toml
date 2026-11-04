@@ -118,6 +118,18 @@ source_modules = ["app.repositories", "app.adapters"]
 forbidden_modules = ["app.api", "app.services", "app.main", "fastapi", "starlette"]
 
 [[tool.importlinter.contracts]]
+name = "Seed data depends only on domain, core and persistence"
+type = "forbidden"
+source_modules = ["app.seed"]
+forbidden_modules = ["app.api", "app.services", "app.main", "fastapi", "starlette"]
+
+[[tool.importlinter.contracts]]
+name = "Only the composition root and the seed CLI import app.seed"
+type = "forbidden"
+source_modules = ["app.domain", "app.services", "app.api", "app.repositories", "app.adapters", "app.core"]
+forbidden_modules = ["app.seed"]
+
+[[tool.importlinter.contracts]]
 name = "Core depends on no application layer"
 type = "forbidden"
 source_modules = ["app.core"]
