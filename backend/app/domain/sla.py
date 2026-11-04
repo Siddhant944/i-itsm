@@ -128,11 +128,37 @@ class SLAClock:
         self.__started_at = started_at
         self.__target = target
         self.__responded_at: datetime | None = None
-        self.__pauses: list[tuple[datetime, datetime]] = []
+        self.__paused_total = timedelta()  # completed pauses and resolved spells, accumulated
         self.__paused_since: datetime | None = None
         self.__stopped_at: datetime | None = None
         self.__response_met: bool | None = None  # decided at the first acknowledgement
         self.__resolution_target_at_stop: timedelta | None = None
+
+    @classmethod
+    def restore(
+        cls,
+        *,
+        started_at: datetime,
+        target: SLATarget,
+        responded_at: datetime | None,
+        paused_total: timedelta,
+        paused_since: datetime | None,
+        stopped_at: datetime | None,
+        response_met: bool | None,
+        resolution_target_at_stop: timedelta | None,
+    ) -> "SLAClock":
+        """Rebuild a clock from stored columns (used by the persistence mappers).
+
+        Only the accumulated paused time is kept, because that is all the measurements use.
+        """
+        clock = cls(started_at, target)
+        clock.__responded_at = responded_at
+        clock.__paused_total = paused_total
+        clock.__paused_since = paused_since
+        clock.__stopped_at = stopped_at
+        clock.__response_met = response_met
+        clock.__resolution_target_at_stop = resolution_target_at_stop
+        return clock
 
     @property
     def started_at(self) -> datetime:
@@ -145,6 +171,29 @@ class SLAClock:
     @property
     def responded_at(self) -> datetime | None:
         return self.__responded_at
+
+    @property
+    def paused_accumulated(self) -> timedelta:
+        """Paused time already banked, excluding a pause still in progress (for storage)."""
+        return self.__paused_total
+
+    @property
+    def paused_since(self) -> datetime | None:
+        return self.__paused_since
+
+    @property
+    def stopped_at(self) -> datetime | None:
+        return self.__stopped_at
+
+    @property
+    def response_met(self) -> bool | None:
+        """Frozen at the first acknowledgement; None until then (D-017)."""
+        return self.__response_met
+
+    @property
+    def resolution_target_at_stop(self) -> timedelta | None:
+        """The resolution target frozen at RESOLVED, so a later retarget cannot rewrite it."""
+        return self.__resolution_target_at_stop
 
     @property
     def is_paused(self) -> bool:
@@ -179,7 +228,7 @@ class SLAClock:
         if self.__paused_since is None:
             msg = "The SLA clock is not paused."
             raise InvalidIncidentError(msg)
-        self.__pauses.append((self.__paused_since, at))
+        self.__paused_total += max(at - self.__paused_since, timedelta())
         self.__paused_since = None
 
     def stop(self, at: datetime) -> None:
@@ -196,7 +245,7 @@ class SLAClock:
         if self.__stopped_at is None:
             msg = "The SLA clock is not stopped."
             raise InvalidIncidentError(msg)
-        self.__pauses.append((self.__stopped_at, at))
+        self.__paused_total += max(at - self.__stopped_at, timedelta())
         self.__stopped_at = None
         self.__resolution_target_at_stop = None
 
@@ -206,7 +255,7 @@ class SLAClock:
 
     def paused_total(self, now: datetime) -> timedelta:
         moment = self._effective(now)
-        total = sum((end - start for start, end in self.__pauses), timedelta())
+        total = self.__paused_total
         if self.__paused_since is not None:
             total += max(moment - self.__paused_since, timedelta())
         return total

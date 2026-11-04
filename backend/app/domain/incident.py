@@ -6,6 +6,7 @@ each of which asks the current State object whether the move is legal, applies t
 and records a domain event for audit and notifications.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -107,6 +108,7 @@ class Incident:
         self.__resolved_at: datetime | None = None
         self.__closed_at: datetime | None = None
         self.__reopen_count = 0
+        self.__escalation_level = 0  # §5.5: 0 technician, 1 lead, 2 admin, 3 IT manager
         self.__priority: Priority | None = None
         self.__sla_clock: SLAClock | None = None
         self.__priority_score: int | None = None
@@ -115,6 +117,66 @@ class Incident:
         self.__resolution: Resolution | None = None
         self.__feedback: Feedback | None = None
         self.__events: list[DomainEvent] = []
+
+    @classmethod
+    def restore(
+        cls,
+        *,
+        incident_id: str,
+        reporter_id: int,
+        title: str,
+        description: str,
+        service_id: int,
+        impact: int,
+        urgency: int,
+        created_at: datetime,
+        status: IncidentStatus,
+        category_id: int | None = None,
+        assignee_id: int | None = None,
+        parent_id: str | None = None,
+        cancel_reason: CancelReason | None = None,
+        acknowledged_at: datetime | None = None,
+        resolved_at: datetime | None = None,
+        closed_at: datetime | None = None,
+        reopen_count: int = 0,
+        escalation_level: int = 0,
+        priority: Priority | None = None,
+        priority_score: int | None = None,
+        priority_overridden: bool = False,
+        sla_clock: SLAClock | None = None,
+        notes: Iterable[WorkNote] = (),
+        resolution: Resolution | None = None,
+        feedback: Feedback | None = None,
+    ) -> "Incident":
+        """Rebuild a stored incident. No events are recorded: they were dispatched already."""
+        incident = cls(
+            incident_id,
+            reporter_id,
+            title,
+            description,
+            service_id,
+            impact,
+            urgency,
+            created_at,
+            status,
+        )
+        incident.__category_id = category_id
+        incident.__assignee_id = assignee_id
+        incident.__parent_id = parent_id
+        incident.__cancel_reason = cancel_reason
+        incident.__acknowledged_at = acknowledged_at
+        incident.__resolved_at = resolved_at
+        incident.__closed_at = closed_at
+        incident.__reopen_count = reopen_count
+        incident.__escalation_level = escalation_level
+        incident.__priority = priority
+        incident.__priority_score = priority_score
+        incident.__priority_overridden = priority_overridden
+        incident.__sla_clock = sla_clock
+        incident.__notes = list(notes)
+        incident.__resolution = resolution
+        incident.__feedback = feedback
+        return incident
 
     # ------------------------------------------------------------ read-only views
     @property
@@ -187,6 +249,11 @@ class Incident:
         return self.__reopen_count
 
     @property
+    def escalation_level(self) -> int:
+        """How far up the chain this incident has been escalated (blueprint §5.5)."""
+        return self.__escalation_level
+
+    @property
     def priority(self) -> Priority | None:
         return self.__priority
 
@@ -255,6 +322,19 @@ class Incident:
         target = self.__state.assign()
         self.__assignee_id = technician_id
         self._move(target, actor_id, clock, f"Assigned to user {technician_id}")
+
+    def escalate(self, technician_id: int, level: int, actor_id: int | None, clock: Clock) -> None:
+        """Hand the incident to an escalation owner and raise its level (BR-08).
+
+        The level never goes down, so a later tick cannot re-escalate to a level already passed.
+        """
+        if level <= self.__escalation_level:
+            msg = f"Incident {self.__id} is already at escalation level {self.__escalation_level}."
+            raise InvalidIncidentError(msg)
+        target = self.__state.assign()
+        self.__assignee_id = technician_id
+        self.__escalation_level = level
+        self._move(target, actor_id, clock, f"Escalated to level {level} (user {technician_id})")
 
     def acknowledge(self, actor_id: int, clock: Clock) -> None:
         target = self.__state.acknowledge()
