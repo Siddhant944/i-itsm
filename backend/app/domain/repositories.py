@@ -14,6 +14,7 @@ from app.domain.audit import AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import Credentials
 from app.domain.incident import Incident
+from app.domain.notifications import Notification
 from app.domain.priority import Priority
 from app.domain.sla import SLAPolicyBook, SLATarget, SLATier
 from app.domain.users import Technician, User
@@ -73,6 +74,10 @@ class UserRepository(ABC):
         """Every technician and team lead."""
 
     @abstractmethod
+    def administrators(self) -> tuple[User, ...]:
+        """Administrators and IT managers, for the alerts §5.4 sends them."""
+
+    @abstractmethod
     def next_id(self) -> int:
         """The next free user id, for self-registration."""
 
@@ -100,6 +105,31 @@ class AuditRepository(ABC):
     @abstractmethod
     def hash_before(self, offset: int) -> str | None:
         """The hash of the record just before ``offset``, so one page can be verified alone."""
+
+
+class NotificationRepository(ABC):
+    """In-app notifications and the record of every attempted delivery (§5.4)."""
+
+    @abstractmethod
+    def add(self, notification: Notification) -> Notification:
+        """Store it and give it its id."""
+
+    @abstractmethod
+    def save(self, notification: Notification) -> None:
+        """Write back the delivery state (attempts, sent, read)."""
+
+    @abstractmethod
+    def get(self, notification_id: int) -> Notification:
+        """Raise NotFoundError when absent."""
+
+    @abstractmethod
+    def in_app_for(
+        self, user_id: int, *, unread_only: bool = False, limit: int = 20
+    ) -> tuple[Notification, ...]:
+        """The user's in-app notifications, newest first."""
+
+    @abstractmethod
+    def count_unread(self, user_id: int) -> int: ...
 
 
 class CredentialsRepository(ABC):
@@ -181,6 +211,7 @@ class UnitOfWork(ABC):
     credentials: CredentialsRepository
     catalogue: CatalogueRepository
     audit: AuditRepository
+    notifications: NotificationRepository
 
     def __enter__(self) -> Self:
         return self

@@ -28,12 +28,15 @@ from app.domain.errors import (
     ServiceNotFoundError,
 )
 from app.domain.incident import Incident
+from app.domain.notifications import ChannelName, Notification
+from app.domain.permissions import Role
 from app.domain.priority import Priority
 from app.domain.repositories import (
     AuditRepository,
     CatalogueRepository,
     CredentialsRepository,
     IncidentRepository,
+    NotificationRepository,
     UnitOfWork,
     UserRepository,
 )
@@ -48,6 +51,7 @@ from app.repositories.sqlalchemy.models import (
     CategoryRow,
     FeedbackRow,
     IncidentRow,
+    NotificationRow,
     ResolutionRow,
     ServiceDependencyRow,
     ServiceRow,
@@ -262,6 +266,14 @@ class SqlAlchemyUserRepository(UserRepository):
             user for user in (self.__load(row) for row in rows) if isinstance(user, Technician)
         )
 
+    def administrators(self) -> tuple[User, ...]:
+        rows = self.__session.scalars(
+            select(UserRow)
+            .where(UserRow.role.in_((Role.ADMINISTRATOR, Role.IT_MANAGER)))
+            .order_by(UserRow.id)
+        ).all()
+        return tuple(self.__load(row) for row in rows)
+
     def next_id(self) -> int:
         return int(self.__session.scalar(select(func.max(UserRow.id))) or 0) + 1
 
@@ -365,6 +377,64 @@ class SqlAlchemyAuditRepository(AuditRepository):
         if incident_id is None:
             return statement
         return statement.where(AuditRecordRow.incident_id == incident_id)
+
+
+class SqlAlchemyNotificationRepository(NotificationRepository):
+    """The ``notifications`` table: one row per person, per event, per channel."""
+
+    def __init__(self, session: Session) -> None:
+        self.__session = session
+
+    def add(self, notification: Notification) -> Notification:
+        row = mappers.notification_to_row(notification)
+        self.__session.add(row)
+        self.__session.flush()
+        notification.identify(row.id)
+        return notification
+
+    def save(self, notification: Notification) -> None:
+        if notification.id is None:
+            raise NotFoundError("This notification has not been stored yet.")
+        row = self.__session.get(NotificationRow, notification.id)
+        if row is None:
+            raise NotFoundError(f"No notification {notification.id}.")
+        mappers.notification_to_row(notification, row)
+        self.__session.flush()
+
+    def get(self, notification_id: int) -> Notification:
+        row = self.__session.get(NotificationRow, notification_id)
+        if row is None:
+            raise NotFoundError(f"No notification {notification_id}.")
+        return mappers.row_to_notification(row)
+
+    def in_app_for(
+        self, user_id: int, *, unread_only: bool = False, limit: int = 20
+    ) -> tuple[Notification, ...]:
+        statement = (
+            select(NotificationRow)
+            .where(NotificationRow.user_id == user_id)
+            .where(NotificationRow.channel == ChannelName.IN_APP.value)
+        )
+        if unread_only:
+            statement = statement.where(NotificationRow.read_at.is_(None))
+        rows = self.__session.scalars(
+            statement.order_by(NotificationRow.created_at.desc(), NotificationRow.id.desc()).limit(
+                limit
+            )
+        ).all()
+        return tuple(mappers.row_to_notification(row) for row in rows)
+
+    def count_unread(self, user_id: int) -> int:
+        return int(
+            self.__session.scalar(
+                select(func.count())
+                .select_from(NotificationRow)
+                .where(NotificationRow.user_id == user_id)
+                .where(NotificationRow.channel == ChannelName.IN_APP.value)
+                .where(NotificationRow.read_at.is_(None))
+            )
+            or 0
+        )
 
 
 class SqlAlchemyCredentialsRepository(CredentialsRepository):
@@ -553,6 +623,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.credentials = SqlAlchemyCredentialsRepository(self.__session)
         self.catalogue = SqlAlchemyCatalogueRepository(self.__session)
         self.audit = SqlAlchemyAuditRepository(self.__session)
+        self.notifications = SqlAlchemyNotificationRepository(self.__session)
 
     @property
     def session(self) -> Session:

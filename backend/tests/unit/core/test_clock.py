@@ -83,3 +83,17 @@ def test_accelerated_clock_rejects_non_positive_factor(factor: float) -> None:
 def test_system_and_fake_clocks_run_at_real_speed() -> None:
     assert SystemClock().real_seconds(timedelta(seconds=30)) == 30
     assert FakeClock(START).real_seconds(timedelta(seconds=30)) == 30
+
+
+def test_utc_is_displayed_in_ist() -> None:
+    """Blueprint §9: timestamps are stored as UTC and shown in IST (+5:30, no DST)."""
+    from datetime import UTC, datetime
+
+    from app.core.clock import in_ist
+
+    shown = in_ist(datetime(2026, 11, 6, 9, 0, tzinfo=UTC))
+    assert (shown.hour, shown.minute) == (14, 30)
+    assert shown.strftime("%d %b %Y, %H:%M") == "06 Nov 2026, 14:30"
+    # Still the same moment, in January too (India has no daylight saving).
+    assert shown == datetime(2026, 11, 6, 9, 0, tzinfo=UTC)
+    assert in_ist(datetime(2027, 1, 1, 20, 0, tzinfo=UTC)).day == 2

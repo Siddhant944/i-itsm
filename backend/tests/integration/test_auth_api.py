@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select
 
+from app.adapters.smtp_email import ConsoleEmailSender
 from app.api.deps import Services
 from app.core.clock import FakeClock
 from app.core.security import FakePasswordHasher, JwtTokenService
@@ -21,6 +22,7 @@ from app.domain.audit import AuditAction
 from app.domain.catalogue import Team
 from app.domain.credentials import MAX_FAILED_ATTEMPTS
 from app.domain.permissions import Permission, Role
+from app.domain.rule_advisor import RuleBasedAdvisor
 from app.domain.users import UserFactory
 from app.domain.value_objects import SkillSet
 from app.repositories.database import make_engine
@@ -63,6 +65,8 @@ def app(engine: Engine, clock: FakeClock, settings: Any) -> FastAPI:
         hasher=FakePasswordHasher(),
         tokens=JwtTokenService("a-test-secret-of-adequate-length", timedelta(minutes=30)),
         policy=AuthPolicy(),
+        email=ConsoleEmailSender(),
+        advisor=RuleBasedAdvisor(),
     )
     return built
 

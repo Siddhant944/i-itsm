@@ -19,6 +19,12 @@ from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import LOCKOUT_DURATION, MAX_FAILED_ATTEMPTS
 from app.domain.errors import IncidentNotFoundError, NotFoundError, ServiceNotFoundError
 from app.domain.incident import Incident, IncidentFactory
+from app.domain.notifications import (
+    ChannelName,
+    DeliveryStatus,
+    Notification,
+    NotificationEvent,
+)
 from app.domain.permissions import Role
 from app.domain.priority import Priority
 from app.domain.repositories import UnitOfWork
@@ -567,3 +573,76 @@ def test_a_record_with_no_actor_and_no_incident_is_allowed(uow: UnitOfWork) -> N
     uow.commit()
     assert record.actor_id is None
     assert uow.audit.records()[0].hash == record.hash
+
+
+# ---------------------------------------------------------------- notifications
+def a_notification(
+    user_id: int, channel: ChannelName, incident_id: str | None = None
+) -> Notification:
+    return Notification(
+        user_id=user_id,
+        event=NotificationEvent.CREATED,
+        channel=channel,
+        subject=f"{incident_id or 'INC-2026-0001'}: we have your report",
+        body="Thanks for telling us.",
+        created_at=NOW,
+        incident_id=incident_id,
+    )
+
+
+def test_notifications_round_trip_with_their_delivery_state(
+    backend: Backend, uow: UnitOfWork
+) -> None:
+    incident_id = audited_incident(backend, uow)
+    stored = uow.notifications.add(a_notification(1, ChannelName.EMAIL, incident_id))
+    assert stored.id is not None
+    stored.record_failure()
+    stored.mark_sent(NOW + timedelta(seconds=2))
+    uow.notifications.save(stored)
+    uow.commit()
+
+    reloaded = uow.notifications.get(stored.id)
+    assert reloaded.status is DeliveryStatus.SENT
+    assert reloaded.attempts == 2
+    assert reloaded.sent_at == NOW + timedelta(seconds=2)
+    assert reloaded.incident_id == incident_id
+    assert reloaded.event is NotificationEvent.CREATED
+    assert reloaded.channel is ChannelName.EMAIL
+
+
+def test_the_bell_reads_only_in_app_notifications(backend: Backend, uow: UnitOfWork) -> None:
+    incident_id = audited_incident(backend, uow)
+    uow.notifications.add(a_notification(1, ChannelName.EMAIL, incident_id))
+    bell = uow.notifications.add(a_notification(1, ChannelName.IN_APP, incident_id))
+    uow.commit()
+
+    assert [n.id for n in uow.notifications.in_app_for(1)] == [bell.id]
+    assert uow.notifications.count_unread(1) == 1
+    assert uow.notifications.count_unread(2) == 0
+
+    assert bell.id is not None
+    bell.mark_read(NOW + timedelta(minutes=1))
+    uow.notifications.save(bell)
+    uow.commit()
+    assert uow.notifications.count_unread(1) == 0
+    assert uow.notifications.in_app_for(1, unread_only=True) == ()
+    assert uow.notifications.get(bell.id).read_at == NOW + timedelta(minutes=1)
+
+
+def test_the_bell_lists_the_newest_first_and_honours_the_limit(
+    backend: Backend, uow: UnitOfWork
+) -> None:
+    incident_id = audited_incident(backend, uow)
+    for _ in range(4):
+        uow.notifications.add(a_notification(1, ChannelName.IN_APP, incident_id))
+    uow.commit()
+    listed = uow.notifications.in_app_for(1, limit=2)
+    assert len(listed) == 2
+    assert [n.id for n in listed] == sorted((n.id or 0) for n in listed)[::-1]
+
+
+def test_an_unknown_notification_raises_not_found(uow: UnitOfWork) -> None:
+    with pytest.raises(NotFoundError):
+        uow.notifications.get(404)
+    with pytest.raises(NotFoundError):
+        uow.notifications.save(a_notification(1, ChannelName.IN_APP))

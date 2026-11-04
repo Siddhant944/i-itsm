@@ -16,12 +16,17 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.clock import Clock
 from app.core.security import PasswordHasher, TokenService
-from app.domain.errors import InvalidLoginError
+from app.domain.errors import InvalidLoginError, ITSMError
 from app.domain.permissions import Permission
+from app.domain.ports import AIAdvisor, EmailSender
 from app.domain.repositories import UnitOfWork
 from app.domain.users import User
 from app.services.audit import AuditService
 from app.services.auth_service import AuthPolicy, AuthService
+from app.services.dispatcher import PostCommitDispatcher
+from app.services.incident_service import IncidentService
+from app.services.notifications import EmailChannel, default_factory
+from app.services.notifications.service import NotificationService
 
 #: ``auto_error=False`` so a missing header becomes our own 401 body, not FastAPI's.
 bearer = HTTPBearer(auto_error=False, scheme_name="Bearer")
@@ -36,6 +41,8 @@ class Services:
     hasher: PasswordHasher
     tokens: TokenService
     policy: AuthPolicy
+    email: EmailSender
+    advisor: AIAdvisor
 
 
 def get_services(request: Request) -> Services:
@@ -71,6 +78,40 @@ def get_audit_service(services: ServicesDep, uow: UowDep) -> AuditService:
 
 
 AuditDep = Annotated[AuditService, Depends(get_audit_service)]
+
+
+def get_notification_service(services: ServicesDep, uow: UowDep) -> NotificationService:
+    """The notification service for this request, with the channels this deployment has."""
+    channels = default_factory(
+        email=EmailChannel(services.email, lambda user_id: _address(uow, user_id))
+    )
+    return NotificationService(uow, services.clock, channels)
+
+
+NotificationsDep = Annotated[NotificationService, Depends(get_notification_service)]
+
+
+def _address(uow: UnitOfWork, user_id: int) -> str | None:
+    """A recipient's email, or None when the account has gone."""
+    try:
+        return str(uow.users.get(user_id).email)
+    except ITSMError:
+        return None
+
+
+def get_incident_service(
+    services: ServicesDep, uow: UowDep, notifications: NotificationsDep
+) -> IncidentService:
+    """The facade, with notifications wired to fire only after the commit (§5.4)."""
+    return IncidentService(
+        uow,
+        services.clock,
+        dispatcher=PostCommitDispatcher([notifications.on_event]),
+        advisor=services.advisor,
+    )
+
+
+IncidentsDep = Annotated[IncidentService, Depends(get_incident_service)]
 
 
 def get_current_user(

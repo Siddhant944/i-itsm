@@ -17,12 +17,15 @@ from app.domain.errors import (
     ServiceNotFoundError,
 )
 from app.domain.incident import Incident
+from app.domain.notifications import ChannelName, Notification
+from app.domain.permissions import Role
 from app.domain.priority import Priority
 from app.domain.repositories import (
     AuditRepository,
     CatalogueRepository,
     CredentialsRepository,
     IncidentRepository,
+    NotificationRepository,
     UnitOfWork,
     UserRepository,
 )
@@ -109,6 +112,11 @@ class InMemoryUserRepository(UserRepository):
     def technicians(self) -> tuple[Technician, ...]:
         return tuple(u for u in self.__items.values() if isinstance(u, Technician))
 
+    def administrators(self) -> tuple[User, ...]:
+        return tuple(
+            u for u in self.__items.values() if u.role in (Role.ADMINISTRATOR, Role.IT_MANAGER)
+        )
+
     def next_id(self) -> int:
         return max(self.__items, default=0) + 1
 
@@ -139,6 +147,45 @@ class InMemoryAuditRepository(AuditRepository):
         if incident_id is None:
             return list(self.__records)
         return [r for r in self.__records if r.incident_id == incident_id]
+
+
+class InMemoryNotificationRepository(NotificationRepository):
+    def __init__(self) -> None:
+        self.__items: dict[int, Notification] = {}
+        self.__next_id = 1
+
+    def add(self, notification: Notification) -> Notification:
+        notification.identify(self.__next_id)
+        self.__items[self.__next_id] = notification
+        self.__next_id += 1
+        return notification
+
+    def save(self, notification: Notification) -> None:
+        if notification.id is None or notification.id not in self.__items:
+            raise NotFoundError(f"No notification {notification.id}.")
+        self.__items[notification.id] = notification
+
+    def get(self, notification_id: int) -> Notification:
+        try:
+            return self.__items[notification_id]
+        except KeyError:
+            raise NotFoundError(f"No notification {notification_id}.") from None
+
+    def in_app_for(
+        self, user_id: int, *, unread_only: bool = False, limit: int = 20
+    ) -> tuple[Notification, ...]:
+        found = [
+            n
+            for n in self.__items.values()
+            if n.user_id == user_id
+            and n.channel is ChannelName.IN_APP
+            and (not unread_only or not n.is_read)
+        ]
+        found.sort(key=lambda n: (n.created_at, n.id or 0), reverse=True)
+        return tuple(found[:limit])
+
+    def count_unread(self, user_id: int) -> int:
+        return len(self.in_app_for(user_id, unread_only=True, limit=10_000))
 
 
 class InMemoryCredentialsRepository(CredentialsRepository):
@@ -238,6 +285,7 @@ class InMemoryUnitOfWork(UnitOfWork):
         self.credentials = InMemoryCredentialsRepository(self.users)
         self.catalogue = InMemoryCatalogueRepository(self.users)
         self.audit = InMemoryAuditRepository()
+        self.notifications = InMemoryNotificationRepository()
         self.committed = 0
 
     def commit(self) -> None:

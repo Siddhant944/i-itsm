@@ -12,6 +12,12 @@ from app.domain.audit import AuditAction, AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import Credentials
 from app.domain.incident import Feedback, Incident, Resolution, WorkNote
+from app.domain.notifications import (
+    ChannelName,
+    DeliveryStatus,
+    Notification,
+    NotificationEvent,
+)
 from app.domain.sla import SLAClock, SLATarget
 from app.domain.users import Technician, User, UserFactory
 from app.domain.value_objects import SkillSet
@@ -20,6 +26,8 @@ from app.repositories.sqlalchemy.models import (
     CategoryRow,
     FeedbackRow,
     IncidentRow,
+    NotificationRow,
+    NotificationStatus,
     ResolutionRow,
     ServiceRow,
     SkillRow,
@@ -127,6 +135,42 @@ def row_to_audit(row: AuditRecordRow) -> AuditRecord:
         incident_id=row.incident_id,
         details=dict(row.details),
         hash=row.hash,
+    )
+
+
+def notification_to_row(
+    notification: Notification, row: NotificationRow | None = None
+) -> NotificationRow:
+    row = row or NotificationRow(
+        user_id=notification.user_id,
+        incident_id=notification.incident_id,
+        event=notification.event.value,
+        channel=notification.channel.value,
+        created_at=notification.created_at,
+    )
+    row.subject = notification.subject
+    row.body = notification.body
+    row.status = NotificationStatus(notification.status.value)
+    row.attempts = notification.attempts
+    row.sent_at = notification.sent_at
+    row.read_at = notification.read_at
+    return row
+
+
+def row_to_notification(row: NotificationRow) -> Notification:
+    return Notification(
+        notification_id=row.id,
+        user_id=row.user_id,
+        event=NotificationEvent(row.event),
+        channel=ChannelName(row.channel),
+        subject=row.subject,
+        body=row.body,
+        created_at=row.created_at,
+        incident_id=row.incident_id,
+        status=DeliveryStatus(row.status.value),
+        attempts=row.attempts,
+        sent_at=row.sent_at,
+        read_at=row.read_at,
     )
 
 

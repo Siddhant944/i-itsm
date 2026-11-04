@@ -9,7 +9,15 @@ All clocks return timezone-aware UTC datetimes; display code converts to IST.
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
+
+#: Display time zone (blueprint §9: stored as UTC, shown in IST). No DST, so a fixed offset.
+IST = timezone(timedelta(hours=5, minutes=30), "IST")
+
+
+def in_ist(value: datetime) -> datetime:
+    """The same moment, in the time zone the campus reads."""
+    return _require_aware_utc(value).astimezone(IST)
 
 
 def _require_aware_utc(value: datetime) -> datetime:

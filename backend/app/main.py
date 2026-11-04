@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app.adapters.smtp_email import EmailSettings, email_sender_for
 from app.api import health
 from app.api.deps import Services
 from app.api.errors import register_error_handlers
@@ -22,6 +23,7 @@ from app.core.clock import AcceleratedClock, Clock, SystemClock
 from app.core.config import AppEnv, ClockMode, Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.security import Argon2PasswordHasher, JwtTokenService
+from app.domain.rule_advisor import RuleBasedAdvisor
 from app.repositories.database import make_engine, ping
 from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session_factory
 from app.services.auth_service import AuthPolicy
@@ -32,6 +34,18 @@ def make_clock(settings: Settings) -> Clock:
     if settings.clock_mode is ClockMode.ACCELERATED:
         return AcceleratedClock(settings.clock_acceleration)
     return SystemClock()
+
+
+def email_settings(settings: Settings) -> EmailSettings:
+    """The SMTP fields only; an empty SMTP_HOST means the console fallback (§5.4)."""
+    return EmailSettings(
+        host=settings.smtp_host,
+        port=settings.smtp_port,
+        username=settings.smtp_username,
+        password=(settings.smtp_password.get_secret_value() if settings.smtp_password else ""),
+        sender=settings.smtp_from,
+        starttls=settings.smtp_starttls,
+    )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -72,6 +86,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             timedelta(minutes=settings.jwt_access_ttl_minutes),
         ),
         policy=AuthPolicy(allowed_email_domains=tuple(settings.allowed_email_domains)),
+        email=email_sender_for(email_settings(settings)),
+        # §6.1: Gemini arrives in P4.4 with this rule-based advisor as its fallback.
+        advisor=RuleBasedAdvisor(),
     )
     app.state.db_probe = lambda: ping(engine)
     app.state.settings = settings

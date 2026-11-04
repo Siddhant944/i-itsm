@@ -45,6 +45,16 @@ class OutgoingMessage:
     incident_id: str | None = None
 
 
+class EmailSender(ABC):
+    """Hands one message to whatever can deliver it: SMTP, or the console fallback (§5.4)."""
+
+    name: str
+
+    @abstractmethod
+    def send(self, to: str, subject: str, body: str) -> None:
+        """Deliver, or raise NetworkFailureError so the caller can retry."""
+
+
 class NotificationChannel(ABC):
     """In-app, email or Telegram delivery; a new channel is one class (blueprint §5.4)."""
 
