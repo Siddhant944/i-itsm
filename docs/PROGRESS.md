@@ -2,58 +2,67 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P1 Domain core, in review (3 Nov)
+## Status: P2 Persistence, services, API — in progress (4 Nov)
 
-All P1 packages are done on `claude/funny-fermi-bjxlhr` and in the P1 PR. Domain coverage 97 %;
-286 backend tests. Merge the PR, then start P2 in a fresh session with "continue".
+On `claude/jolly-newton-82k47h`, cut from main after the P1 PR merged. P2.1, P2.2 and P2.3 are
+done and pushed, together with the audit half of P2.4. `make verify` passes (442 backend tests,
+98 % coverage) and the whole suite also passes against PostgreSQL 16, migrations and a full seed
+included.
 
 ### Done
-- P1.1 Clock and errors (tests first): `app/core/clock.py` (Clock ABC; SystemClock, the only
-  wall-clock read; FakeClock that never moves backwards; AcceleratedClock with an injectable
-  monotonic source and `real_seconds()` for D-003) and `app/domain/errors.py` (ITSMError, 8 groups,
-  14 specific errors with stable codes and read-only details). 18 new unit tests.
-- P1.2 Users and permissions (tests first): `app/domain/value_objects.py` (EmailAddress,
-  SkillSet over a frozenset with `coverage()`), `app/domain/permissions.py` (Role, Portal,
-  Permission; the role → permission map built up the is-a hierarchy; escalation levels 0-3) and
-  `app/domain/users.py` (abstract User → Employee, Technician → TeamLead, Administrator →
-  ITManager; name-mangled read-only state; UserFactory). 43 new unit tests.
-- P1.3 Incident aggregate and State (tests first): `app/domain/states.py` (10 states, 20 legal
-  transitions, registry), `app/domain/events.py` (domain events, EventBus) and
-  `app/domain/incident.py` (Incident composing work notes, resolution and feedback;
-  IncidentFactory with INC-YYYY-NNNN IDs). The 100-pair matrix, BR-03 and BR-04 tests pass;
-  domain coverage 98 %. Deferred: the SLA clock inside the incident (joins in P1.5) and
-  `scripts/gen_state_diagram.py` (P6.1, generated from the state registry).
-- P1.4 Priority (tests first): `app/domain/priority.py` (Priority P1-P4; PriorityStrategy with
-  the floor applied once in `assess`; WeightedProduct S = I × U × C with the §5.1 thresholds;
-  an editable impact × urgency Matrix) and `Incident.prioritise` / `override_priority` (reason
-  required, PriorityChanged event). All 27 combinations give 4/6/10/7; 48 new tests.
-- P1.5 SLA (tests first): `app/domain/sla.py` (tiers, the §5.2 table with Silver ×2 and Bronze
-  ×4, SLAPolicyBook with MissingSLAConfigurationError and the Gold fallback (D-016), SLAClock with
-  respond, pause, resume, stop and restart, ThresholdRiskEstimator at 75 %). The Incident now owns
-  its SLA clock: acknowledge meets the response SLA, hold pauses, resume and the reporter's answer
-  resume, resolve and cancel stop, reopen restarts without counting resolved time. 13 new tests.
-- P1.6 Assignment (tests first): `app/domain/assignment.py` (Template Method `select()` filters
-  available, active technicians under the 10-point cap; Skill, Load and Smart strategies with
-  reasons such as "2/2 skills · 60 % capacity free · senior · 5 past fixes on this service";
-  `check_capacity` for manual assignment; registry). 8 new tests including BR-06.
-- P1.7 Escalation: `app/domain/escalation.py` (Chain of Responsibility Technician → Team Lead →
-  Administrator → IT Manager; unacknowledged P1/P2 move up one level per missed response
-  target, strictly after each multiple; a resolution breach goes to the Team Lead; no repeat
-  escalation to the current level). 10 new tests including BR-08.
-
-- P1.9 Phase close: subagent review found 5 issues, all fixed with regression tests
-  (refused actions now leave the incident unchanged; the SLA clock starts only before assignment;
-  response time stops counting after cancellation; met SLA results are frozen against later
-  retargets (D-017); IncidentState is an ABC). Deferred to P6.1: `scripts/gen_state_diagram.py`.
+- **P2.1 ORM and migrations.** `app/domain/catalogue.py` adds the entities the schema needed:
+  Skill, Category (keywords, optional priority floor), ITService (criticality, SLA tier,
+  dependencies) and Team, plus `required_skills_for` for D-002. `SLAClock.restore`,
+  `Incident.restore` and `Team.restore` let the mappers rebuild aggregates through named
+  constructors instead of writing to name-mangled state; the SLA clock now banks paused time as
+  one accumulated timedelta (the pause list was only ever summed), which is what the schema
+  stores. `Incident` gained the escalation level §9 keeps on the row, with `escalate()`.
+  `app/repositories/sqlalchemy/` holds the 18 tables with the §9 indexes, enums stored as the
+  domain's own strings with CHECK constraints, a `UtcDateTime` column that refuses naive values,
+  mappers, and repositories for incidents, users and the catalogue behind a Unit of Work that
+  shares one session. Optimistic locking records the version each incident was read at, so a new
+  work note contends with a status change. Alembic revision 0001 creates everything and
+  `tests/integration/test_migrations.py` fails if the models and the migrations drift;
+  `make migrate` is new, and the API image migrates before it serves.
+- **P2.2 Seed data.** `app/seed/` (campus data, people, history generator, runner). Ten skills,
+  ten categories, fourteen services with twenty dependency edges, five teams, twelve SLA
+  policies, 51 accounts (one per role, password `demo1234`) and 420 historical incidents driven
+  through the real aggregate methods on a FakeClock. 246 closed, open work in every state, 75 %
+  response compliance, reopens, escalations and linked duplicates (D-005). Deterministic for a
+  given clock, idempotent through a marker row, and numbers come from the repository's own
+  per-year counter so the next reported incident continues the series.
+- **P2.3 Auth and security.** `app/domain/credentials.py` holds the §8 lockout rule (five
+  failures, fifteen minutes, an expired lock restarts the count). `app/core/security.py` has
+  Argon2id hashing and HS256 tokens whose expiry is checked against the injected Clock, with a
+  fast fake hasher for tests. `AuthService` registers Employees only (D-008), answers an unknown
+  email exactly like a wrong password, and audits every outcome. `app/api/` gained the §8 error
+  table in one place, request dependencies (`Depends(requires(permission))` so a route cannot
+  forget its check) and POST /auth/register, POST /auth/login, GET /auth/me. The typed TS client
+  is regenerated.
+- **P2.4 part 1: audit.** `app/domain/audit.py` implements h_i = SHA256(h_(i-1) || record_i) over
+  a canonical JSON rendering; `app/services/audit.py` appends through the caller's Unit of Work
+  (never commits) and reads the head under a row lock. Five integration tests edit, delete and
+  replay rows in `audit_log` with raw SQL and the admin's verify finds every tampering, across
+  page boundaries; the unique hash blocks a replay outright. Revision 0002 adds
+  `users.last_login_at`.
 
 ### Next
-- P2 Persistence, services, API: P2.1 ORM and migrations first (the SQLAlchemy repositories join
-  `tests/contract/test_repository_contract.py`).
+- P2.4 part 2: the IncidentService facade (BR-01, BR-02, BR-03, BR-10), publishing incident
+  events into the audit chain in-transaction and notifications after commit.
+- Then P2.5 notifications, P2.6 routers and errors for incidents, P2.7 search and analytics,
+  P2.8 SLA monitor, P2.9 authorisation matrix and client, P2.10 hosting research, P2.11 close.
 
 ### Needs a human
-1. Merge the P1 PR once CI is green (add the `e2e` label only at phase ends that touch the UI).
-2. Before P2.10 / P3: create the hosting accounts we will propose. Before P4: a Gemini API key.
+1. Nothing blocking yet this phase. At P2.10 we will propose hosting; create those accounts
+   before P3.6.
+2. Before P4: a Gemini API key and model names.
 3. Confirm the video file-name year with the IC.
+
+## Previous: P1 Domain core (merged 4 Nov, PR #2)
+
+All nine P1 packages done: Clock and errors, users and permissions, the Incident aggregate with
+the State pattern and its 20 transitions, priority, SLA, assignment, escalation, ports and the
+in-memory repositories, and the phase review. Domain coverage 97 %; 286 backend tests.
 
 ## Previous: P0 Foundations (merged 3 Nov, PR #1)
 
