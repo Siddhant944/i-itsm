@@ -43,6 +43,14 @@ class PriorityChanged(DomainEvent):
 
 
 @dataclass(frozen=True, slots=True)
+class CategoryChanged(DomainEvent):
+    """The category was corrected after classification; the status does not change."""
+
+    old_category_id: int | None
+    new_category_id: int
+
+
+@dataclass(frozen=True, slots=True)
 class WorkNoteAdded(DomainEvent):
     kind: str
 

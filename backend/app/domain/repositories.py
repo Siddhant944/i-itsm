@@ -37,6 +37,18 @@ class IncidentRepository(ABC):
     def list_by_reporter(self, reporter_id: int) -> tuple[Incident, ...]: ...
 
     @abstractmethod
+    def list_for_assignee(self, technician_id: int) -> tuple[Incident, ...]:
+        """The incidents a technician is carrying, newest first."""
+
+    @abstractmethod
+    def workloads(self) -> Mapping[int, int]:
+        """Weighted load per technician over open incidents (§5.3: P1-P4 cost 4/3/2/1)."""
+
+    @abstractmethod
+    def past_fixes(self, service_id: int) -> Mapping[int, int]:
+        """How many incidents on ``service_id`` each technician has resolved (§5.3 n_t,s)."""
+
+    @abstractmethod
     def next_sequence(self, year: int) -> int:
         """The next number for INC-<year>-NNNN (1-based, per year)."""
 

@@ -7,6 +7,7 @@ that the caller is writing the object the repository already holds.
 from collections import defaultdict
 from collections.abc import Mapping
 
+from app.domain.assignment import WORKLOAD_COST
 from app.domain.audit import AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import Credentials
@@ -26,6 +27,7 @@ from app.domain.repositories import (
     UserRepository,
 )
 from app.domain.sla import SLAPolicyBook, SLATarget, SLATier, default_policies
+from app.domain.states import OPEN_STATUSES
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress
 
@@ -51,6 +53,32 @@ class InMemoryIncidentRepository(IncidentRepository):
 
     def list_by_reporter(self, reporter_id: int) -> tuple[Incident, ...]:
         return tuple(i for i in self.__items.values() if i.reporter_id == reporter_id)
+
+    def list_for_assignee(self, technician_id: int) -> tuple[Incident, ...]:
+        found = [i for i in self.__items.values() if i.assignee_id == technician_id]
+        return tuple(sorted(found, key=lambda i: i.created_at, reverse=True))
+
+    def workloads(self) -> Mapping[int, int]:
+        loads: defaultdict[int, int] = defaultdict(int)
+        for incident in self.__items.values():
+            if (
+                incident.assignee_id is not None
+                and incident.status in OPEN_STATUSES
+                and incident.priority is not None
+            ):
+                loads[incident.assignee_id] += WORKLOAD_COST[incident.priority]
+        return dict(loads)
+
+    def past_fixes(self, service_id: int) -> Mapping[int, int]:
+        fixes: defaultdict[int, int] = defaultdict(int)
+        for incident in self.__items.values():
+            if (
+                incident.service_id == service_id
+                and incident.assignee_id is not None
+                and incident.resolution is not None
+            ):
+                fixes[incident.assignee_id] += 1
+        return dict(fixes)
 
     def next_sequence(self, year: int) -> int:
         self.__sequences[year] += 1

@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.orm.exc import StaleDataError
 
 from app.core.clock import Clock, SystemClock
+from app.domain.assignment import WORKLOAD_COST
 from app.domain.audit import AuditRecord
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import Credentials
@@ -37,6 +38,7 @@ from app.domain.repositories import (
     UserRepository,
 )
 from app.domain.sla import SLAPolicyBook, SLATarget, SLATier
+from app.domain.states import OPEN_STATUSES
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress, SkillSet
 from app.repositories.sqlalchemy import mappers
@@ -120,6 +122,40 @@ class SqlAlchemyIncidentRepository(IncidentRepository):
             .order_by(IncidentRow.created_at, IncidentRow.id)
         ).all()
         return tuple(self.__load(row) for row in rows)
+
+    def list_for_assignee(self, technician_id: int) -> tuple[Incident, ...]:
+        rows = self.__session.scalars(
+            select(IncidentRow)
+            .where(IncidentRow.assignee_id == technician_id)
+            .order_by(IncidentRow.created_at.desc(), IncidentRow.id.desc())
+        ).all()
+        return tuple(self.__load(row) for row in rows)
+
+    def workloads(self) -> Mapping[int, int]:
+        """One grouped query, so ranking candidates does not read every open incident."""
+        rows = self.__session.execute(
+            select(IncidentRow.assignee_id, IncidentRow.priority, func.count())
+            .where(IncidentRow.assignee_id.is_not(None))
+            .where(IncidentRow.status.in_(tuple(OPEN_STATUSES)))
+            .where(IncidentRow.priority.is_not(None))
+            .group_by(IncidentRow.assignee_id, IncidentRow.priority)
+        ).all()
+        loads: dict[int, int] = {}
+        for assignee_id, priority, count in rows:
+            if assignee_id is None or priority is None:  # excluded by the WHERE clauses
+                continue
+            loads[assignee_id] = loads.get(assignee_id, 0) + WORKLOAD_COST[priority] * count
+        return loads
+
+    def past_fixes(self, service_id: int) -> Mapping[int, int]:
+        rows = self.__session.execute(
+            select(IncidentRow.assignee_id, func.count())
+            .join(ResolutionRow, ResolutionRow.incident_id == IncidentRow.id)
+            .where(IncidentRow.service_id == service_id)
+            .where(IncidentRow.assignee_id.is_not(None))
+            .group_by(IncidentRow.assignee_id)
+        ).all()
+        return {assignee_id: count for assignee_id, count in rows if assignee_id is not None}
 
     def next_sequence(self, year: int) -> int:
         """Reserve the next number for ``year``, locking the counter row on PostgreSQL."""

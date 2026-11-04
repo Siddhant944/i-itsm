@@ -33,6 +33,7 @@ class AuditAction(StrEnum):
     INCIDENT_CREATED = "incident.created"
     INCIDENT_STATE_CHANGED = "incident.state_changed"
     INCIDENT_NOTE_ADDED = "incident.note_added"
+    PRIORITY_ASSESSED = "incident.priority_assessed"
     PRIORITY_OVERRIDDEN = "incident.priority_overridden"
     CATEGORY_OVERRIDDEN = "incident.category_overridden"
     INCIDENT_ESCALATED = "incident.escalated"

@@ -18,6 +18,7 @@ from app.domain.errors import (
     UnauthorizedOperationError,
 )
 from app.domain.events import (
+    CategoryChanged,
     DomainEvent,
     IncidentCreated,
     IncidentStateChanged,
@@ -316,6 +317,20 @@ class Incident:
         target = self.__state.classify()
         self.__category_id = category_id
         self._move(target, actor_id, clock, f"Classified as category {category_id}")
+
+    def recategorise(self, category_id: int, actor_id: int | None, clock: Clock) -> None:
+        """Correct the category of an incident that is already classified.
+
+        Classification is a lifecycle step (NEW to CLASSIFIED); correcting the category later is
+        not, so this changes only the category and records it for the audit trail (§6.1: an AI
+        suggestion can always be overridden, and the override is never silent).
+        """
+        if self.__state.is_terminal:
+            msg = "A closed or cancelled incident cannot be recategorised."
+            raise InvalidIncidentError(msg)
+        old = self.__category_id
+        self.__category_id = category_id
+        self.__events.append(CategoryChanged(clock.now(), self.__id, actor_id, old, category_id))
 
     def assign(self, technician_id: int, actor_id: int | None, clock: Clock) -> None:
         """Assign, reassign or escalate to ``technician_id``."""
