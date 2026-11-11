@@ -192,6 +192,28 @@ def e2e(_: argparse.Namespace) -> None:
     run(["npx", "playwright", "test"], E2E)
 
 
+E2E_ENV = {
+    "APP_ENV": "test",
+    "DATABASE_URL": "sqlite:///./e2e.db",
+    # The seeded history was never watched by the monitor; keep it from catching up mid-test.
+    "SLA_TICK_SECONDS": "0",
+    "CORS_ORIGINS": '["http://127.0.0.1:5173"]',
+}
+
+
+def e2e_api(_: argparse.Namespace) -> None:
+    """Serve the API for Playwright on a freshly migrated and seeded throwaway database."""
+    for leftover in BACKEND.glob("e2e.db*"):
+        leftover.unlink()
+    run(["uv", "run", "alembic", "upgrade", "head"], BACKEND, E2E_ENV)
+    run(["uv", "run", "python", "-m", "app.seed"], BACKEND, E2E_ENV)
+    run(
+        ["uv", "run", "uvicorn", "app.main:create_app", "--factory", "--host", "127.0.0.1"],
+        BACKEND,
+        E2E_ENV,
+    )
+
+
 def _gitleaks() -> str:
     found = shutil.which("gitleaks")
     local = REPO / "tools" / "bin" / ("gitleaks.exe" if os.name == "nt" else "gitleaks")
@@ -268,6 +290,7 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], None]] = {
     "gen-client": gen_client,
     "check-client": check_client,
     "e2e": e2e,
+    "e2e-api": e2e_api,
     "secrets": secrets,
     "secrets-staged": secrets_staged,
     "migrate": migrate,

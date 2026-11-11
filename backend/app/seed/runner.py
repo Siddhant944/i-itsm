@@ -171,6 +171,12 @@ def _credentials(uow: SqlAlchemyUnitOfWork, hash_password: PasswordHasher) -> No
         uow.credentials.save(credentials)
 
 
+def already_seeded(uow: SqlAlchemyUnitOfWork) -> bool:
+    """True once the history marker exists, i.e. a full seed has completed here before."""
+    marker = uow.session.get(SystemConfigRow, SEED_MARKER)
+    return marker is not None and int(marker.value.get("version", 0)) >= SEED_VERSION
+
+
 # ---------------------------------------------------------------- history
 def _history(uow: SqlAlchemyUnitOfWork, clock: Clock, size: int | None) -> bool:
     marker = uow.session.get(SystemConfigRow, SEED_MARKER)

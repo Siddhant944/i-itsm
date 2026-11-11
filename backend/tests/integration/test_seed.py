@@ -248,3 +248,38 @@ def test_the_command_line_entry_point_seeds_the_configured_database(
         assert session.scalar(select(func.count()).select_from(IncidentRow))
         assert session.scalar(select(func.count()).select_from(UserRow)) == len(people.ALL_USERS)
     engine.dispose()
+
+
+def test_seeding_only_if_empty_leaves_a_seeded_database_alone(
+    database_url: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A deployment seeds on every start (SEED_ON_START); the second start must change nothing."""
+    from app.core.config import get_settings
+    from app.core.security import FakePasswordHasher
+    from app.domain.catalogue import Category
+    from app.seed import __main__ as entry
+    from app.seed.runner import already_seeded
+
+    engine = make_engine(database_url)
+    Base.metadata.drop_all(engine)
+    create_schema(engine)
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    try:
+        uow = SqlAlchemyUnitOfWork(make_session_factory(engine), FakeClock(NOW))
+        assert already_seeded(uow) is False
+        seed(uow, FakeClock(NOW), hash_password=FakePasswordHasher().hash, history=5)
+        assert already_seeded(uow) is True
+        uow.catalogue.save_category(Category(99, "Added by an admin"))
+        uow.commit()
+        uow.close()
+
+        assert entry.main(["--if-empty"]) == 0
+        assert "already seeded" in capsys.readouterr().out
+        check = SqlAlchemyUnitOfWork(make_session_factory(engine), FakeClock(NOW))
+        assert check.catalogue.get_category(99).name == "Added by an admin"
+        check.close()
+    finally:
+        get_settings.cache_clear()
+        Base.metadata.drop_all(engine)
+        engine.dispose()

@@ -84,8 +84,12 @@ export function useNames() {
   return {
     service: (id: number | null) => find(services.data, id)?.name ?? "—",
     category: (id: number | null) => find(categories.data, id)?.name ?? "Uncategorised",
-    person: (id: number | null) =>
-      id === null ? "Unassigned" : (find(directory.data, id)?.full_name ?? `User ${String(id)}`),
+    person: (id: number | null) => {
+      if (id === null) return "Unassigned";
+      // A name that has not arrived yet is not "User 11": say nothing until we know.
+      if (directory.data === undefined) return "…";
+      return find(directory.data, id)?.full_name ?? `User ${String(id)}`;
+    },
   };
 }
 
