@@ -147,11 +147,29 @@ def empty_page[T](query: IncidentQuery) -> Page[T]:
     return Page((), 0, query.offset, query.limit)
 
 
+#: A cell starting with one of these is a live formula in Excel and LibreOffice.
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def safe_cell(value: object) -> object:
+    """A cell a spreadsheet will show rather than execute.
+
+    An incident title is whatever the reporter typed. One starting with ``=`` is a formula when
+    the export is opened, so it is prefixed with an apostrophe — the convention spreadsheets
+    understand as "this is text".
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str) and value.startswith(FORMULA_PREFIXES):
+        return f"'{value}"
+    return value
+
+
 def csv_rows(header: Sequence[str], rows: Sequence[Sequence[object]]) -> str:
-    """Render a CSV the way a spreadsheet expects, quoting what needs quoting."""
+    """Render a CSV the way a spreadsheet expects, quoting and defusing what needs it."""
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\r\n")
     writer.writerow(header)
     for row in rows:
-        writer.writerow(["" if value is None else value for value in row])
+        writer.writerow([safe_cell(value) for value in row])
     return buffer.getvalue()

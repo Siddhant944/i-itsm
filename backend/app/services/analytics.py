@@ -51,7 +51,7 @@ class AnalyticsService:
             overview=self.__uow.analytics.overview(now, since),
             metrics=self.__uow.analytics.metrics(since),
             workload=self.__uow.analytics.workload(),
-            services=self.__uow.analytics.by_service(since),
+            services=self.__uow.analytics.by_service(now, since),
             trend=self.__uow.analytics.trend(since, now),
         )
 
@@ -78,7 +78,7 @@ class AnalyticsService:
         self, actor: User, window_days: int = DEFAULT_WINDOW_DAYS
     ) -> tuple[ServiceMetrics, ...]:
         self.__require(actor, Permission.REPORTS_VIEW)
-        return self.__uow.analytics.by_service(self.__since(window_days))
+        return self.__uow.analytics.by_service(self.__clock.now(), self.__since(window_days))
 
     def trend(self, actor: User, window_days: int = DEFAULT_WINDOW_DAYS) -> tuple[TrendPoint, ...]:
         self.__require(actor, Permission.REPORTS_VIEW)

@@ -459,3 +459,63 @@ def test_the_status_the_monitor_acts_on_is_the_one_the_clock_reports(
     assert [i.id for i in attention] == [incident.id]
     assert incident.sla_clock is not None
     assert incident.sla_clock.response_status(clock.now()) is SLAStatus.AT_RISK
+
+
+def test_a_resolved_incident_past_its_deadline_is_not_asked_about_again(
+    monitor: SLAMonitor, uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    """§4 has no ASSIGNED move out of RESOLVED, so the chain must not be asked about one.
+
+    Before this was guarded, every tick tried the escalation, failed and logged it — for the
+    life of the row. The seeded history has hundreds of these.
+    """
+    incident = unacknowledged(uow, clock, priority=Priority.P3, target=P3_TARGET)
+    incident.acknowledge(TECH, clock)
+    incident.start(TECH, clock)
+    clock.advance(timedelta(hours=9))  # past the eight-hour target
+    incident.resolve(TECH, clock, "Took a while")
+    uow.incidents.save(incident)
+
+    first = monitor.tick()
+    assert ViolationKind.RESOLUTION_BREACH in kinds(uow, incident.id)
+    assert first.escalations == ()
+    assert uow.incidents.get(incident.id).status is S.RESOLVED
+
+    clock.advance(TICK_INTERVAL)
+    assert monitor.tick().did_nothing is True
+
+
+def test_escalation_skips_a_level_whose_owner_already_holds_the_incident(
+    uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    """§5.5: handing an incident back to its current owner would leave it stuck."""
+    incident = unacknowledged(uow, clock)
+    incident.assign(LEAD, None, clock)  # the team's own lead is carrying it
+    uow.incidents.save(incident)
+
+    monitor = SLAMonitor(uow, clock)
+    clock.advance(timedelta(minutes=6))
+    report = monitor.tick()
+
+    assert [step.incident_id for step in report.escalations] == [incident.id]
+    moved = uow.incidents.get(incident.id)
+    assert moved.assignee_id == ADMIN  # level 1 was the lead, so it went to level 2
+    assert moved.escalation_level == 2
+    assert [step.level for step in report.escalations] == [2]
+
+
+def test_escalation_stops_when_nobody_is_left_above_the_current_owner(
+    uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    """With the IT manager already holding it, there is nowhere further up to go."""
+    incident = unacknowledged(uow, clock)
+    incident.escalate(MANAGER, 3, None, clock)
+    uow.incidents.save(incident)
+
+    monitor = SLAMonitor(uow, clock)
+    clock.advance(timedelta(minutes=30))
+    report = monitor.tick()
+
+    assert report.escalations == ()
+    assert uow.incidents.get(incident.id).assignee_id == MANAGER
+    assert uow.incidents.get(incident.id).escalation_level == 3

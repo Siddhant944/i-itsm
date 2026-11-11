@@ -377,7 +377,12 @@ class Incident:
         self._move(target, actor_id, clock, "Work resumed")
 
     def provide_info(self, actor_id: int, clock: Clock, answer: str) -> None:
-        """The reporter answers; an incident on hold resumes (D-006)."""
+        """The reporter answers; an incident on hold resumes (D-006).
+
+        Refused once the incident is closed or cancelled: a reply to a finished incident is a
+        new incident (BR-04), not a note on the old one.
+        """
+        self.__refuse_if_finished("reply to")
         text = _text(answer, "answer")
         if self.__state.status is IncidentStatus.ON_HOLD:
             target = self.__state.resume()
@@ -473,7 +478,18 @@ class Incident:
 
     # ------------------------------------------------------------ notes
     def add_note(self, actor_id: int, clock: Clock, text: str) -> WorkNote:
+        """Add a work note. Refused once the incident is closed or cancelled (§4, BR-04).
+
+        §4 makes CLOSED and CANCELLED terminal, and BR-04 says a problem after closure becomes
+        a new, linked incident — so nothing may still be written against a finished one.
+        """
+        self.__refuse_if_finished("add a note to")
         return self._add(actor_id, clock, NoteKind.NOTE, _text(text, "text"))
+
+    def __refuse_if_finished(self, action: str) -> None:
+        if self.__state.is_terminal:
+            msg = f"You cannot {action} {self.__id}: it is already {self.status.value}."
+            raise InvalidIncidentError(msg)
 
     def _add(self, actor_id: int, clock: Clock, kind: NoteKind, text: str) -> WorkNote:
         note = WorkNote(actor_id, clock.now(), kind, text)

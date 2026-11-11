@@ -8,6 +8,7 @@ Payment Portal really does depend on the database cluster.
 
 from dataclasses import dataclass, field
 
+from app.domain.catalogue import FALLBACK_TEAM_NAME
 from app.domain.priority import Priority
 
 SKILLS: tuple[str, ...] = (
@@ -92,8 +93,9 @@ SERVICES: tuple[ServiceSeed, ...] = (
     ServiceSeed("Lab Workstations", 1, "windows", ("Campus Network Core",)),
 )
 
-# D-004: the team an unassigned incident falls back to.
-SERVICE_DESK = "Service Desk"
+# D-004: the team an unassigned incident falls back to. The name lives in the domain, because
+# the escalation fallback looks the team up by it.
+SERVICE_DESK = FALLBACK_TEAM_NAME
 TEAMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (SERVICE_DESK, ("windows", "hardware", "printing")),
     ("Network Operations", ("networking",)),

@@ -5,7 +5,7 @@ real incidents and then check who was told what, on which channel, and what happ
 channel refused.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -31,6 +31,7 @@ from app.services.dispatcher import PostCommitDispatcher
 from app.services.incident_service import IncidentService
 from app.services.notifications import ChannelFactory, EmailChannel, InAppChannel
 from app.services.notifications.service import NotificationService
+from app.services.sla_monitor import AUTO_CLOSE_AFTER, SLAMonitor
 
 NOW = datetime(2026, 11, 6, 9, 0, tzinfo=UTC)
 REPORTER, TECH, LEAD, ADMIN = 1, 2, 3, 4
@@ -297,6 +298,7 @@ def test_a_priority_override_is_news_but_the_first_assessment_is_not(
 def test_an_escalation_tells_its_new_owner(
     uow: InMemoryUnitOfWork, clock: FakeClock, notifier: NotificationService
 ) -> None:
+    """§5.4 Escalated: the new owner hears about it, through the monitor that does the work."""
     incidents = IncidentService(
         uow,
         clock,
@@ -304,12 +306,50 @@ def test_an_escalation_tells_its_new_owner(
         advisor=RuleBasedAdvisor(),
     )
     incident_id = report_high(incidents, uow)
-    incident = uow.incidents.get(incident_id)
-    incident.escalate(LEAD, 1, None, clock)
-    uow.incidents.save(incident)
-    for event in incident.pull_events():
-        notifier.on_event(event)
-    assert sent_to(uow, NotificationEvent.ESCALATED) == {LEAD}
+    assert uow.incidents.get(incident_id).priority is Priority.P1
+
+    # Nobody acknowledges it, so the monitor escalates it to the team's lead after 5 minutes.
+    monitor = SLAMonitor(uow, clock, notify=notifier.notify)
+    clock.advance(timedelta(minutes=6))
+    report = monitor.tick()
+
+    assert [step.incident_id for step in report.escalations] == [incident_id]
+    # The lead is the most experienced technician here, so auto-assignment gave it to them.
+    # Escalating to level 1 would hand it back to the same person, so §5.5's chain carries on
+    # to the administrator; whoever ends up owning it is who hears about it.
+    owner = uow.incidents.get(incident_id).assignee_id
+    assert owner == ADMIN
+    assert sent_to(uow, NotificationEvent.ESCALATED) == {owner}
+    escalation = next(n for n in _all(uow) if n.event is NotificationEvent.ESCALATED)
+    assert "level 2" in escalation.body
+    assert incident_id in escalation.subject
+
+
+def test_an_auto_closed_incident_tells_its_reporter(
+    uow: InMemoryUnitOfWork, clock: FakeClock, notifier: NotificationService
+) -> None:
+    """§5.4 Closed, reached through BR-03's 72-hour auto-close rather than by a person."""
+    incidents = IncidentService(
+        uow,
+        clock,
+        dispatcher=PostCommitDispatcher([notifier.on_event]),
+        advisor=RuleBasedAdvisor(),
+    )
+    incident_id = report_low(incidents, uow)
+    assignee = uow.incidents.get(incident_id).assignee_id
+    assert assignee is not None
+    technician = who(uow, assignee)
+    incidents.acknowledge(technician, incident_id)
+    incidents.start(technician, incident_id)
+    incidents.resolve(technician, incident_id, "Replaced the access point")
+
+    monitor = SLAMonitor(uow, clock, notify=notifier.notify)
+    clock.advance(AUTO_CLOSE_AFTER + timedelta(minutes=1))
+    assert monitor.tick().auto_closed == (incident_id,)
+
+    assert REPORTER in sent_to(uow, NotificationEvent.CLOSED)
+    closed = next(n for n in _all(uow) if n.event is NotificationEvent.CLOSED)
+    assert "72 hours" in closed.body
 
 
 # ---------------------------------------------------------------- the message itself

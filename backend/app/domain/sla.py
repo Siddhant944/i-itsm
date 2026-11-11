@@ -258,13 +258,25 @@ class SLAClock:
         Persistence stores this so a search can compare it with "now" directly instead of
         doing datetime arithmetic in SQL. A paused incident is excluded from breach searches,
         which is why the current pause does not need to be counted here.
+
+        It uses the target frozen at RESOLVED when there is one, exactly as
+        ``resolution_status`` and ``risk_at`` do: D-017 says a later priority change must not
+        turn a met SLA into a breach, and a stored deadline computed from the new target would
+        do precisely that behind the search's back.
         """
-        return self.__started_at + self.__target.resolution + self.__paused_total
+        return self.__started_at + self.__resolution_target() + self.__paused_total
 
     def risk_at(self, estimator: RiskEstimator | None = None) -> datetime:
         """When the resolution clock becomes AT_RISK, on the "at rest" basis (§5.2)."""
-        target = self.__resolution_target_at_stop or self.__target.resolution
-        return self.__started_at + target * _fraction(estimator) + self.__paused_total
+        return (
+            self.__started_at
+            + self.__resolution_target() * _fraction(estimator)
+            + self.__paused_total
+        )
+
+    def __resolution_target(self) -> timedelta:
+        """The target the status is measured against: frozen at RESOLVED, else the live one."""
+        return self.__resolution_target_at_stop or self.__target.resolution
 
     def response_risk_at(self, estimator: RiskEstimator | None = None) -> datetime:
         """When the response clock becomes AT_RISK. The response clock is never paused."""
@@ -339,5 +351,4 @@ class SLAClock:
         return _status(elapsed, self.__target.response, estimator)
 
     def resolution_status(self, now: datetime, estimator: RiskEstimator = _THRESHOLD) -> SLAStatus:
-        target = self.__resolution_target_at_stop or self.__target.resolution
-        return _status(self.resolution_elapsed(now), target, estimator)
+        return _status(self.resolution_elapsed(now), self.__resolution_target(), estimator)

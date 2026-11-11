@@ -26,11 +26,12 @@ from sqlalchemy import (
     or_,
     select,
 )
+from sqlalchemy.exc import DBAPIError, IntegrityError, InterfaceError, OperationalError
 from sqlalchemy.orm import Mapped, Session, sessionmaker
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.core.clock import Clock, SystemClock
+from app.core.clock import Clock, SystemClock, in_ist
 from app.domain.analytics import (
     DurationStats,
     Metrics,
@@ -46,6 +47,7 @@ from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import Credentials
 from app.domain.errors import (
     ConcurrentModificationError,
+    DatabaseFailureError,
     IncidentNotFoundError,
     NotFoundError,
     ServiceNotFoundError,
@@ -544,12 +546,75 @@ class SqlAlchemyAuditRepository(AuditRepository):
     def append(self, record: AuditRecord) -> None:
         self.__session.add(mappers.audit_to_row(record))
         self.__session.flush()
+        self.__remember_head(record)
 
     def head_for_append(self) -> AuditRecord | None:
+        """The newest record, with appends serialised on one row (blueprint §8).
+
+        A ``FOR UPDATE`` on the newest *audit* row would not serialise anything: a concurrent
+        INSERT takes no lock on it, so two transactions could both read record N as the head and
+        both write a record claiming to follow it, breaking the chain for good. The lock is
+        taken on a single marker row in ``system_config`` instead, which every appender has to
+        update, so the second one waits. On SQLite the write lock already serialises them and
+        the clause is simply omitted.
+        """
+        marker = self.__locked_marker()
+        if marker is None:
+            return None
+        stored_hash = marker.value.get("hash")
+        if stored_hash is None:
+            return None
         row = self.__session.scalars(
-            select(AuditRecordRow).order_by(AuditRecordRow.id.desc()).limit(1).with_for_update()
+            select(AuditRecordRow).where(AuditRecordRow.hash == str(stored_hash))
         ).one_or_none()
         return None if row is None else mappers.row_to_audit(row)
+
+    def __locked_marker(self) -> SystemConfigRow | None:
+        """The marker row, locked; None only when this transaction created it just now.
+
+        The very first append in a database has no marker to lock, so it creates one — and two
+        first appends race for that insert. The loser's savepoint rolls back and it then waits
+        on the winner's lock, which is the serialisation it wanted in the first place.
+        """
+        locked = self.__select_marker()
+        if locked is not None:
+            return locked
+        try:
+            with self.__session.begin_nested():
+                self.__session.add(SystemConfigRow(key=AUDIT_HEAD_KEY, value={"length": 0}))
+        except IntegrityError:
+            return self.__select_marker()
+        return None
+
+    def __select_marker(self) -> SystemConfigRow | None:
+        return self.__session.scalars(
+            select(SystemConfigRow).where(SystemConfigRow.key == AUDIT_HEAD_KEY).with_for_update()
+        ).one_or_none()
+
+    def expected_head(self) -> tuple[str | None, int]:
+        """The hash and count the chain should end at, so truncation is detectable (§8).
+
+        Recomputing hashes cannot notice that the newest records were deleted — every
+        remaining link still verifies. Keeping the head beside the chain means an attacker has
+        to forge this row too.
+        """
+        marker = self.__session.get(SystemConfigRow, AUDIT_HEAD_KEY)
+        if marker is None:
+            return None, 0
+        stored = marker.value.get("hash")
+        return (None if stored is None else str(stored)), int(marker.value.get("length", 0))
+
+    def __remember_head(self, record: AuditRecord) -> None:
+        marker = self.__session.get(SystemConfigRow, AUDIT_HEAD_KEY)
+        length = int(marker.value.get("length", 0)) if marker is not None else 0
+        if marker is None:
+            self.__session.add(
+                SystemConfigRow(key=AUDIT_HEAD_KEY, value={"hash": record.hash, "length": 1})
+            )
+        else:
+            # A new dict, so SQLAlchemy sees the change to the JSON column.
+            marker.value = {"hash": record.hash, "length": length + 1}
+        self.__session.flush()
 
     def records(
         self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
@@ -810,6 +875,9 @@ class SqlAlchemyCatalogueRepository(CatalogueRepository):
         self.__session.flush()
 
 
+AUDIT_HEAD_KEY = "audit:head"
+
+
 class SqlAlchemySLAViolationRepository(SLAViolationRepository):
     """``sla_violations``, whose unique key is what stops a tick reporting twice."""
 
@@ -1029,7 +1097,9 @@ class SqlAlchemyAnalyticsRepository(AnalyticsRepository):
             for user_id, name, active, available in rows
         )
 
-    def by_service(self, since: datetime | None = None) -> tuple[ServiceMetrics, ...]:
+    def by_service(
+        self, now: datetime, since: datetime | None = None
+    ) -> tuple[ServiceMetrics, ...]:
         window = _since(since)
         counted = dict(
             self.__session.execute(
@@ -1038,13 +1108,13 @@ class SqlAlchemyAnalyticsRepository(AnalyticsRepository):
                 .group_by(IncidentRow.service_id)
             ).all()
         )
+        # The same definition the overview card and the search filter use, so a long-open
+        # breach appears in both rather than only in one.
         breached = dict(
             self.__session.execute(
                 select(IncidentRow.service_id, func.count())
                 .where(*window)
-                .where(IncidentRow.resolved_at.is_not(None))
-                .where(IncidentRow.sla_resolution_deadline.is_not(None))
-                .where(IncidentRow.resolved_at > IncidentRow.sla_resolution_deadline)
+                .where(_sla_condition(SLAStatus.BREACHED, now))
                 .group_by(IncidentRow.service_id)
             ).all()
         )
@@ -1122,7 +1192,9 @@ class SqlAlchemyAnalyticsRepository(AnalyticsRepository):
         for _, moment in rows:
             if moment is None:
                 continue
-            day = moment.date()
+            # §9 stores UTC and displays IST, so the bar an incident belongs on is its IST day;
+            # bucketing by UTC would plot anything before 05:30 IST on the previous day.
+            day = in_ist(moment).date()
             counts[day] = counts.get(day, 0) + 1
         return counts
 
@@ -1158,11 +1230,25 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         return self.__session
 
     def commit(self) -> None:
+        """Commit, turning database faults into the §8 errors the API knows how to answer.
+
+        Without this, a dropped connection or a unique-key race leaves SQLAlchemy's own
+        exception to reach the catch-all handler as a 500, and §8's "503 with rollback" row for
+        InfrastructureError is unreachable — which is also what the frontend's offline banner
+        keys off.
+        """
         try:
             self.__session.commit()
         except StaleDataError as error:
             self.__session.rollback()
             raise ConcurrentModificationError() from error
+        except IntegrityError as error:
+            self.__session.rollback()
+            # Two writers raced for the same key; the caller should reload and try again.
+            raise ConcurrentModificationError() from error
+        except (OperationalError, InterfaceError, DBAPIError) as error:
+            self.__session.rollback()
+            raise DatabaseFailureError() from error
 
     def rollback(self) -> None:
         self.__session.rollback()

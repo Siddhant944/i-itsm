@@ -190,7 +190,9 @@ def test_the_fifth_failure_locks_the_account_and_time_unlocks_it(
 
     locked = api.post("/auth/login", json=wrong)
     assert locked.status_code == 401
-    assert "Try again in 15 minute" in locked.json()["error"]["message"]
+    # D-019: the same body as any other failure, so the endpoint reveals nothing.
+    unknown = api.post("/auth/login", json={"email": "nobody@campus.edu", "password": PASSWORD})
+    assert locked.json() == unknown.json()
 
     right = {"email": "devika@campus.edu", "password": PASSWORD}
     assert api.post("/auth/login", json=right).status_code == 401

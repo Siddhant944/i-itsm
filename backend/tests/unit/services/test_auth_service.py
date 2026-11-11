@@ -123,17 +123,41 @@ def test_a_wrong_password_is_refused_and_counted(
     assert actions(uow).count(AuditAction.LOGIN_FAILED) == 1
 
 
-def test_an_unknown_email_looks_exactly_like_a_wrong_password(
-    auth: AuthService, uow: InMemoryUnitOfWork
+def test_every_kind_of_sign_in_failure_looks_the_same(
+    auth: AuthService, uow: InMemoryUnitOfWork, clock: FakeClock
 ) -> None:
-    """The response must not reveal which emails have accounts."""
-    register(auth)
-    with pytest.raises(InvalidLoginError) as unknown:
-        auth.login("nobody@campus.edu", GOOD_PASSWORD)
-    with pytest.raises(InvalidLoginError) as wrong:
-        auth.login("devika@campus.edu", "wrong password")
-    assert unknown.value.message == wrong.value.message
-    assert actions(uow).count(AuditAction.LOGIN_FAILED) == 2
+    """D-019: the endpoint must not tell an attacker which addresses have accounts.
+
+    Unknown email, wrong password, locked account and deactivated account all answer
+    identically; what actually happened is recorded in the audit trail instead.
+    """
+    register(auth, "devika@campus.edu")
+    register(auth, "blocked@campus.edu")
+    blocked = uow.users.get(2)
+    blocked.deactivate()
+    uow.users.save(blocked)
+
+    messages = set()
+    for email, password in (
+        ("nobody@campus.edu", GOOD_PASSWORD),  # no such account
+        ("devika@campus.edu", "wrong password"),  # wrong password
+        ("blocked@campus.edu", GOOD_PASSWORD),  # deactivated
+        ("not-an-email", GOOD_PASSWORD),  # malformed
+    ):
+        with pytest.raises(InvalidLoginError) as refused:
+            auth.login(email, password)
+        messages.add(refused.value.message)
+
+    # And once the account is locked, that answers the same way too.
+    for _ in range(MAX_FAILED_ATTEMPTS):
+        with pytest.raises(InvalidLoginError):
+            auth.login("devika@campus.edu", "wrong password")
+    with pytest.raises(InvalidLoginError) as locked:
+        auth.login("devika@campus.edu", GOOD_PASSWORD)
+    messages.add(locked.value.message)
+
+    assert len(messages) == 1, f"these answers differ: {messages}"
+    assert AuditAction.ACCOUNT_LOCKED in actions(uow)
 
 
 def test_a_malformed_email_is_a_failed_sign_in(auth: AuthService) -> None:
@@ -145,8 +169,16 @@ def test_a_deactivated_account_cannot_sign_in(auth: AuthService, uow: InMemoryUn
     user = auth.register("devika@campus.edu", "Devika Rao", GOOD_PASSWORD)
     user.deactivate()
     uow.users.save(user)
-    with pytest.raises(InvalidLoginError, match="deactivated"):
+    with pytest.raises(InvalidLoginError) as refused:
         auth.login("devika@campus.edu", GOOD_PASSWORD)
+    # D-019: indistinguishable from a wrong password; the reason is in the audit trail.
+    assert "deactivated" not in refused.value.message
+    reasons = [
+        record.details.get("reason")
+        for record in uow.audit.records(limit=100)
+        if record.action is AuditAction.LOGIN_FAILED
+    ]
+    assert "inactive" in reasons
 
 
 def test_an_account_with_no_password_cannot_sign_in(
@@ -165,21 +197,25 @@ def test_the_fifth_failure_locks_the_account_and_is_audited(
     auth: AuthService, uow: InMemoryUnitOfWork, clock: FakeClock
 ) -> None:
     register(auth)
-    for _ in range(MAX_FAILED_ATTEMPTS - 1):
-        with pytest.raises(InvalidLoginError) as early:
+    for _ in range(MAX_FAILED_ATTEMPTS):
+        with pytest.raises(InvalidLoginError):
             auth.login("devika@campus.edu", "wrong password")
-        assert "Try again in" not in early.value.message
 
-    with pytest.raises(InvalidLoginError, match="Try again in 15 minute") as locked:
-        auth.login("devika@campus.edu", "wrong password")
-    assert "15" in locked.value.message
     assert AuditAction.ACCOUNT_LOCKED in actions(uow)
+    locked_record = next(
+        record
+        for record in uow.audit.records(limit=100)
+        if record.action is AuditAction.ACCOUNT_LOCKED
+    )
+    assert locked_record.details["attempts"] == MAX_FAILED_ATTEMPTS
+    assert locked_record.details["locked_for_minutes"] == 15
 
-    # Even the right password is refused while the lock holds.
-    with pytest.raises(InvalidLoginError, match="Try again in"):
+    # Even the right password is refused while the lock holds, and says nothing about why.
+    with pytest.raises(InvalidLoginError) as while_locked:
         auth.login("devika@campus.edu", GOOD_PASSWORD)
+    assert while_locked.value.message == InvalidLoginError().message
     clock.advance(LOCKOUT_DURATION - timedelta(seconds=1))
-    with pytest.raises(InvalidLoginError, match="Try again in"):
+    with pytest.raises(InvalidLoginError):
         auth.login("devika@campus.edu", GOOD_PASSWORD)
 
 
@@ -203,9 +239,8 @@ def test_a_successful_sign_in_resets_the_count(auth: AuthService, uow: InMemoryU
     assert uow.credentials.get(issued.user_id).failed_attempts == 0
 
     for _ in range(MAX_FAILED_ATTEMPTS - 1):
-        with pytest.raises(InvalidLoginError) as caught:
+        with pytest.raises(InvalidLoginError):
             auth.login("devika@campus.edu", "wrong password")
-        assert "Try again in" not in caught.value.message
 
 
 # ---------------------------------------------------------------- tokens and roles

@@ -9,6 +9,7 @@ from collections.abc import Callable, Mapping
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from app.core.clock import in_ist
 from app.domain.analytics import (
     DurationStats,
     Metrics,
@@ -226,9 +227,12 @@ class InMemoryUserRepository(UserRepository):
 class InMemoryAuditRepository(AuditRepository):
     def __init__(self) -> None:
         self.__records: list[AuditRecord] = []
+        self.__head: str | None = None
+        self.__length = 0
 
     def append(self, record: AuditRecord) -> None:
         self.__records.append(record)
+        self.__head, self.__length = record.hash, self.__length + 1
 
     def head_for_append(self) -> AuditRecord | None:
         return self.__records[-1] if self.__records else None
@@ -244,6 +248,10 @@ class InMemoryAuditRepository(AuditRepository):
 
     def hash_before(self, offset: int) -> str | None:
         return self.__records[offset - 1].hash if 0 < offset <= len(self.__records) else None
+
+    def expected_head(self) -> tuple[str | None, int]:
+        """In memory the list *is* the store, so this is recorded as each record is appended."""
+        return self.__head, self.__length
 
     def __selected(self, incident_id: str | None) -> list[AuditRecord]:
         if incident_id is None:
@@ -509,7 +517,9 @@ class InMemoryAnalyticsRepository(AnalyticsRepository):
             )
         return tuple(rows)
 
-    def by_service(self, since: datetime | None = None) -> tuple[ServiceMetrics, ...]:
+    def by_service(
+        self, now: datetime, since: datetime | None = None
+    ) -> tuple[ServiceMetrics, ...]:
         found = self.__window(since)
         rows = []
         for service in self.__catalogue.services():
@@ -520,13 +530,7 @@ class InMemoryAnalyticsRepository(AnalyticsRepository):
                     service_id=service.id,
                     name=service.name,
                     incidents=len(mine),
-                    breached=sum(
-                        1
-                        for i in mine
-                        if i.sla_clock is not None
-                        and i.sla_clock.resolution_status(i.resolved_at or i.created_at)
-                        is SLAStatus.BREACHED
-                    ),
+                    breached=sum(1 for i in mine if sla_status_of(i, now) is SLAStatus.BREACHED),
                     resolution=DurationStats(
                         sum(
                             ((i.resolved_at or i.created_at) - i.created_at for i in resolved),
@@ -542,10 +546,11 @@ class InMemoryAnalyticsRepository(AnalyticsRepository):
         reported: defaultdict[date, int] = defaultdict(int)
         resolved: defaultdict[date, int] = defaultdict(int)
         for incident in self.__incidents.all_incidents():
+            # §9: bucketed by the IST day, which is the day a reader on campus saw it.
             if since <= incident.created_at <= until:
-                reported[incident.created_at.date()] += 1
+                reported[in_ist(incident.created_at).date()] += 1
             if incident.resolved_at is not None and since <= incident.resolved_at <= until:
-                resolved[incident.resolved_at.date()] += 1
+                resolved[in_ist(incident.resolved_at).date()] += 1
         days = sorted(set(reported) | set(resolved))
         return tuple(TrendPoint(day, reported[day], resolved[day]) for day in days)
 

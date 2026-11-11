@@ -120,3 +120,30 @@ def test_a_team_lead_must_be_a_member_when_one_is_known() -> None:
     team.add_member(8)
     with pytest.raises(InvalidUserInputError):
         team.set_lead(9)
+
+
+def test_the_escalation_fallback_prefers_the_service_desk() -> None:
+    """D-004: the Service Desk's lead, else any team's lead."""
+    from app.domain.catalogue import FALLBACK_TEAM_NAME, fallback_lead
+
+    network = Team.restore(1, "Network Operations", lead_id=10, member_ids=(10,))
+    desk = Team.restore(2, FALLBACK_TEAM_NAME, lead_id=20, member_ids=(20,))
+    leaderless = Team.restore(3, "Security Operations", lead_id=None, member_ids=())
+
+    assert fallback_lead([network, desk, leaderless]) == 20
+    assert fallback_lead([desk, network]) == 20
+    assert fallback_lead([network, leaderless]) == 10  # no Service Desk, so any lead
+    assert fallback_lead([leaderless]) is None
+    assert fallback_lead([]) is None
+
+
+def test_the_fallback_skips_whoever_already_holds_the_incident() -> None:
+    """Handing an incident back to its current owner would leave it where it was."""
+    from app.domain.catalogue import FALLBACK_TEAM_NAME, fallback_lead
+
+    desk = Team.restore(1, FALLBACK_TEAM_NAME, lead_id=20, member_ids=(20,))
+    network = Team.restore(2, "Network Operations", lead_id=10, member_ids=(10,))
+
+    assert fallback_lead([desk, network], excluding=20) == 10
+    assert fallback_lead([desk], excluding=20) is None
+    assert fallback_lead([desk, network], excluding=99) == 20

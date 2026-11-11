@@ -69,7 +69,7 @@ _BODIES: Mapping[NotificationEvent, str] = MappingProxyType(
             "Please confirm in the portal, or tell us it is still broken. "
             "If we hear nothing, it closes itself in 72 hours."
         ),
-        NotificationEvent.CLOSED: "{id} ('{title}') is now closed. Thank you.",
+        NotificationEvent.CLOSED: "{id} ('{title}') is now closed. {detail}Thank you.",
     }
 )
 

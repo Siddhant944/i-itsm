@@ -106,12 +106,17 @@ class AuthService:
 
     # ------------------------------------------------------------ sign-in
     def login(self, email: str, password: str) -> AccessToken:
-        """Sign in, or raise InvalidLoginError. Commits either way, so failures are counted."""
+        """Sign in, or raise InvalidLoginError. Commits either way, so failures are counted.
+
+        Every failure gives the same answer — unknown email, wrong password, locked account,
+        deactivated account — so the endpoint cannot be used to discover which addresses have
+        accounts (D-019). What actually happened goes to the audit trail instead.
+        """
         address = self.__safe_email(email)
         credentials = None if address is None else self.__uow.credentials.find_by_email(address)
         if credentials is None:
-            # No account: audited, and answered exactly like a wrong password so the response
-            # does not reveal which emails exist.
+            # No account: audited, and answered exactly like every other failure so the
+            # response cannot reveal which emails exist (D-019).
             self.__audit.record(AuditAction.LOGIN_FAILED, details={"email": email[:255]})
             self.__uow.commit()
             raise InvalidLoginError()
@@ -119,8 +124,11 @@ class AuthService:
         user = self.__uow.users.get(credentials.user_id)
         now = self.__clock.now()
         if credentials.is_locked(now):
+            # The same answer as a wrong password: saying "locked, try again in 12 minutes"
+            # would tell an attacker that this address has an account (D-019). The lockout and
+            # its remaining time are in the audit trail, where an admin can see them.
             self.__fail(credentials, user.id, locked=True)
-            raise InvalidLoginError(self.__locked_message(credentials))
+            raise InvalidLoginError()
 
         if not credentials.has_password or not self.__hasher.verify(
             password, credentials.password_hash or ""
@@ -128,14 +136,15 @@ class AuthService:
             just_locked = credentials.record_failure(now)
             self.__uow.credentials.save(credentials)
             self.__fail(credentials, user.id, locked=just_locked)
-            raise InvalidLoginError(self.__locked_message(credentials) if just_locked else None)
+            raise InvalidLoginError()
 
         if not user.active:
+            # Also indistinguishable from a wrong password (D-019); the reason is audited.
             self.__audit.record(
                 AuditAction.LOGIN_FAILED, actor_id=user.id, details={"reason": "inactive"}
             )
             self.__uow.commit()
-            raise InvalidLoginError("This account has been deactivated.")
+            raise InvalidLoginError()
 
         credentials.record_success(now)
         self.__uow.credentials.save(credentials)
@@ -189,22 +198,20 @@ class AuthService:
         )
 
     def __fail(self, credentials: Credentials, user_id: int, *, locked: bool) -> None:
+        """Audit the failure, and the lockout when this is one, then commit the counters."""
         self.__audit.record(
             AuditAction.LOGIN_FAILED,
             actor_id=user_id,
             details={"attempts": credentials.failed_attempts},
         )
         if locked:
+            minutes = max(1, round(credentials.locked_for(self.__clock.now()).total_seconds() / 60))
             self.__audit.record(
                 AuditAction.ACCOUNT_LOCKED,
                 actor_id=user_id,
-                details={"attempts": MAX_FAILED_ATTEMPTS},
+                details={"attempts": MAX_FAILED_ATTEMPTS, "locked_for_minutes": minutes},
             )
         self.__uow.commit()
-
-    def __locked_message(self, credentials: Credentials) -> str:
-        minutes = max(1, round(credentials.locked_for(self.__clock.now()).total_seconds() / 60))
-        return f"Too many failed attempts. Try again in {minutes} minute(s)."
 
     def __checked_email(self, email: str) -> EmailAddress:
         address = EmailAddress(email)

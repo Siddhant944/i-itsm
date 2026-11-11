@@ -554,7 +554,7 @@ def test_the_workload_table_has_a_row_per_technician(uow: UnitOfWork) -> None:
 
 
 def test_the_service_analysis_has_a_row_per_service(uow: UnitOfWork) -> None:
-    rows = uow.analytics.by_service()
+    rows = uow.analytics.by_service(NOW)
     assert [row.service_id for row in rows] == [WIFI, PORTAL]
     by_id = {row.service_id: row for row in rows}
     assert by_id[WIFI].incidents == 6
@@ -562,6 +562,10 @@ def test_the_service_analysis_has_a_row_per_service(uow: UnitOfWork) -> None:
     assert by_id[WIFI].name == "Campus Wi-Fi"
     assert by_id[PORTAL].resolution.count == 1
     assert 0 <= by_id[WIFI].breach_share <= 100
+
+    # The service table and the overview card must agree about what a breach is.
+    overview = uow.analytics.overview(NOW)
+    assert sum(row.breached for row in rows) >= overview.breached
 
 
 def test_the_trend_has_one_point_per_day_with_something_on_it(uow: UnitOfWork) -> None:
@@ -598,3 +602,51 @@ def test_an_unacknowledged_incident_is_at_risk_on_its_response_clock(uow: UnitOf
     stored = uow.incidents.get("INC-2026-0010")
     assert stored.sla_clock is not None
     assert stored.sla_clock.response_status(NOW) is SLAStatus.AT_RISK
+
+
+def test_lowering_the_priority_after_a_breach_does_not_unbreach_it(uow: UnitOfWork) -> None:
+    """D-017 and D-018 together: the frozen target wins, in the domain *and* in the search.
+
+    An incident resolved past its deadline has breached. Re-prioritising it afterwards —
+    RESOLVED is not terminal, so the API allows it — must not rewrite that, and the stored
+    deadline the SQL filter compares against must agree with the aggregate.
+    """
+    created = NOW - timedelta(hours=10)
+    _make(
+        uow,
+        sequence=11,
+        created_at=created,
+        reporter_id=REPORTER,
+        service_id=PORTAL,
+        title="Payment portal was down for hours",
+        description="Took far too long to fix",
+    )
+    late = uow.incidents.get("INC-2026-0011")
+    _open(uow, late, created, TECH, Priority.P2)
+    clock = FakeClock(created + timedelta(minutes=2))
+    late.acknowledge(TECH, clock)
+    late.start(TECH, clock)
+    clock.advance(timedelta(hours=9))  # the target is four hours
+    late.resolve(TECH, clock, "Restarted the gateway")
+    uow.incidents.save(late)
+
+    assert late.sla_clock is not None
+    assert late.sla_clock.resolution_status(NOW) is SLAStatus.BREACHED
+    assert "INC-2026-0011" in ids(uow, IncidentQuery(sla_statuses=(SLAStatus.BREACHED,)))
+
+    # Now lower the priority, which retargets the clock to a far longer target.
+    stored = uow.incidents.get("INC-2026-0011")
+    stored.override_priority(Priority.P4, "Not as urgent as first thought", ADMIN, FakeClock(NOW))
+    target, _ = uow.catalogue.policy_book().target_or_default(
+        uow.catalogue.get_service(PORTAL).sla_tier, Priority.P4
+    )
+    stored.apply_sla(target)
+    uow.incidents.save(stored)
+
+    reloaded = uow.incidents.get("INC-2026-0011")
+    assert reloaded.sla_clock is not None
+    assert reloaded.sla_clock.resolution_status(NOW) is SLAStatus.BREACHED
+    assert "INC-2026-0011" in ids(uow, IncidentQuery(sla_statuses=(SLAStatus.BREACHED,)))
+    assert "INC-2026-0011" not in ids(uow, IncidentQuery(sla_statuses=(SLAStatus.ON_TRACK,)))
+    # The stored at-risk moment must stay before the stored deadline, or neither means anything.
+    assert reloaded.sla_clock.risk_at() < reloaded.sla_clock.resolution_deadline_at_rest

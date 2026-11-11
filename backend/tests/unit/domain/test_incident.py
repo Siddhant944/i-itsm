@@ -251,3 +251,24 @@ def test_escalation_is_refused_once_the_incident_is_closed(clock: FakeClock) -> 
     with pytest.raises(InvalidStateTransitionError):
         incident.escalate(technician_id=9, level=1, actor_id=None, clock=clock)
     assert incident.escalation_level == 0
+
+
+def test_a_finished_incident_takes_no_more_notes(clock: FakeClock) -> None:
+    """§4 makes CLOSED and CANCELLED terminal; BR-04 sends later problems to a new incident."""
+    closed = in_progress(clock)
+    closed.resolve(TECH, clock, summary="fixed")
+    closed.verify(REPORTER, clock, rating=5)
+    closed.close(ADMIN, clock)
+
+    cancelled = new_incident(clock, sequence=44)
+    cancelled.cancel(REPORTER, clock, CancelReason.WITHDRAWN)
+
+    for incident in (closed, cancelled):
+        incident.pull_events()  # forget the events of getting here
+        before = incident.notes
+        with pytest.raises(InvalidIncidentError):
+            incident.add_note(TECH, clock, "something new")
+        with pytest.raises(InvalidIncidentError):
+            incident.provide_info(REPORTER, clock, "something new")
+        assert incident.notes == before
+        assert incident.pull_events() == ()

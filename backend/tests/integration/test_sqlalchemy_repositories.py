@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import Engine, select
-from sqlalchemy.exc import StatementError
+from sqlalchemy.exc import OperationalError, StatementError
 
 from app.core.clock import FakeClock
 from app.domain.catalogue import Category, ITService, Skill
@@ -20,7 +20,7 @@ from app.domain.permissions import Role
 from app.domain.users import Technician, UserFactory
 from app.domain.value_objects import SkillSet
 from app.repositories.database import make_engine
-from app.repositories.sqlalchemy.models import Base, IncidentRow
+from app.repositories.sqlalchemy.models import Base, IncidentRow, UserRow
 from app.repositories.sqlalchemy.repos import (
     SqlAlchemyUnitOfWork,
     create_schema,
@@ -178,3 +178,56 @@ def test_a_technicians_new_skill_joins_the_catalogue_without_colliding(
     stored = unit_of_work.users.get(40)
     assert isinstance(stored, Technician)
     assert stored.skills.names == ("networking", "printing")
+
+
+def test_a_database_fault_becomes_a_503_not_a_500(unit_of_work: SqlAlchemyUnitOfWork) -> None:
+    """§8: InfrastructureError → DatabaseFailure → 503 with rollback.
+
+    Without the translation in SqlAlchemyUnitOfWork.commit, SQLAlchemy's own exception reaches
+    the catch-all handler as an opaque 500 and the frontend's offline banner never fires.
+    """
+    from app.api.errors import status_for
+    from app.domain.errors import DatabaseFailureError
+
+    clock = FakeClock(NOW)
+    seeded_incident(unit_of_work, clock)
+
+    # Fail the commit the way a dropped connection would.
+    original = unit_of_work.session.commit
+
+    def broken() -> None:
+        raise OperationalError("SELECT 1", {}, Exception("server closed the connection"))
+
+    object.__setattr__(unit_of_work.session, "commit", broken)
+    try:
+        with pytest.raises(DatabaseFailureError) as caught:
+            unit_of_work.commit()
+    finally:
+        object.__setattr__(unit_of_work.session, "commit", original)
+
+    assert status_for(caught.value) == 503
+    assert caught.value.code == "database_failure"
+    assert "server closed the connection" not in caught.value.message
+
+
+def test_a_key_collision_becomes_a_conflict_the_caller_can_retry(
+    unit_of_work: SqlAlchemyUnitOfWork,
+) -> None:
+    """Two writers racing for the same key is a 409, not a 500."""
+    from app.api.errors import status_for
+    from app.domain.errors import ConcurrentModificationError
+
+    clock = FakeClock(NOW)
+    seeded_incident(unit_of_work, clock)
+    unit_of_work.users.add(
+        UserFactory.create(Role.EMPLOYEE, user_id=77, email="race@campus.edu", full_name="R")
+    )
+    unit_of_work.commit()
+
+    # A second account claiming the same email, as a lost race would produce.
+    unit_of_work.session.add(
+        UserRow(id=78, email="race@campus.edu", full_name="R2", role=Role.EMPLOYEE, created_at=NOW)
+    )
+    with pytest.raises(ConcurrentModificationError) as caught:
+        unit_of_work.commit()
+    assert status_for(caught.value) == 409

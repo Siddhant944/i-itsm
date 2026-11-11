@@ -248,7 +248,9 @@ class IncidentService:
                 raise TechnicianUnavailableError(
                     f"{technician.full_name} is not available for assignment."
                 )
-            if incident.priority is not None:
+            if incident.priority is not None and technician_id != incident.assignee_id:
+                # workloads() already counts every open incident this technician holds, so the
+                # one being moved would otherwise be charged to them twice.
                 check_capacity(
                     self.__uow.incidents.workloads().get(technician_id, 0), incident.priority
                 )
@@ -313,7 +315,11 @@ class IncidentService:
         incident = self.__uow.incidents.get(incident_id)
         ensure_can_cancel(actor, incident)
         if duplicate_of is not None:
-            self.__uow.incidents.get(duplicate_of)  # 404 rather than a dangling link
+            # 404 rather than a dangling link, and BR-01 rather than a link into someone
+            # else's incident: D-005 makes parent_id the subscription, so a link the caller
+            # may not see would become a read path in P4.1.
+            parent = self.__uow.incidents.get(duplicate_of)
+            ensure_can_view(actor, parent, self.__team_of(actor))
         incident.cancel(actor.id, self.__clock, reason, duplicate_of)
         return self.__save(incident)
 

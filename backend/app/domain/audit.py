@@ -132,11 +132,19 @@ class ChainVerification:
     intact: bool
     checked: int
     broken_at: int | None
+    #: How many records the chain should hold, when the tail has been truncated.
+    truncated_from: int | None = None
 
     @property
     def summary(self) -> str:
         if self.intact:
             return f"{self.checked} audit records verified; the chain is intact."
+        if self.truncated_from is not None:
+            missing = self.truncated_from - self.checked
+            return (
+                f"The audit chain is missing its {missing} most recent record(s): "
+                f"{self.checked} found, {self.truncated_from} expected."
+            )
         return f"The audit chain breaks at record {self.broken_at} of {self.checked}."
 
 

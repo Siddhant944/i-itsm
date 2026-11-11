@@ -14,19 +14,23 @@ reporting the same thing. The escalation level on the incident does the same job
 """
 
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
+from types import MappingProxyType
 
 from app.core.clock import Clock
 from app.domain.audit import AuditAction
+from app.domain.catalogue import fallback_lead
 from app.domain.errors import ITSMError
+from app.domain.escalation import MAX_MISSED_TARGETS as MAX_ESCALATION_LEVEL
 from app.domain.escalation import EscalationContext, decide_escalation
 from app.domain.incident import Incident
 from app.domain.notifications import NotificationEvent
 from app.domain.permissions import Role, escalation_level
 from app.domain.repositories import UnitOfWork
 from app.domain.sla import SLAClock, SLAStatus, SLAViolation, ViolationKind
+from app.domain.states import OPEN_STATUSES, IncidentStatus
 from app.domain.users import Technician, User
 from app.services.audit import AuditService
 
@@ -43,17 +47,32 @@ AUTO_CLOSE_AFTER = timedelta(hours=72)
 
 
 @dataclass(frozen=True, slots=True)
+class Escalation:
+    """Who an incident was handed to, so §5.4 can tell them after the commit."""
+
+    incident_id: str
+    owner_id: int
+    level: int
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class TickReport:
     """What one tick did, so a test or the demo can see it rather than infer it."""
 
     warned: tuple[SLAViolation, ...] = field(default_factory=tuple)
     breached: tuple[SLAViolation, ...] = field(default_factory=tuple)
-    escalated: tuple[str, ...] = field(default_factory=tuple)
+    escalations: tuple[Escalation, ...] = field(default_factory=tuple)
     auto_closed: tuple[str, ...] = field(default_factory=tuple)
 
     @property
+    def escalated(self) -> tuple[str, ...]:
+        """The ids that moved up a level."""
+        return tuple(step.incident_id for step in self.escalations)
+
+    @property
     def did_nothing(self) -> bool:
-        return not (self.warned or self.breached or self.escalated or self.auto_closed)
+        return not (self.warned or self.breached or self.escalations or self.auto_closed)
 
     @property
     def summary(self) -> str:
@@ -83,7 +102,7 @@ class SLAMonitor:
         now = self.__clock.now()
         warned: list[SLAViolation] = []
         breached: list[SLAViolation] = []
-        escalated: list[str] = []
+        escalations: list[Escalation] = []
 
         for incident in self.__uow.incidents.needing_sla_attention(now):
             clock = incident.sla_clock
@@ -91,13 +110,14 @@ class SLAMonitor:
                 continue
             warned.extend(self.__record(incident, clock, now, breach=False))
             breached.extend(self.__record(incident, clock, now, breach=True))
-            if self.__escalate(incident, clock, now):
-                escalated.append(incident.id)
+            step = self.__escalate(incident, clock, now)
+            if step is not None:
+                escalations.append(step)
 
         auto_closed = self.__auto_close(now)
         self.__uow.commit()
 
-        report = TickReport(tuple(warned), tuple(breached), tuple(escalated), tuple(auto_closed))
+        report = TickReport(tuple(warned), tuple(breached), tuple(escalations), tuple(auto_closed))
         if not report.did_nothing:
             logger.info(report.summary)
         self.__dispatch(report)
@@ -142,10 +162,15 @@ class SLAMonitor:
         return found
 
     # ------------------------------------------------------------ step 3
-    def __escalate(self, incident: Incident, clock: SLAClock, now: datetime) -> bool:
-        """Ask the chain who should own this now, and hand it over if that is someone new."""
-        if incident.priority is None:
-            return False
+    def __escalate(self, incident: Incident, clock: SLAClock, now: datetime) -> Escalation | None:
+        """Ask the chain who should own this now, and hand it over if that is someone new.
+
+        Only an incident that can still be reassigned is asked about: §4 has no ASSIGNED move
+        out of RESOLVED or VERIFIED, so asking the chain about one would mean attempting an
+        escalation that cannot happen and logging the failure on every tick for ever.
+        """
+        if incident.priority is None or not _can_be_escalated(incident):
+            return None
         moment = now
         decision = decide_escalation(
             EscalationContext(
@@ -158,22 +183,24 @@ class SLAMonitor:
             )
         )
         if decision is None or decision.level <= incident.escalation_level:
-            return False
+            return None
 
-        owner = self.__owner_for(decision.target_role, incident)
-        if owner is None:
+        found = self.__next_owner(decision.level, incident)
+        if found is None:
             logger.warning(
-                "no %s to escalate %s to; leaving it at level %s",
-                decision.target_role.value,
-                incident.id,
+                "nobody above level %s to escalate %s to; leaving it with user %s",
                 incident.escalation_level,
+                incident.id,
+                incident.assignee_id,
             )
-            return False
+            return None
+        level, owner = found
+        decision = replace(decision, level=level)
         try:
-            incident.escalate(owner.id, decision.level, None, self.__clock)
-        except ITSMError as error:
+            incident.escalate(owner.id, level, None, self.__clock)
+        except ITSMError as error:  # pragma: no cover - _can_be_escalated rules this out
             logger.warning("could not escalate %s: %s", incident.id, error)
-            return False
+            return None
 
         self.__uow.incidents.save(incident)
         incident.pull_events()  # the audit entry below describes the escalation itself
@@ -182,14 +209,29 @@ class SLAMonitor:
             incident_id=incident.id,
             details={"level": decision.level, "reason": decision.reason, "to": owner.id},
         )
-        return True
+        return Escalation(incident.id, owner.id, decision.level, decision.reason)
+
+    def __next_owner(self, wanted_level: int, incident: Incident) -> tuple[int, User] | None:
+        """The first level at or above ``wanted_level`` that has somebody new to hand this to.
+
+        §5.5's chain can ask for a level the current assignee already holds — a Team Lead
+        carrying their own team's incident is the common case — and handing it back to the same
+        person would leave the incident stuck while the monitor logged a failure every tick.
+        So the search continues up the chain instead of stopping there.
+        """
+        for level in range(wanted_level, MAX_ESCALATION_LEVEL + 1):
+            role = _ROLE_AT_LEVEL.get(level)
+            if role is None:  # pragma: no cover - every level 1-3 has a role
+                continue
+            owner = self.__owner_for(role, incident)
+            if owner is not None and owner.id != incident.assignee_id:
+                return level, owner
+        return None
 
     def __owner_for(self, role: Role, incident: Incident) -> User | None:
         """Who holds ``role`` for this incident: the team's lead (D-004), or any admin."""
         if role is Role.TEAM_LEAD:
             return self.__team_lead(incident)
-        if role is Role.TECHNICIAN:
-            return None if incident.assignee_id is None else self.__user(incident.assignee_id)
         wanted = escalation_level(role)
         for candidate in self.__uow.users.administrators():
             if candidate.active and escalation_level(candidate.role) == wanted:
@@ -203,10 +245,8 @@ class SLAMonitor:
                 lead_id = self.__uow.catalogue.get_team(assignee.team_id).lead_id
                 if lead_id is not None and lead_id != incident.assignee_id:
                     return self.__user(lead_id)
-        for team in self.__uow.catalogue.teams():
-            if team.lead_id is not None and team.lead_id != incident.assignee_id:
-                return self.__user(team.lead_id)
-        return None
+        lead_id = fallback_lead(self.__uow.catalogue.teams(), excluding=incident.assignee_id)
+        return None if lead_id is None else self.__user(lead_id)
 
     def __user(self, user_id: int) -> User | None:
         try:
@@ -237,28 +277,61 @@ class SLAMonitor:
 
     # ------------------------------------------------------------ afterwards (§5.4)
     def __dispatch(self, report: TickReport) -> None:
-        """Notify after the commit, so a dead mail server cannot undo a recorded breach."""
+        """Notify after the commit, so a dead mail server cannot undo a recorded breach.
+
+        All four §5.4 rows the monitor is responsible for go out here: the SLA warning and
+        breach, the escalation (to its new owner) and the 72-hour auto-close (to the reporter).
+        """
         if self.__notify is None:
             return
         for violation in report.warned:
-            self.__send(NotificationEvent.SLA_APPROACHING, violation)
+            self.__send(
+                NotificationEvent.SLA_APPROACHING, violation.incident_id, self.__detail(violation)
+            )
         for violation in report.breached:
-            self.__send(NotificationEvent.SLA_VIOLATED, violation)
+            self.__send(
+                NotificationEvent.SLA_VIOLATED, violation.incident_id, self.__detail(violation)
+            )
+        for step in report.escalations:
+            self.__send(
+                NotificationEvent.ESCALATED,
+                step.incident_id,
+                f"Escalated to level {step.level}: {step.reason}.",
+            )
+        for incident_id in report.auto_closed:
+            self.__send(
+                NotificationEvent.CLOSED,
+                incident_id,
+                "Closed automatically after 72 hours without an answer (BR-03).",
+            )
 
-    def __send(self, event: NotificationEvent, violation: SLAViolation) -> None:
+    def __send(self, event: NotificationEvent, incident_id: str, detail: str) -> None:
         if self.__notify is None:
             return
         try:
-            incident = self.__uow.incidents.get(violation.incident_id)
-            self.__notify(event, incident, self.__detail(violation))
+            self.__notify(event, self.__uow.incidents.get(incident_id), detail)
         except Exception:
-            logger.exception("could not notify about %s on %s", event, violation.incident_id)
+            logger.exception("could not notify about %s on %s", event, incident_id)
 
     @staticmethod
     def __detail(violation: SLAViolation) -> str:
         which = "response" if violation.kind.is_response else "resolution"
         verb = "passed" if violation.kind.is_breach else "is close to"
         return f"The {which} deadline {verb} {violation.deadline.isoformat()}."
+
+
+def _can_be_escalated(incident: Incident) -> bool:
+    """True when §4 still allows this incident to be handed to someone else."""
+    return incident.status in OPEN_STATUSES or incident.status in _CLASSIFIED_BUT_UNASSIGNED
+
+
+#: An incident nobody has picked up yet can still be escalated to a lead (§5.5).
+_CLASSIFIED_BUT_UNASSIGNED = frozenset({IncidentStatus.NEW, IncidentStatus.CLASSIFIED})
+
+#: §5.5's chain by level: 1 Team Lead, 2 Administrator, 3 IT Manager.
+_ROLE_AT_LEVEL: Mapping[int, Role] = MappingProxyType(
+    {1: Role.TEAM_LEAD, 2: Role.ADMINISTRATOR, 3: Role.IT_MANAGER}
+)
 
 
 def ticks_per(interval: timedelta, clock: Clock) -> float:

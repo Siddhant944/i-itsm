@@ -49,9 +49,15 @@ class AuditService:
         return self.__repository.records(incident_id=incident_id, limit=limit, offset=offset)
 
     def verify(self) -> ChainVerification:
-        """Recompute the whole chain, a page at a time, and report the first break."""
+        """Recompute the whole chain, a page at a time, and report the first break.
+
+        Recomputing alone cannot detect a truncated tail — delete the newest records and every
+        remaining link still verifies — so the result is also checked against the head and
+        length recorded as the records were appended (blueprint §8).
+        """
         total = self.__repository.count()
         checked = 0
+        last: str | None = None
         while checked < total:
             page = self.__repository.records(limit=VERIFY_PAGE, offset=checked)
             if not page:
@@ -61,4 +67,10 @@ class AuditService:
                 broken = checked + (result.broken_at or 0)
                 return ChainVerification(False, total, broken)
             checked += len(page)
+            last = page[-1].hash
+
+        expected_hash, expected_length = self.__repository.expected_head()
+        if expected_length > total or (expected_hash is not None and expected_hash != last):
+            # The links that remain are sound, so the break is at the end: records are missing.
+            return ChainVerification(False, total, total, truncated_from=expected_length)
         return ChainVerification(True, total, None)

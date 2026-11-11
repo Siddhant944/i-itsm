@@ -134,6 +134,15 @@ class AuditRepository(ABC):
     def hash_before(self, offset: int) -> str | None:
         """The hash of the record just before ``offset``, so one page can be verified alone."""
 
+    @abstractmethod
+    def expected_head(self) -> tuple[str | None, int]:
+        """The hash and the length the chain should end at (blueprint §8).
+
+        Recomputing the hashes cannot notice that the newest records were removed, because every
+        remaining link still verifies. This is recorded as records are appended so that a
+        truncated tail is detectable.
+        """
+
 
 class AnalyticsRepository(ABC):
     """The aggregate queries behind the dashboards (blueprint §9).
@@ -154,7 +163,10 @@ class AnalyticsRepository(ABC):
         """One row per technician: open count, weighted load and how much they have fixed."""
 
     @abstractmethod
-    def by_service(self, since: datetime | None = None) -> tuple[ServiceMetrics, ...]: ...
+    def by_service(
+        self, now: datetime, since: datetime | None = None
+    ) -> tuple[ServiceMetrics, ...]:
+        """One row per service. "Breached" means the same here as on the overview card."""
 
     @abstractmethod
     def trend(self, since: datetime, until: datetime) -> tuple[TrendPoint, ...]:

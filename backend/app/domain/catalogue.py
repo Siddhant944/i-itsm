@@ -17,6 +17,8 @@ from app.domain.sla import SLATier, tier_for_criticality
 from app.domain.value_objects import SkillSet
 
 MIN_CRITICALITY, MAX_CRITICALITY = 1, 3  # blueprint §3: a service's criticality is 1-3
+#: D-004: where an escalation goes when the incident's own team has no usable lead.
+FALLBACK_TEAM_NAME = "Service Desk"
 
 
 def _name(value: str, field: str = "name") -> str:
@@ -278,6 +280,21 @@ class Team:
 def _normalised_keywords(keywords: Iterable[str]) -> tuple[str, ...]:
     cleaned = {word.strip().lower() for word in keywords}
     return tuple(sorted(cleaned - {""}))
+
+
+def fallback_lead(teams: Iterable["Team"], excluding: int | None = None) -> int | None:
+    """D-004: the Service Desk's lead, else any team's lead, skipping ``excluding``.
+
+    ``excluding`` is the person who already holds the incident: handing it back to them would
+    leave it exactly where it was.
+    """
+    candidates = [team for team in teams if team.lead_id is not None and team.lead_id != excluding]
+    service_desk = [
+        team for team in candidates if team.name.strip().lower() == FALLBACK_TEAM_NAME.lower()
+    ]
+    for team in service_desk + candidates:
+        return team.lead_id
+    return None
 
 
 def required_skills_for(

@@ -12,6 +12,7 @@ import logging
 from collections.abc import Iterable, Sequence
 
 from app.core.clock import Clock
+from app.domain.catalogue import fallback_lead
 from app.domain.errors import ITSMError, UnauthorizedOperationError
 from app.domain.events import (
     CategoryChanged,
@@ -228,10 +229,7 @@ class NotificationService:
                 lead = self.__uow.catalogue.get_team(assignee.team_id).lead_id
                 if lead is not None:
                     return lead
-        for team in self.__uow.catalogue.teams():
-            if team.lead_id is not None:
-                return team.lead_id
-        return None
+        return fallback_lead(self.__uow.catalogue.teams())
 
     def __admins(self) -> tuple[int, ...]:
         return tuple(
