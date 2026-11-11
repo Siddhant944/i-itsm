@@ -54,12 +54,17 @@ def create(body: CreateUserRequest, user: UserManager, admin: UserAdminDep) -> U
 def update(
     user_id: int, body: UpdateUserRequest, user: UserManager, admin: UserAdminDep
 ) -> UserResponse:
-    """Switch an account on or off, or give it another role."""
-    changed = admin.get(user_id)
-    if body.role is not None:
-        changed = admin.change_role(user, user_id, body.role)
-    if body.active is not None:
-        changed = admin.set_active(user, user_id, active=body.active)
+    """Switch an account on or off, give it another role, edit its technician profile.
+
+    All of it is one change: either everything asked for is applied, or nothing is.
+    """
+    changed = admin.update(
+        user,
+        user_id,
+        role=body.role,
+        active=body.active,
+        technician=_fields(body.technician) if body.technician else None,
+    )
     return _response(changed)
 
 

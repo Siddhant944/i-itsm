@@ -44,7 +44,7 @@ from app.domain.repositories import (
     UnitOfWork,
     UserRepository,
 )
-from app.domain.search import IncidentQuery, Page, SortField
+from app.domain.search import AWAITING_ASSIGNMENT, IncidentQuery, Page, SortField
 from app.domain.sla import (
     SLAPolicyBook,
     SLAStatus,
@@ -164,7 +164,13 @@ def _matches(incident: Incident, query: IncidentQuery, now: datetime) -> bool:
         not query.priorities or incident.priority in query.priorities,
         not query.category_ids or incident.category_id in query.category_ids,
         not query.service_ids or incident.service_id in query.service_ids,
-        not query.assignee_ids or incident.assignee_id in query.assignee_ids,
+        not query.assignee_ids
+        or incident.assignee_id in query.assignee_ids
+        or (
+            query.include_unassigned
+            and incident.assignee_id is None
+            and incident.status in AWAITING_ASSIGNMENT
+        ),
         not query.reporter_ids or incident.reporter_id in query.reporter_ids,
         query.created_from is None or incident.created_at >= query.created_from,
         query.created_to is None or incident.created_at <= query.created_to,
@@ -245,6 +251,16 @@ class InMemoryAuditRepository(AuditRepository):
         self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
     ) -> tuple[AuditRecord, ...]:
         found = self.__selected(incident_id)
+        return tuple(found[offset : offset + limit])
+
+    def numbered(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[tuple[int, AuditRecord], ...]:
+        found = [
+            (position, record)
+            for position, record in enumerate(self.__records, start=1)
+            if incident_id is None or record.incident_id == incident_id
+        ]
         return tuple(found[offset : offset + limit])
 
     def count(self, *, incident_id: str | None = None) -> int:

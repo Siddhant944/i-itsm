@@ -13,7 +13,8 @@ export interface paths {
     };
     /**
      * Log
-     * @description The newest records first. ``sequence`` is the record's position in the chain.
+     * @description The newest records first. ``sequence`` is the record's position in the whole chain,
+     *     filtered or not, so it matches what "verify integrity" reports.
      */
     get: operations["log_audit_get"];
     put?: never;
@@ -156,7 +157,9 @@ export interface paths {
      * Services
      * @description The services someone can report an incident against.
      *
-     *     Retired ones are listed only for someone who can manage the catalogue.
+     *     ``include_inactive`` adds the retired ones, flagged ``active: false``. Every screen needs
+     *     them to name the service of an incident reported before it was retired; the report form
+     *     offers only the active ones.
      */
     get: operations["services_catalogue_services_get"];
     put?: never;
@@ -1029,7 +1032,9 @@ export interface paths {
     head?: never;
     /**
      * Update
-     * @description Switch an account on or off, or give it another role.
+     * @description Switch an account on or off, give it another role, edit its technician profile.
+     *
+     *     All of it is one change: either everything asked for is applied, or nothing is.
      */
     patch: operations["update_users__user_id__patch"];
     trace?: never;
@@ -1949,12 +1954,13 @@ export interface components {
     };
     /**
      * UpdateUserRequest
-     * @description Either or both; a field left out is left alone.
+     * @description Any combination; a field left out is left alone. Applied together or not at all.
      */
     UpdateUserRequest: {
       /** Active */
       active?: boolean | null;
       role?: components["schemas"]["Role"] | null;
+      technician?: components["schemas"]["TechnicianFieldsRequest"] | null;
     };
     /** UserResponse */
     UserResponse: {

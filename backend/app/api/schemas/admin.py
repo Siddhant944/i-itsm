@@ -54,10 +54,11 @@ class CreateUserRequest(BaseModel):
 
 
 class UpdateUserRequest(BaseModel):
-    """Either or both; a field left out is left alone."""
+    """Any combination; a field left out is left alone. Applied together or not at all."""
 
     active: bool | None = None
     role: Role | None = None
+    technician: TechnicianFieldsRequest | None = None
 
 
 # ---------------------------------------------------------------- catalogue

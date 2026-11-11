@@ -161,7 +161,7 @@ class ConfigurationService:
         resolution: timedelta,
     ) -> SLATarget:
         """Change one cell of the §5.2 grid. Incidents already open keep the target they had."""
-        target = SLATarget(response, resolution)
+        target = SLATarget.checked(response, resolution)
         table = dict(self.policies())
         table[(tier, priority)] = target
         self.__uow.catalogue.save_policies(table)

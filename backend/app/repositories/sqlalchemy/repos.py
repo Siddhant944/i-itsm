@@ -68,7 +68,7 @@ from app.domain.repositories import (
     UnitOfWork,
     UserRepository,
 )
-from app.domain.search import IncidentQuery, Page, SortField
+from app.domain.search import AWAITING_ASSIGNMENT, IncidentQuery, Page, SortField
 from app.domain.sla import (
     SLAPolicyBook,
     SLAStatus,
@@ -335,7 +335,11 @@ def _conditions(query: IncidentQuery, now: datetime) -> list[ColumnElement[bool]
     if query.service_ids:
         where.append(IncidentRow.service_id.in_(query.service_ids))
     if query.assignee_ids:
-        where.append(IncidentRow.assignee_id.in_(query.assignee_ids))
+        held = IncidentRow.assignee_id.in_(query.assignee_ids)
+        waiting = and_(
+            IncidentRow.assignee_id.is_(None), IncidentRow.status.in_(AWAITING_ASSIGNMENT)
+        )
+        where.append(or_(held, waiting) if query.include_unassigned else held)
     if query.reporter_ids:
         where.append(IncidentRow.reporter_id.in_(query.reporter_ids))
     if query.sla_statuses:
@@ -638,6 +642,23 @@ class SqlAlchemyAuditRepository(AuditRepository):
             statement.order_by(AuditRecordRow.id).limit(limit).offset(offset)
         ).all()
         return tuple(mappers.row_to_audit(row) for row in rows)
+
+    def numbered(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[tuple[int, AuditRecord], ...]:
+        # Number the whole chain first, then filter: the position survives the filter.
+        chain = select(
+            AuditRecordRow.id.label("id"),
+            func.row_number().over(order_by=AuditRecordRow.id).label("position"),
+        ).subquery()
+        statement = self.__filtered(
+            select(AuditRecordRow, chain.c.position).join(chain, chain.c.id == AuditRecordRow.id),
+            incident_id,
+        )
+        rows = self.__session.execute(
+            statement.order_by(AuditRecordRow.id).limit(limit).offset(offset)
+        ).all()
+        return tuple((int(position), mappers.row_to_audit(row)) for row, position in rows)
 
     def count(self, *, incident_id: str | None = None) -> int:
         statement = self.__filtered(select(func.count()).select_from(AuditRecordRow), incident_id)

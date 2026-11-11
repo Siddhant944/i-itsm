@@ -242,3 +242,11 @@ def test_stored_nonsense_falls_back_to_the_defaults() -> None:
 
 def test_weights_are_ignored_by_the_strategies_that_have_none() -> None:
     assert isinstance(strategy_for("load_based", (0.25, 0.25, 0.25, 0.25)), LoadBasedStrategy)
+
+
+def test_a_stored_target_still_loads_even_if_it_would_be_refused_today() -> None:
+    """P3 review: validating on construction made one odd stored row unreadable for everyone."""
+    odd = SLATarget(timedelta(minutes=60), timedelta(minutes=30))
+    assert odd.response > odd.resolution
+    with pytest.raises(InvalidUserInputError):
+        SLATarget.checked(timedelta(minutes=60), timedelta(minutes=30))

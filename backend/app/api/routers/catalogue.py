@@ -32,10 +32,11 @@ def services(
 ) -> list[ServiceResponse]:
     """The services someone can report an incident against.
 
-    Retired ones are listed only for someone who can manage the catalogue.
+    ``include_inactive`` adds the retired ones, flagged ``active: false``. Every screen needs
+    them to name the service of an incident reported before it was retired; the report form
+    offers only the active ones.
     """
-    everything = include_inactive and user.can(Permission.CATALOGUE_MANAGE)
-    return [_service(s) for s in uow.catalogue.services(active_only=not everything)]
+    return [_service(s) for s in uow.catalogue.services(active_only=not include_inactive)]
 
 
 @router.post("/services", response_model=ServiceResponse, status_code=status.HTTP_201_CREATED)
@@ -57,8 +58,7 @@ def categories(
     user: CurrentUser, uow: UowDep, include_inactive: bool = False
 ) -> list[CategoryResponse]:
     """The categories, with the keywords the rule-based classifier uses (§6.1)."""
-    everything = include_inactive and user.can(Permission.CATALOGUE_MANAGE)
-    return [_category(c) for c in uow.catalogue.categories(active_only=not everything)]
+    return [_category(c) for c in uow.catalogue.categories(active_only=not include_inactive)]
 
 
 @router.post("/categories", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)

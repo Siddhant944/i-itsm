@@ -2315,7 +2315,7 @@
         "type": "object"
       },
       "UpdateUserRequest": {
-        "description": "Either or both; a field left out is left alone.",
+        "description": "Any combination; a field left out is left alone. Applied together or not at all.",
         "properties": {
           "active": {
             "anyOf": [
@@ -2332,6 +2332,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Role"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "technician": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TechnicianFieldsRequest"
               },
               {
                 "type": "null"
@@ -2580,7 +2590,7 @@
   "paths": {
     "/audit": {
       "get": {
-        "description": "The newest records first. ``sequence`` is the record's position in the chain.",
+        "description": "The newest records first. ``sequence`` is the record's position in the whole chain,\nfiltered or not, so it matches what \"verify integrity\" reports.",
         "operationId": "log_audit_get",
         "parameters": [
           {
@@ -2916,7 +2926,7 @@
     },
     "/catalogue/services": {
       "get": {
-        "description": "The services someone can report an incident against.\n\nRetired ones are listed only for someone who can manage the catalogue.",
+        "description": "The services someone can report an incident against.\n\n``include_inactive`` adds the retired ones, flagged ``active: false``. Every screen needs\nthem to name the service of an incident reported before it was retired; the report form\noffers only the active ones.",
         "operationId": "services_catalogue_services_get",
         "parameters": [
           {
@@ -4960,7 +4970,7 @@
     },
     "/users/{user_id}": {
       "patch": {
-        "description": "Switch an account on or off, or give it another role.",
+        "description": "Switch an account on or off, give it another role, edit its technician profile.\n\nAll of it is one change: either everything asked for is applied, or nothing is.",
         "operationId": "update_users__user_id__patch",
         "parameters": [
           {

@@ -143,8 +143,12 @@ def test_a_technician_sees_their_own_queue(search: SearchService, uow: InMemoryU
 
 def test_a_team_lead_sees_the_whole_team(search: SearchService, uow: InMemoryUnitOfWork) -> None:
     """D-004: the lead's scope is their own team, not every technician."""
-    assert found(search, uow, LEAD) == ["INC-2026-0001", "INC-2026-0002"]
+    # ...plus INC-0004, which nobody holds yet: "queued for the Team Lead" (§5.3) has to be
+    # somewhere a lead can see it (P3 review).
+    assert found(search, uow, LEAD) == ["INC-2026-0001", "INC-2026-0002", "INC-2026-0004"]
     assert found(search, uow, LEAD, assignee_ids=(TECH,)) == ["INC-2026-0001"]
+    # A technician's queue is still only what they hold.
+    assert "INC-2026-0004" not in found(search, uow, TECH)
     # A technician in another team is outside the lead's scope.
     assert found(search, uow, LEAD, assignee_ids=(OUTSIDER,)) == []
 

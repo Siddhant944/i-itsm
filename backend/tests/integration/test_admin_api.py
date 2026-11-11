@@ -171,6 +171,88 @@ def test_an_admin_cannot_deactivate_or_demote_themselves(
     )
 
 
+def test_an_administrator_cannot_touch_or_create_an_it_manager(
+    api: TestClient, admin: dict[str, str]
+) -> None:
+    """P3 review: the two roles share permissions, so only the level separates them (§3)."""
+    manager = api.get("/auth/me", headers=token_for(api, "manager@campus.edu")).json()
+    path = f"/users/{manager['id']}"
+    assert api.patch(path, json={"role": "employee"}, headers=admin).status_code == 403
+    assert api.patch(path, json={"active": False}, headers=admin).status_code == 403
+    minted = api.post(
+        "/users",
+        json={
+            "email": "second.manager@campus.edu",
+            "full_name": "Second Manager",
+            "password": "a long enough password",
+            "role": "it_manager",
+        },
+        headers=admin,
+    )
+    assert minted.status_code == 403
+    employee = api.get("/auth/me", headers=token_for(api, EMPLOYEE)).json()
+    promoted = api.patch(f"/users/{employee['id']}", json={"role": "it_manager"}, headers=admin)
+    assert promoted.status_code == 403
+    # The IT Manager can do all of it.
+    as_manager = token_for(api, "manager@campus.edu")
+    promoted = api.patch(
+        f"/users/{employee['id']}", json={"role": "administrator"}, headers=as_manager
+    )
+    assert promoted.status_code == 200, promoted.text
+
+
+def test_someone_holding_open_incidents_cannot_be_deactivated_or_lose_the_role(
+    api: TestClient, admin: dict[str, str]
+) -> None:
+    """P3 review: the incident would stay assigned to someone who can no longer sign in."""
+    service = api.get("/catalogue/services", headers=admin).json()[0]["id"]
+    reported = report(api, token_for(api, EMPLOYEE), service).json()
+    assignee = reported["incident"]["assignee_id"]
+    assert assignee is not None
+    for body in ({"active": False}, {"role": "employee"}):
+        refused = api.patch(f"/users/{assignee}", json=body, headers=admin)
+        assert refused.status_code == 422, refused.text
+        assert "open incidents" in refused.json()["error"]["details"]["field_errors"]["user_id"]
+    still = next(u for u in api.get("/users", headers=admin).json() if u["id"] == assignee)
+    assert still["active"] is True
+
+
+def test_a_team_lead_cannot_be_deactivated_while_leading(
+    api: TestClient, admin: dict[str, str]
+) -> None:
+    lead = next(t["lead_id"] for t in api.get("/catalogue/teams", headers=admin).json())
+    refused = api.patch(f"/users/{lead}", json={"active": False}, headers=admin)
+    assert refused.status_code == 422, refused.text
+
+
+def test_an_edit_that_fails_half_way_changes_nothing(
+    api: TestClient, admin: dict[str, str]
+) -> None:
+    """P3 review: the role used to be committed before the profile was refused."""
+    employee = api.get("/auth/me", headers=token_for(api, EMPLOYEE)).json()
+    before = api.get("/audit?limit=1", headers=admin).json()["total"]
+    refused = api.patch(
+        f"/users/{employee['id']}",
+        json={"role": "technician", "technician": {"skills": ["juggling"]}},
+        headers=admin,
+    )
+    assert refused.status_code == 422, refused.text
+    unchanged = next(
+        u for u in api.get("/users", headers=admin).json() if u["id"] == employee["id"]
+    )
+    assert unchanged["role"] == "employee"
+    assert api.get("/audit?limit=1", headers=admin).json()["total"] == before
+
+    applied = api.patch(
+        f"/users/{employee['id']}",
+        json={"role": "technician", "technician": {"skills": ["networking"], "team_id": 1}},
+        headers=admin,
+    )
+    assert applied.status_code == 200, applied.text
+    assert applied.json()["skills"] == ["networking"]
+    assert api.get("/audit?limit=1", headers=admin).json()["total"] == before + 2
+
+
 def test_a_role_change_moves_the_person_to_another_portal(
     api: TestClient, admin: dict[str, str]
 ) -> None:
@@ -223,7 +305,7 @@ def test_a_new_category_takes_effect_live_for_the_classifier(
     assert last_audit(api, admin)["details"]["change"] == "category.created"
 
 
-def test_a_retired_category_is_hidden_from_everyone_but_the_admin_screen(
+def test_a_retired_category_leaves_the_report_form_but_can_still_be_named(
     api: TestClient, admin: dict[str, str]
 ) -> None:
     first = api.get("/catalogue/categories", headers=admin).json()[0]
@@ -233,13 +315,76 @@ def test_a_retired_category_is_hidden_from_everyone_but_the_admin_screen(
     assert retired.status_code == 200, retired.text
     employee = token_for(api, EMPLOYEE)
     for headers in (employee, admin):
-        visible = api.get("/catalogue/categories", headers=headers).json()
-        assert first["id"] not in {c["id"] for c in visible}
-    # Asking for retired rows only works for someone who can manage the catalogue.
-    asked = api.get("/catalogue/categories?include_inactive=true", headers=employee).json()
-    assert first["id"] not in {c["id"] for c in asked}
-    everything = api.get("/catalogue/categories?include_inactive=true", headers=admin).json()
-    assert first["id"] in {c["id"] for c in everything}
+        offered = api.get("/catalogue/categories", headers=headers).json()
+        assert first["id"] not in {c["id"] for c in offered}
+        # Every screen still has to name the category of an incident reported before.
+        everything = api.get("/catalogue/categories?include_inactive=true", headers=headers).json()
+        (found,) = [c for c in everything if c["id"] == first["id"]]
+        assert found["active"] is False
+
+
+def report(api: TestClient, headers: dict[str, str], service_id: int, **extra: Any) -> Any:
+    return api.post(
+        "/incidents",
+        json={
+            "title": "Cannot connect",
+            "description": "No wifi signal in the library",
+            "service_id": service_id,
+            "impact": 2,
+            "urgency": 2,
+            **extra,
+        },
+        headers=headers,
+    )
+
+
+def test_a_retired_category_cannot_be_chosen_for_a_new_or_an_existing_incident(
+    api: TestClient, admin: dict[str, str]
+) -> None:
+    category = api.get("/catalogue/categories", headers=admin).json()[-1]
+    service = api.get("/catalogue/services", headers=admin).json()[0]["id"]
+    incident = report(api, token_for(api, EMPLOYEE), service).json()["incident"]["id"]
+    api.put(
+        f"/catalogue/categories/{category['id']}",
+        json={**category, "active": False},
+        headers=admin,
+    )
+    refused = report(api, token_for(api, EMPLOYEE), service, category_id=category["id"])
+    assert refused.status_code == 422, refused.text
+    override = api.post(
+        f"/incidents/{incident}/category", json={"category_id": category["id"]}, headers=admin
+    )
+    assert override.status_code == 422, override.text
+
+
+def test_retiring_a_service_does_not_strand_the_incidents_open_on_it(
+    api: TestClient, admin: dict[str, str]
+) -> None:
+    """P3 review: an incident on a retired service answered 404 to every further step."""
+    service = api.get("/catalogue/services", headers=admin).json()[0]
+    incident = report(api, token_for(api, EMPLOYEE), service["id"]).json()["incident"]["id"]
+    retired = api.put(
+        f"/catalogue/services/{service['id']}",
+        json={
+            "name": service["name"],
+            "criticality": service["criticality"],
+            "depends_on": service["depends_on"],
+            "active": False,
+        },
+        headers=admin,
+    )
+    assert retired.status_code == 200, retired.text
+
+    advice = api.get(f"/incidents/{incident}/assignment-advice", headers=admin)
+    assert advice.status_code == 200, advice.text
+    override = api.post(
+        f"/incidents/{incident}/priority",
+        json={"priority": "P1", "reason": "Exam week"},
+        headers=admin,
+    )
+    assert override.status_code == 200, override.text
+    # ...but nothing new can be reported against it.
+    assert report(api, token_for(api, EMPLOYEE), service["id"]).status_code == 404
 
 
 def test_a_service_is_created_edited_and_kept_acyclic(
@@ -395,6 +540,15 @@ def test_the_audit_log_pages_newest_first_and_filters_by_incident(
     only = api.get(f"/audit?incident_id={incident}", headers=admin).json()
     assert only["total"] >= 1
     assert {item["incident_id"] for item in only["items"]} == {incident}
+    # A record keeps its position in the chain when the list is filtered to one incident.
+    whole = {
+        item["hash"]: item["sequence"]
+        for item in api.get("/audit?limit=200", headers=admin).json()["items"]
+    }
+    assert only["items"]
+    for item in only["items"]:
+        assert item["sequence"] == whole[item["hash"]]
+    assert [item["sequence"] for item in only["items"]] != list(range(len(only["items"]), 0, -1))
 
 
 def test_BR10_the_integrity_check_passes_then_fails_after_tampering(

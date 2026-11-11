@@ -55,13 +55,20 @@ class SLATarget:
     response: timedelta
     resolution: timedelta
 
-    def __post_init__(self) -> None:
-        if self.response <= timedelta(0) or self.resolution <= timedelta(0):
+    @classmethod
+    def checked(cls, response: timedelta, resolution: timedelta) -> "SLATarget":
+        """A target an administrator is setting, refused when it cannot be met as written.
+
+        Stored targets are rebuilt with the plain constructor: a row written before this rule
+        must still load, or one odd policy would make every incident on it unreadable.
+        """
+        if response <= timedelta(0) or resolution <= timedelta(0):
             raise InvalidUserInputError({"target": "Both targets must be longer than zero."})
-        if self.response > self.resolution:
+        if response > resolution:
             raise InvalidUserInputError(
                 {"target": "The response target cannot be longer than the resolution target."}
             )
+        return cls(response, resolution)
 
     def scaled(self, factor: int) -> "SLATarget":
         return SLATarget(self.response * factor, self.resolution * factor)

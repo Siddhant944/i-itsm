@@ -132,6 +132,16 @@ class AuditRepository(ABC):
         """A page of the chain, oldest first."""
 
     @abstractmethod
+    def numbered(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[tuple[int, AuditRecord], ...]:
+        """The same page as ``records``, each with its 1-based position in the whole chain.
+
+        The position is what "verify integrity" reports a break at, so it must not change
+        when the list is filtered to one incident.
+        """
+
+    @abstractmethod
     def count(self, *, incident_id: str | None = None) -> int: ...
 
     @abstractmethod

@@ -48,6 +48,12 @@ class AuditService:
     ) -> tuple[AuditRecord, ...]:
         return self.__repository.records(incident_id=incident_id, limit=limit, offset=offset)
 
+    def numbered_history(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[tuple[int, AuditRecord], ...]:
+        """A page of records, oldest first, each with its position in the chain."""
+        return self.__repository.numbered(incident_id=incident_id, limit=limit, offset=offset)
+
     def count(self, *, incident_id: str | None = None) -> int:
         return self.__repository.count(incident_id=incident_id)
 

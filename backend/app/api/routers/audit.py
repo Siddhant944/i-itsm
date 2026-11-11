@@ -26,14 +26,15 @@ def log(
     limit: Annotated[int, Query(ge=1, le=MAX_AUDIT_PAGE)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> AuditPageResponse:
-    """The newest records first. ``sequence`` is the record's position in the chain."""
+    """The newest records first. ``sequence`` is the record's position in the whole chain,
+    filtered or not, so it matches what "verify integrity" reports."""
     total = audit.count(incident_id=incident_id)
     size = max(min(limit, total - offset), 0)
     start = max(total - offset - size, 0)
-    page = audit.history(incident_id=incident_id, limit=size, offset=start) if size else ()
+    page = audit.numbered_history(incident_id=incident_id, limit=size, offset=start) if size else ()
     items = [
         AuditRecordResponse(
-            sequence=start + index + 1,
+            sequence=position,
             occurred_at=record.occurred_at,
             action=record.action.value,
             actor_id=record.actor_id,
@@ -41,7 +42,7 @@ def log(
             details=dict(record.details),
             hash=record.hash,
         )
-        for index, record in enumerate(page)
+        for position, record in page
     ]
     items.reverse()
     return AuditPageResponse(items=items, total=total, limit=limit, offset=offset)

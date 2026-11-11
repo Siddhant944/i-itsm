@@ -190,3 +190,109 @@ def test_only_support_staff_have_a_profile_and_a_lead_stays_in_their_team(
         service.update_technician(admin, EMPLOYEE, TechnicianFields())
     with pytest.raises(InvalidUserInputError):
         service.update_technician(admin, LEAD, TechnicianFields(team_id=None))
+
+
+# ---------------------------------------------------------------- P3 review
+def _open_incident_for(uow: InMemoryUnitOfWork, assignee: int) -> None:
+    from app.domain.incident import IncidentFactory
+    from app.domain.priority import Priority, PriorityAssessment
+
+    clock = FakeClock(NOW)
+    incident = IncidentFactory.create(
+        sequence=1,
+        clock=clock,
+        reporter_id=EMPLOYEE,
+        title="Wi-Fi down",
+        description="No signal",
+        service_id=1,
+        impact=2,
+        urgency=2,
+    )
+    incident.prioritise(PriorityAssessment(Priority.P2, 12, "fixture"), clock)
+    incident.classify(1, None, clock)
+    incident.assign(assignee, None, clock)
+    uow.incidents.add(incident)
+
+
+def test_someone_holding_open_incidents_stays_active_and_keeps_a_working_role(
+    service: UserAdminService, uow: InMemoryUnitOfWork, admin: User
+) -> None:
+    _open_incident_for(uow, TECH)
+    with pytest.raises(InvalidUserInputError, match="fields"):
+        service.set_active(admin, TECH, active=False)
+    with pytest.raises(InvalidUserInputError):
+        service.change_role(admin, TECH, Role.EMPLOYEE)
+    assert uow.users.get(TECH).active is True
+    # A role that can still work incidents is fine.
+    assert service.change_role(admin, TECH, Role.TEAM_LEAD).role is Role.TEAM_LEAD
+
+
+def test_an_escalation_owner_cannot_be_demoted_out_from_under_an_incident(
+    service: UserAdminService, uow: InMemoryUnitOfWork, admin: User
+) -> None:
+    """Escalation assigns incidents to administrators too, who are not Technicians."""
+    uow.users.add(
+        UserFactory.create(
+            Role.ADMINISTRATOR, user_id=7, email="ops@campus.edu", full_name="Ops Admin"
+        )
+    )
+    _open_incident_for(uow, 7)
+    with pytest.raises(InvalidUserInputError):
+        service.change_role(admin, 7, Role.EMPLOYEE)
+
+
+def test_a_team_lead_cannot_be_deactivated_while_leading(
+    service: UserAdminService, admin: User
+) -> None:
+    with pytest.raises(InvalidUserInputError):
+        service.set_active(admin, LEAD, active=False)
+
+
+def test_nobody_manages_or_hands_out_a_role_above_their_own(
+    service: UserAdminService, uow: InMemoryUnitOfWork, admin: User
+) -> None:
+    manager = UserFactory.create(
+        Role.IT_MANAGER, user_id=8, email="boss@campus.edu", full_name="IT Manager"
+    )
+    uow.users.add(manager)
+    with pytest.raises(UnauthorizedOperationError):
+        service.set_active(admin, 8, active=False)
+    with pytest.raises(UnauthorizedOperationError):
+        service.change_role(admin, 8, Role.EMPLOYEE)
+    with pytest.raises(UnauthorizedOperationError):
+        service.change_role(admin, EMPLOYEE, Role.IT_MANAGER)
+    with pytest.raises(UnauthorizedOperationError):
+        service.create(
+            admin, email="x@campus.edu", full_name="X", password=PASSWORD, role=Role.IT_MANAGER
+        )
+    assert uow.audit.records() == ()
+    assert service.change_role(manager, ADMIN, Role.IT_MANAGER).role is Role.IT_MANAGER
+
+
+def test_an_edit_is_all_or_nothing(
+    service: UserAdminService, uow: InMemoryUnitOfWork, admin: User
+) -> None:
+    with pytest.raises(InvalidUserInputError):
+        service.update(
+            admin,
+            EMPLOYEE,
+            role=Role.TECHNICIAN,
+            technician=TechnicianFields(skills=("juggling",)),
+        )
+    assert uow.users.get(EMPLOYEE).role is Role.EMPLOYEE
+    assert uow.audit.records() == ()
+    assert uow.committed == 0
+
+    changed = service.update(
+        admin,
+        EMPLOYEE,
+        role=Role.TECHNICIAN,
+        technician=TechnicianFields(skills=("email",), experience_level=2, team_id=1),
+    )
+    assert isinstance(changed, Technician)
+    assert (changed.skills.names, changed.team_id) == (("email",), 1)
+    assert uow.committed == 1
+    assert [r.details["change"] for r in uow.audit.records()] == [
+        "role_changed",
+        "technician_updated",
+    ]
