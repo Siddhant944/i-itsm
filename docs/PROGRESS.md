@@ -2,14 +2,20 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P2 Persistence, services, API — P2.1 to P2.10 done, in review (4 Nov)
+## Status: P2 Persistence, services, API — done, PR open (11 Nov)
 
-On `claude/jolly-newton-82k47h`, cut from main after the P1 PR merged. Every package from P2.1
-to P2.10 is done and pushed; P2.11 (the phase review and the PR) is what remains.
+On `claude/jolly-newton-82k47h`, cut from main after the P1 PR merged. All eleven packages are
+done, the phase review's findings are fixed, and the PR is open for the four of us to review.
 
-`make verify` passes: 775 backend tests, 97 % coverage. The whole suite also passes against a
-real PostgreSQL 16, migrations, a full seed and the authorisation matrix included — which is
-where three portability bugs turned up that SQLite alone would have hidden.
+`make verify` passes: 789 backend tests, 97 % coverage. The whole suite also passes against a
+real PostgreSQL 16, migrations, a full seed, the authorisation matrix and a concurrent-writer
+audit test included — which is where four bugs turned up that SQLite alone would have hidden.
+
+**We are behind the plan.** docs/PLAN.md had P2 finishing on 7 Nov and P3 (the frontend) on
+10 Nov; it is the 11th and P3 has not started. The backend is complete and the remaining phases
+are unchanged, but P3, P4 and P5 now have ten days rather than thirteen, with the recording on
+19-20 Nov. Worth deciding together whether to start cutting from the P4 list early (the cut
+order is in PLAN.md's usage rules) rather than discovering the squeeze in week three.
 
 The API now has 45 endpoints and the backend is feature-complete for the MVP: an employee can
 report an incident and follow it, a technician can work it, an admin can search, configure and
@@ -144,11 +150,25 @@ next phase.
   string in Render as `DATABASE_URL` plus a strong `JWT_SECRET`. The API image already runs
   `alembic upgrade head` before serving, so the schema builds itself on first deploy.
 
+### Done, continued
+- **P2.11 Phase close.** A fresh-context subagent reviewed the whole phase diff against
+  AGENTS.md, the blueprint and DECISIONS.md. It found three bugs that would have shipped and
+  several smaller ones; all are fixed, each with a test that fails without the fix. The three
+  that mattered: the stored SLA deadline used the live target instead of the one frozen at
+  RESOLVED, so a re-prioritised incident read ON_TRACK in the search and BREACHED on its own
+  page (D-017, D-018); the §5.4 "Escalated" and auto-close "Closed" notifications never went
+  out, and the test that claimed otherwise built its own wiring; and work notes could still be
+  added to CLOSED and CANCELLED incidents. Fixing the second exposed another: escalation
+  stalled when the assignee was already the team's lead. Also fixed: the audit head lock did
+  not serialise on PostgreSQL, a truncated audit tail was undetectable, §8's 503 row was
+  unreachable, the login response revealed which accounts exist (D-019), the monitor retried an
+  impossible escalation every 30 s for ever, reassignment double-counted a workload, the trend
+  chart bucketed by UTC rather than IST, two dashboard panels disagreed about "breached", D-004's
+  documented fallback was not implemented, a duplicate could be linked to an unseen incident,
+  and a CSV cell could be a live formula.
+
 ### Next
-- P2.11 phase close: a fresh subagent reviews the phase diff, fix its findings, update this
-  file, open the PR.
-- Then P3: the frontend. The backend is ready for it — 45 endpoints and a regenerated typed
-  client.
+- P3: the frontend. The backend is ready for it — 45 endpoints and a regenerated typed client.
 - One thing for **P5.5** (`make demo-reset`), noticed while smoke-testing a real deployment:
   the seeded history was never watched by the monitor, so the first tick after a seed catches up
   on the whole backlog at once (173 breaches recorded, 62 escalations, 30 auto-closes). That is
