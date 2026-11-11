@@ -13,7 +13,11 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from types import MappingProxyType
 
-from app.domain.errors import InvalidIncidentError, MissingSLAConfigurationError
+from app.domain.errors import (
+    InvalidIncidentError,
+    InvalidUserInputError,
+    MissingSLAConfigurationError,
+)
 from app.domain.priority import Priority
 
 
@@ -50,6 +54,14 @@ class SLAStatus(StrEnum):
 class SLATarget:
     response: timedelta
     resolution: timedelta
+
+    def __post_init__(self) -> None:
+        if self.response <= timedelta(0) or self.resolution <= timedelta(0):
+            raise InvalidUserInputError({"target": "Both targets must be longer than zero."})
+        if self.response > self.resolution:
+            raise InvalidUserInputError(
+                {"target": "The response target cannot be longer than the resolution target."}
+            )
 
     def scaled(self, factor: int) -> "SLATarget":
         return SLATarget(self.response * factor, self.resolution * factor)
@@ -94,6 +106,11 @@ class SLAPolicyBook:
 
     def __init__(self, policies: Mapping[tuple[SLATier, Priority], SLATarget]) -> None:
         self.__policies = MappingProxyType(dict(policies))
+
+    @property
+    def policies(self) -> Mapping[tuple[SLATier, Priority], SLATarget]:
+        """Every configured target, read-only, for the admin's SLA grid."""
+        return self.__policies
 
     def target_for(self, tier: SLATier, priority: Priority) -> SLATarget:
         try:

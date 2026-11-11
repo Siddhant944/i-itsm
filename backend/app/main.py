@@ -6,11 +6,11 @@ request dependencies in ``app.api.deps`` pick it up. Run with
 ``uvicorn app.main:create_app --factory``.
 """
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -19,12 +19,15 @@ from app.adapters.smtp_email import EmailSettings, email_sender_for
 from app.api import health
 from app.api.deps import Services
 from app.api.errors import register_error_handlers
+from app.api.routers import audit as audit_router
 from app.api.routers import auth as auth_router
 from app.api.routers import catalogue as catalogue_router
+from app.api.routers import configuration as configuration_router
 from app.api.routers import dev as dev_router
 from app.api.routers import incidents as incidents_router
 from app.api.routers import notifications as notifications_router
 from app.api.routers import reports as reports_router
+from app.api.routers import users as users_router
 from app.api.routers import violations as violations_router
 from app.core.clock import AcceleratedClock, Clock, FakeClock, SystemClock
 from app.core.config import ClockMode, Settings, get_settings
@@ -40,6 +43,8 @@ from app.services.notifications import EmailChannel, default_factory
 from app.services.notifications.service import NotificationService
 from app.services.scheduler import MonitorScheduler
 from app.services.sla_monitor import SLAMonitor, TickReport
+
+SERVER_TIME_HEADER = "X-Server-Time"
 
 
 def make_clock(settings: Settings) -> Clock:
@@ -96,7 +101,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=[SERVER_TIME_HEADER],
     )
+
+    @app.middleware("http")
+    async def stamp_server_time(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Tell the browser what time the *application* thinks it is.
+
+        SLA countdowns are measured on the injected Clock (§5.2), which in the demo runs ×10
+        and in tests stands still, so the browser's own clock would count down wrongly.
+        """
+        response = await call_next(request)
+        services: Services = request.app.state.services
+        response.headers[SERVER_TIME_HEADER] = services.clock.now().isoformat()
+        return response
 
     app.state.services = Services(
         unit_of_work=lambda: SqlAlchemyUnitOfWork(sessions, clock),
@@ -124,6 +144,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(notifications_router.router)
     app.include_router(reports_router.router)
     app.include_router(violations_router.router)
+    app.include_router(users_router.router)
+    app.include_router(configuration_router.router)
+    app.include_router(audit_router.router)
     if settings.clock_control_enabled:
         # D-009: controlling time is for the test and demo environments only.
         app.include_router(dev_router.router)

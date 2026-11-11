@@ -8,11 +8,14 @@ import type { paths } from "./schema";
 
 const configuredBaseUrl = import.meta.env.VITE_API_URL;
 
-/** API origin: VITE_API_URL when set, otherwise the page's own origin (Vite proxy or nginx). */
+/**
+ * Where the API lives: VITE_API_URL when set (a separately hosted API), otherwise `/api` on the
+ * page's own origin, which the Vite dev proxy and nginx both forward with the prefix removed.
+ */
 export const apiBaseUrl =
   configuredBaseUrl !== undefined && configuredBaseUrl !== ""
     ? configuredBaseUrl
-    : window.location.origin;
+    : `${window.location.origin}/api`;
 
 // fetch is looked up per call (not captured at import) so tests can stub it.
 export const api = createClient<paths>({

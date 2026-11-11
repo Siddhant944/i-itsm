@@ -39,6 +39,7 @@ from app.domain.repositories import (
     CredentialsRepository,
     IncidentRepository,
     NotificationRepository,
+    SettingsRepository,
     SLAViolationRepository,
     UnitOfWork,
     UserRepository,
@@ -211,6 +212,9 @@ class InMemoryUserRepository(UserRepository):
 
     def find_by_email(self, email: EmailAddress) -> User | None:
         return next((u for u in self.__items.values() if u.email == email), None)
+
+    def all(self) -> tuple[User, ...]:
+        return tuple(self.__items[key] for key in sorted(self.__items))
 
     def technicians(self) -> tuple[Technician, ...]:
         return tuple(u for u in self.__items.values() if isinstance(u, Technician))
@@ -561,6 +565,18 @@ class InMemoryAnalyticsRepository(AnalyticsRepository):
         return tuple(i for i in found if i.created_at >= since)
 
 
+class InMemorySettingsRepository(SettingsRepository):
+    def __init__(self) -> None:
+        self.__values: dict[str, dict[str, object]] = {}
+
+    def get(self, key: str) -> Mapping[str, object] | None:
+        stored = self.__values.get(key)
+        return dict(stored) if stored is not None else None
+
+    def put(self, key: str, value: Mapping[str, object], *, updated_by: int | None) -> None:
+        self.__values[key] = dict(value)
+
+
 class InMemoryUnitOfWork(UnitOfWork):
     def __init__(self) -> None:
         self.incidents = InMemoryIncidentRepository()
@@ -571,6 +587,7 @@ class InMemoryUnitOfWork(UnitOfWork):
         self.notifications = InMemoryNotificationRepository()
         self.analytics = InMemoryAnalyticsRepository(self.incidents, self.users, self.catalogue)
         self.violations = InMemorySLAViolationRepository()
+        self.settings = InMemorySettingsRepository()
         self.committed = 0
 
     def commit(self) -> None:

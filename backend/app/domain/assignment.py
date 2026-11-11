@@ -180,9 +180,61 @@ _REGISTRY: Mapping[str, Callable[[], AssignmentStrategy]] = MappingProxyType(
 )
 
 
-def strategy_for(name: str) -> AssignmentStrategy:
-    """Resolve the admin's saved choice (a new strategy is one class plus one entry here)."""
+def strategy_names() -> tuple[str, ...]:
+    """The strategies an admin can choose between, in a stable order (§5.3)."""
+    return tuple(sorted(_REGISTRY))
+
+
+def strategy_for(
+    name: str, weights: tuple[float, float, float, float] | None = None
+) -> AssignmentStrategy:
+    """Resolve the admin's saved choice (a new strategy is one class plus one entry here).
+
+    ``weights`` only mean something to the smart strategy; the others ignore them.
+    """
     try:
-        return _REGISTRY[name]()
+        chosen = _REGISTRY[name]
     except KeyError:
         raise InvalidUserInputError({"strategy": f"Unknown strategy '{name}'."}) from None
+    if chosen is SmartStrategy and weights is not None:
+        return SmartStrategy(weights)
+    return chosen()
+
+
+@dataclass(frozen=True, slots=True)
+class AssignmentSettings:
+    """The admin's saved choice of strategy and the smart strategy's weights (§3, §5.3).
+
+    Building one validates it, so an unknown strategy or weights that do not sum to 1 are
+    refused before they are stored rather than when the next incident is reported.
+    """
+
+    strategy: str = SmartStrategy.name
+    weights: tuple[float, float, float, float] = DEFAULT_SMART_WEIGHTS
+
+    def __post_init__(self) -> None:
+        if len(self.weights) != len(DEFAULT_SMART_WEIGHTS):
+            raise InvalidUserInputError({"weights": "Give exactly four weights."})
+        SmartStrategy(self.weights)
+        strategy_for(self.strategy)
+
+    def build(self) -> AssignmentStrategy:
+        """The strategy these settings describe."""
+        return strategy_for(self.strategy, self.weights)
+
+    def to_mapping(self) -> dict[str, object]:
+        return {"strategy": self.strategy, "weights": list(self.weights)}
+
+    @classmethod
+    def from_mapping(cls, stored: Mapping[str, object] | None) -> "AssignmentSettings":
+        """Rebuild from what was stored; nothing stored, or nonsense, means the defaults."""
+        if not stored:
+            return cls()
+        weights = stored.get("weights")
+        try:
+            if not isinstance(weights, (list, tuple)) or len(weights) != 4:
+                return cls(strategy=str(stored.get("strategy", SmartStrategy.name)))
+            w = (float(weights[0]), float(weights[1]), float(weights[2]), float(weights[3]))
+            return cls(strategy=str(stored.get("strategy", SmartStrategy.name)), weights=w)
+        except (InvalidUserInputError, TypeError, ValueError):
+            return cls()

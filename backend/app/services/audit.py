@@ -48,6 +48,9 @@ class AuditService:
     ) -> tuple[AuditRecord, ...]:
         return self.__repository.records(incident_id=incident_id, limit=limit, offset=offset)
 
+    def count(self, *, incident_id: str | None = None) -> int:
+        return self.__repository.count(incident_id=incident_id)
+
     def verify(self) -> ChainVerification:
         """Recompute the whole chain, a page at a time, and report the first break.
 

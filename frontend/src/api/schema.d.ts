@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+  "/audit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Log
+     * @description The newest records first. ``sequence`` is the record's position in the chain.
+     */
+    get: operations["log_audit_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/audit/verify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Verify
+     * @description Recompute the whole hash chain and report the first break, if there is one.
+     */
+    post: operations["verify_audit_verify_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/auth/login": {
     parameters: {
       query?: never;
@@ -77,6 +117,27 @@ export interface paths {
      */
     get: operations["categories_catalogue_categories_get"];
     put?: never;
+    /**
+     * Create Category
+     * @description A new category is live at once: the classifier reads its keywords on the next report.
+     */
+    post: operations["create_category_catalogue_categories_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/catalogue/categories/{category_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Category */
+    put: operations["update_category_catalogue_categories__category_id__put"];
     post?: never;
     delete?: never;
     options?: never;
@@ -94,9 +155,29 @@ export interface paths {
     /**
      * Services
      * @description The services someone can report an incident against.
+     *
+     *     Retired ones are listed only for someone who can manage the catalogue.
      */
     get: operations["services_catalogue_services_get"];
     put?: never;
+    /** Create Service */
+    post: operations["create_service_catalogue_services_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/catalogue/services/{service_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Service */
+    put: operations["update_service_catalogue_services__service_id__put"];
     post?: never;
     delete?: never;
     options?: never;
@@ -131,6 +212,30 @@ export interface paths {
     /** Teams */
     get: operations["teams_catalogue_teams_get"];
     put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/config/assignment": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Assignment
+     * @description The active assignment strategy and the smart strategy's weights (§5.3).
+     */
+    get: operations["assignment_config_assignment_get"];
+    /**
+     * Set Assignment
+     * @description Switch strategy at runtime; the next assignment uses it.
+     */
+    put: operations["set_assignment_config_assignment_put"];
     post?: never;
     delete?: never;
     options?: never;
@@ -771,6 +876,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/sla/policies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Policies
+     * @description The §5.2 grid: one response and one resolution target per tier and priority.
+     */
+    get: operations["policies_sla_policies_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sla/policies/{tier}/{priority}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Set Policy */
+    put: operations["set_policy_sla_policies__tier___priority__put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/sla/tick": {
     parameters: {
       query?: never;
@@ -831,6 +973,87 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/users": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Everyone */
+    get: operations["everyone_users_get"];
+    put?: never;
+    /**
+     * Create
+     * @description Create an account with any role; self-registration only makes Employees (D-008).
+     */
+    post: operations["create_users_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/users/directory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Directory
+     * @description Names for the ids on a screen; an employee is shown support staff only (BR-01).
+     */
+    get: operations["directory_users_directory_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/users/{user_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update
+     * @description Switch an account on or off, or give it another role.
+     */
+    patch: operations["update_users__user_id__patch"];
+    trace?: never;
+  };
+  "/users/{user_id}/technician": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Update Technician
+     * @description A technician's skills, experience, availability and team (§5.3 reads all four).
+     */
+    put: operations["update_technician_users__user_id__technician_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -841,6 +1064,78 @@ export interface components {
       ranked: components["schemas"]["CandidateScoreResponse"][];
       /** Strategy */
       strategy: string;
+    };
+    /** AssignmentSettingsRequest */
+    AssignmentSettingsRequest: {
+      /** Strategy */
+      strategy: string;
+      weights: components["schemas"]["AssignmentWeights"];
+    };
+    /** AssignmentSettingsResponse */
+    AssignmentSettingsResponse: {
+      /** Available */
+      available: string[];
+      /** Strategy */
+      strategy: string;
+      weights: components["schemas"]["AssignmentWeights"];
+    };
+    /**
+     * AssignmentWeights
+     * @description The four weights of §5.3: skill coverage, spare capacity, experience, past fixes.
+     */
+    AssignmentWeights: {
+      /** Capacity */
+      capacity: number;
+      /** Experience */
+      experience: number;
+      /** History */
+      history: number;
+      /** Skills */
+      skills: number;
+    };
+    /** AuditPageResponse */
+    AuditPageResponse: {
+      /** Items */
+      items: components["schemas"]["AuditRecordResponse"][];
+      /** Limit */
+      limit: number;
+      /** Offset */
+      offset: number;
+      /** Total */
+      total: number;
+    };
+    /** AuditRecordResponse */
+    AuditRecordResponse: {
+      /** Action */
+      action: string;
+      /** Actor Id */
+      actor_id: number | null;
+      /** Details */
+      details: {
+        [key: string]: unknown;
+      };
+      /** Hash */
+      hash: string;
+      /** Incident Id */
+      incident_id: string | null;
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string;
+      /** Sequence */
+      sequence: number;
+    };
+    /** AuditVerificationResponse */
+    AuditVerificationResponse: {
+      /** Broken At */
+      broken_at: number | null;
+      /** Checked */
+      checked: number;
+      /** Intact */
+      intact: boolean;
+      /** Summary */
+      summary: string;
     };
     /**
      * CancelReason
@@ -871,6 +1166,21 @@ export interface components {
       /** Category Id */
       category_id: number;
     };
+    /** CategoryRequest */
+    CategoryRequest: {
+      /**
+       * Active
+       * @default true
+       */
+      active: boolean;
+      /** Keywords */
+      keywords?: string[];
+      minimum_priority?: components["schemas"]["Priority"] | null;
+      /** Name */
+      name: string;
+      /** Required Skill Id */
+      required_skill_id?: number | null;
+    };
     /** CategoryResponse */
     CategoryResponse: {
       /** Active */
@@ -898,6 +1208,20 @@ export interface components {
       /** Text */
       text: string;
     };
+    /** CreateUserRequest */
+    CreateUserRequest: {
+      /**
+       * Email
+       * Format: email
+       */
+      email: string;
+      /** Full Name */
+      full_name: string;
+      /** Password */
+      password: string;
+      role: components["schemas"]["Role"];
+      technician?: components["schemas"]["TechnicianFieldsRequest"] | null;
+    };
     /**
      * DashboardResponse
      * @description Everything an admin dashboard shows, in one call.
@@ -919,6 +1243,17 @@ export interface components {
      * @enum {string}
      */
     DeliveryStatus: "pending" | "sent" | "failed";
+    /**
+     * DirectoryEntryResponse
+     * @description Just enough to show a name beside an id.
+     */
+    DirectoryEntryResponse: {
+      /** Full Name */
+      full_name: string;
+      /** Id */
+      id: number;
+      role: components["schemas"]["Role"];
+    };
     /** FeedbackResponse */
     FeedbackResponse: {
       /** Comment */
@@ -1351,6 +1686,22 @@ export interface components {
      * @enum {string}
      */
     Role: "employee" | "technician" | "team_lead" | "administrator" | "it_manager";
+    /** SLAPolicyRequest */
+    SLAPolicyRequest: {
+      /** Resolution Minutes */
+      resolution_minutes: number;
+      /** Response Minutes */
+      response_minutes: number;
+    };
+    /** SLAPolicyResponse */
+    SLAPolicyResponse: {
+      priority: components["schemas"]["Priority"];
+      /** Resolution Minutes */
+      resolution_minutes: number;
+      /** Response Minutes */
+      response_minutes: number;
+      tier: components["schemas"]["SLATier"];
+    };
     /**
      * SLAResponse
      * @description The live SLA picture the chips and countdowns need (§5.2).
@@ -1428,6 +1779,23 @@ export interface components {
       /** Text */
       text?: string | null;
     };
+    /** ServiceRequest */
+    ServiceRequest: {
+      /**
+       * Active
+       * @default true
+       */
+      active: boolean;
+      /** Criticality */
+      criticality: number;
+      /** Depends On */
+      depends_on?: number[];
+      /** Name */
+      name: string;
+      /** Required Skill Id */
+      required_skill_id?: number | null;
+      sla_tier?: components["schemas"]["SLATier"] | null;
+    };
     /** ServiceResponse */
     ServiceResponse: {
       /** Active */
@@ -1443,6 +1811,11 @@ export interface components {
       /** Required Skill Id */
       required_skill_id: number | null;
       sla_tier: components["schemas"]["SLATier"];
+      /**
+       * Tier Overridden
+       * @default false
+       */
+      tier_overridden: boolean;
     };
     /** ServiceRowResponse */
     ServiceRowResponse: {
@@ -1494,6 +1867,23 @@ export interface components {
       member_ids: number[];
       /** Name */
       name: string;
+    };
+    /** TechnicianFieldsRequest */
+    TechnicianFieldsRequest: {
+      /**
+       * Available
+       * @default true
+       */
+      available: boolean;
+      /**
+       * Experience Level
+       * @default 1
+       */
+      experience_level: number;
+      /** Skills */
+      skills?: string[];
+      /** Team Id */
+      team_id?: number | null;
     };
     /**
      * TechnicianProfileResponse
@@ -1556,6 +1946,35 @@ export interface components {
       reported: number;
       /** Resolved */
       resolved: number;
+    };
+    /**
+     * UpdateUserRequest
+     * @description Either or both; a field left out is left alone.
+     */
+    UpdateUserRequest: {
+      /** Active */
+      active?: boolean | null;
+      role?: components["schemas"]["Role"] | null;
+    };
+    /** UserResponse */
+    UserResponse: {
+      /** Active */
+      active: boolean;
+      /** Available */
+      available?: boolean | null;
+      /** Email */
+      email: string;
+      /** Experience Level */
+      experience_level?: number | null;
+      /** Full Name */
+      full_name: string;
+      /** Id */
+      id: number;
+      role: components["schemas"]["Role"];
+      /** Skills */
+      skills?: string[] | null;
+      /** Team Id */
+      team_id?: number | null;
     };
     /**
      * ViolationKind
@@ -1629,6 +2048,64 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  log_audit_get: {
+    parameters: {
+      query?: {
+        incident_id?: string | null;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuditPageResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  verify_audit_verify_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuditVerificationResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   login_auth_login_post: {
     parameters: {
       query?: never;
@@ -1720,7 +2197,9 @@ export interface operations {
   };
   categories_catalogue_categories_get: {
     parameters: {
-      query?: never;
+      query?: {
+        include_inactive?: boolean;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -1745,9 +2224,75 @@ export interface operations {
       };
     };
   };
-  services_catalogue_services_get: {
+  create_category_catalogue_categories_post: {
     parameters: {
       query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CategoryRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CategoryResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  update_category_catalogue_categories__category_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        category_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CategoryRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CategoryResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  services_catalogue_services_get: {
+    parameters: {
+      query?: {
+        include_inactive?: boolean;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -1761,6 +2306,70 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ServiceResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  create_service_catalogue_services_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ServiceRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ServiceResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  update_service_catalogue_services__service_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        service_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ServiceRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ServiceResponse"];
         };
       };
       /** @description Validation error */
@@ -1815,6 +2424,64 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["TeamResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  assignment_config_assignment_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssignmentSettingsResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  set_assignment_config_assignment_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AssignmentSettingsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssignmentSettingsResponse"];
         };
       };
       /** @description Validation error */
@@ -2832,6 +3499,67 @@ export interface operations {
       };
     };
   };
+  policies_sla_policies_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SLAPolicyResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  set_policy_sla_policies__tier___priority__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tier: components["schemas"]["SLATier"];
+        priority: components["schemas"]["Priority"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SLAPolicyRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SLAPolicyResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   tick_sla_tick_post: {
     parameters: {
       query?: never;
@@ -2906,6 +3634,157 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ViolationResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  everyone_users_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UserResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  create_users_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateUserRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UserResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  directory_users_directory_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DirectoryEntryResponse"][];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  update_users__user_id__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateUserRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UserResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  update_technician_users__user_id__technician_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TechnicianFieldsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UserResponse"];
         };
       };
       /** @description Validation error */

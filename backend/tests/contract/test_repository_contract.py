@@ -669,3 +669,63 @@ def test_a_new_skill_does_not_collide_with_a_seeded_one(uow: UnitOfWork) -> None
     stored = uow.users.get(30)
     assert isinstance(stored, Technician)
     assert stored.skills.names == ("printing",)
+
+
+# ---------------------------------------------------------------- admin screens (P3)
+def test_every_account_is_listed_in_id_order(uow: UnitOfWork) -> None:
+    for user_id, role in ((3, Role.TECHNICIAN), (1, Role.EMPLOYEE), (2, Role.ADMINISTRATOR)):
+        uow.users.add(
+            UserFactory.create(
+                role, user_id=user_id, email=f"u{user_id}@campus.edu", full_name=f"U{user_id}"
+            )
+        )
+    uow.commit()
+    assert [(u.id, u.role) for u in uow.users.all()] == [
+        (1, Role.EMPLOYEE),
+        (2, Role.ADMINISTRATOR),
+        (3, Role.TECHNICIAN),
+    ]
+
+
+def test_a_technician_given_another_role_is_no_longer_listed_as_one(uow: UnitOfWork) -> None:
+    uow.users.add(
+        UserFactory.create(
+            Role.TECHNICIAN,
+            user_id=1,
+            email="tech@campus.edu",
+            full_name="Tech",
+            skills=SkillSet({"networking"}),
+            experience_level=2,
+        )
+    )
+    uow.commit()
+    uow.users.save(
+        UserFactory.create(Role.EMPLOYEE, user_id=1, email="tech@campus.edu", full_name="Tech")
+    )
+    uow.commit()
+    assert uow.users.technicians() == ()
+    assert uow.users.get(1).role is Role.EMPLOYEE
+
+    uow.users.save(
+        UserFactory.create(Role.TEAM_LEAD, user_id=1, email="tech@campus.edu", full_name="Tech")
+    )
+    uow.commit()
+    (again,) = uow.users.technicians()
+    assert again.role is Role.TEAM_LEAD
+    assert again.skills.names == ()
+
+
+def test_settings_are_stored_per_key_and_replaced_whole(uow: UnitOfWork) -> None:
+    assert uow.settings.get("assignment") is None
+    uow.settings.put(
+        "assignment", {"strategy": "smart", "weights": [0.4, 0.3, 0.15, 0.15]}, updated_by=None
+    )
+    uow.commit()
+    assert uow.settings.get("assignment") == {
+        "strategy": "smart",
+        "weights": [0.4, 0.3, 0.15, 0.15],
+    }
+    uow.settings.put("assignment", {"strategy": "load_based"}, updated_by=None)
+    uow.commit()
+    assert uow.settings.get("assignment") == {"strategy": "load_based"}
+    assert uow.settings.get("other") is None

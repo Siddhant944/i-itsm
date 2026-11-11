@@ -12,7 +12,13 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      "/api": { target: apiTarget, changeOrigin: true, ws: true },
+      // The API has no /api prefix of its own; the browser uses one so that one origin serves both.
+      "/api": {
+        target: apiTarget,
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
       "/health": { target: apiTarget, changeOrigin: true },
     },
   },

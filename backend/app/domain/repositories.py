@@ -98,6 +98,10 @@ class UserRepository(ABC):
     def find_by_email(self, email: EmailAddress) -> User | None: ...
 
     @abstractmethod
+    def all(self) -> tuple[User, ...]:
+        """Every account, in id order, for the admin's user screen and the name directory."""
+
+    @abstractmethod
     def technicians(self) -> tuple[Technician, ...]:
         """Every technician and team lead."""
 
@@ -287,6 +291,18 @@ class CatalogueRepository(ABC):
         """The configured targets; a missing row falls back to Gold (D-016)."""
 
 
+class SettingsRepository(ABC):
+    """Admin-editable settings kept as data (§3): one JSON-like value per key."""
+
+    @abstractmethod
+    def get(self, key: str) -> Mapping[str, object] | None:
+        """The stored value, or None when nothing has been saved under ``key``."""
+
+    @abstractmethod
+    def put(self, key: str, value: Mapping[str, object], *, updated_by: int | None) -> None:
+        """Store ``value`` under ``key``, replacing what was there."""
+
+
 class UnitOfWork(ABC):
     """One transaction: changes and their audit records commit or roll back together."""
 
@@ -298,6 +314,7 @@ class UnitOfWork(ABC):
     notifications: NotificationRepository
     analytics: AnalyticsRepository
     violations: SLAViolationRepository
+    settings: SettingsRepository
 
     def __enter__(self) -> Self:
         return self
