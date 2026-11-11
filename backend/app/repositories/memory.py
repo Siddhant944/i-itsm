@@ -1,10 +1,63 @@
-"""In-memory repositories for unit tests and the contract suite."""
+"""In-memory repositories for unit tests and the contract suite.
+
+They keep the live aggregates, so there is nothing to copy back: ``save`` only has to check
+that the caller is writing the object the repository already holds.
+"""
 
 from collections import defaultdict
+from collections.abc import Callable, Mapping
+from datetime import date, datetime, timedelta
+from typing import Any
 
-from app.domain.errors import IncidentNotFoundError, NotFoundError
+from app.core.clock import in_ist
+from app.domain.analytics import (
+    DurationStats,
+    Metrics,
+    Overview,
+    SatisfactionStats,
+    ServiceMetrics,
+    TechnicianWorkload,
+    TrendPoint,
+)
+from app.domain.assignment import MAX_LOAD, WORKLOAD_COST
+from app.domain.audit import AuditRecord
+from app.domain.catalogue import Category, ITService, Skill, Team
+from app.domain.credentials import Credentials
+from app.domain.errors import (
+    IncidentNotFoundError,
+    NotFoundError,
+    ServiceNotFoundError,
+)
 from app.domain.incident import Incident
-from app.domain.repositories import IncidentRepository, UnitOfWork, UserRepository
+from app.domain.notifications import ChannelName, Notification
+from app.domain.permissions import Role
+from app.domain.priority import Priority
+from app.domain.repositories import (
+    AnalyticsRepository,
+    AuditRepository,
+    CatalogueRepository,
+    CredentialsRepository,
+    IncidentRepository,
+    NotificationRepository,
+    SLAViolationRepository,
+    UnitOfWork,
+    UserRepository,
+)
+from app.domain.search import IncidentQuery, Page, SortField
+from app.domain.sla import (
+    SLAPolicyBook,
+    SLAStatus,
+    SLATarget,
+    SLATier,
+    SLAViolation,
+    default_policies,
+)
+from app.domain.states import (
+    AWAITING_REPORTER,
+    OPEN_STATUSES,
+    TERMINAL_STATUSES,
+    IncidentStatus,
+)
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress
 
@@ -17,6 +70,11 @@ class InMemoryIncidentRepository(IncidentRepository):
     def add(self, incident: Incident) -> None:
         self.__items[incident.id] = incident
 
+    def save(self, incident: Incident) -> None:
+        if incident.id not in self.__items:
+            raise IncidentNotFoundError(f"No incident {incident.id}.")
+        self.__items[incident.id] = incident
+
     def get(self, incident_id: str) -> Incident:
         try:
             return self.__items[incident_id]
@@ -26,9 +84,111 @@ class InMemoryIncidentRepository(IncidentRepository):
     def list_by_reporter(self, reporter_id: int) -> tuple[Incident, ...]:
         return tuple(i for i in self.__items.values() if i.reporter_id == reporter_id)
 
+    def list_for_assignee(self, technician_id: int) -> tuple[Incident, ...]:
+        found = [i for i in self.__items.values() if i.assignee_id == technician_id]
+        return tuple(sorted(found, key=lambda i: i.created_at, reverse=True))
+
+    def workloads(self) -> Mapping[int, int]:
+        loads: defaultdict[int, int] = defaultdict(int)
+        for incident in self.__items.values():
+            if (
+                incident.assignee_id is not None
+                and incident.status in OPEN_STATUSES
+                and incident.priority is not None
+            ):
+                loads[incident.assignee_id] += WORKLOAD_COST[incident.priority]
+        return dict(loads)
+
+    def past_fixes(self, service_id: int) -> Mapping[int, int]:
+        fixes: defaultdict[int, int] = defaultdict(int)
+        for incident in self.__items.values():
+            if (
+                incident.service_id == service_id
+                and incident.assignee_id is not None
+                and incident.resolution is not None
+            ):
+                fixes[incident.assignee_id] += 1
+        return dict(fixes)
+
+    def awaiting_auto_close(self, resolved_before: datetime) -> tuple[Incident, ...]:
+        return tuple(
+            i
+            for i in self.__items.values()
+            if i.status is IncidentStatus.RESOLVED
+            and i.resolved_at is not None
+            and i.resolved_at < resolved_before
+        )
+
+    def needing_sla_attention(self, now: datetime) -> tuple[Incident, ...]:
+        found = [
+            i
+            for i in self.__items.values()
+            if i.status not in TERMINAL_STATUSES
+            and i.sla_clock is not None
+            and sla_status_of(i, now) in (SLAStatus.AT_RISK, SLAStatus.BREACHED)
+        ]
+        return tuple(sorted(found, key=lambda i: i.created_at))
+
+    def search(self, query: IncidentQuery, now: datetime) -> Page[Incident]:
+        matched = [i for i in self.__items.values() if _matches(i, query, now)]
+        matched.sort(key=_sort_key(query.sort_by), reverse=query.descending)
+        window = matched[query.offset : query.offset + query.limit]
+        return Page(tuple(window), len(matched), query.offset, query.limit)
+
+    def all_incidents(self) -> tuple[Incident, ...]:
+        """Every incident; the in-memory analytics walk this instead of running SQL."""
+        return tuple(self.__items.values())
+
     def next_sequence(self, year: int) -> int:
         self.__sequences[year] += 1
         return self.__sequences[year]
+
+
+def sla_status_of(incident: Incident, now: datetime) -> SLAStatus | None:
+    """The worse of the two SLA statuses, or None before the incident was prioritised."""
+    clock = incident.sla_clock
+    if clock is None:
+        return None
+    statuses = (clock.response_status(now), clock.resolution_status(now))
+    for worst in (SLAStatus.BREACHED, SLAStatus.AT_RISK):
+        if worst in statuses:
+            return worst
+    return SLAStatus.ON_TRACK
+
+
+def _matches(incident: Incident, query: IncidentQuery, now: datetime) -> bool:
+    checks = (
+        not query.incident_id or query.incident_id.lower() in incident.id.lower(),
+        not query.statuses or incident.status in query.statuses,
+        not query.priorities or incident.priority in query.priorities,
+        not query.category_ids or incident.category_id in query.category_ids,
+        not query.service_ids or incident.service_id in query.service_ids,
+        not query.assignee_ids or incident.assignee_id in query.assignee_ids,
+        not query.reporter_ids or incident.reporter_id in query.reporter_ids,
+        query.created_from is None or incident.created_at >= query.created_from,
+        query.created_to is None or incident.created_at <= query.created_to,
+        not query.sla_statuses or sla_status_of(incident, now) in query.sla_statuses,
+        not query.text or _text_matches(incident, query.text),
+    )
+    return all(checks)
+
+
+def _text_matches(incident: Incident, text: str) -> bool:
+    needle = text.lower()
+    return any(
+        needle in haystack.lower()
+        for haystack in (incident.id, incident.title, incident.description)
+    )
+
+
+def _sort_key(field: SortField) -> "Callable[[Incident], Any]":
+    if field is SortField.PRIORITY:
+        return lambda i: (i.priority.rank if i.priority else 9, i.created_at)
+    if field is SortField.STATUS:
+        return lambda i: (i.status.value, i.created_at)
+    if field is SortField.ID:
+        return lambda i: i.id
+    return lambda i: (i.created_at, i.id)
 
 
 class InMemoryUserRepository(UserRepository):
@@ -36,6 +196,11 @@ class InMemoryUserRepository(UserRepository):
         self.__items: dict[int, User] = {}
 
     def add(self, user: User) -> None:
+        self.__items[user.id] = user
+
+    def save(self, user: User) -> None:
+        if user.id not in self.__items:
+            raise NotFoundError(f"No user {user.id}.")
         self.__items[user.id] = user
 
     def get(self, user_id: int) -> User:
@@ -50,11 +215,362 @@ class InMemoryUserRepository(UserRepository):
     def technicians(self) -> tuple[Technician, ...]:
         return tuple(u for u in self.__items.values() if isinstance(u, Technician))
 
+    def administrators(self) -> tuple[User, ...]:
+        return tuple(
+            u for u in self.__items.values() if u.role in (Role.ADMINISTRATOR, Role.IT_MANAGER)
+        )
+
+    def next_id(self) -> int:
+        return max(self.__items, default=0) + 1
+
+
+class InMemoryAuditRepository(AuditRepository):
+    def __init__(self) -> None:
+        self.__records: list[AuditRecord] = []
+        self.__head: str | None = None
+        self.__length = 0
+
+    def append(self, record: AuditRecord) -> None:
+        self.__records.append(record)
+        self.__head, self.__length = record.hash, self.__length + 1
+
+    def head_for_append(self) -> AuditRecord | None:
+        return self.__records[-1] if self.__records else None
+
+    def records(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[AuditRecord, ...]:
+        found = self.__selected(incident_id)
+        return tuple(found[offset : offset + limit])
+
+    def count(self, *, incident_id: str | None = None) -> int:
+        return len(self.__selected(incident_id))
+
+    def hash_before(self, offset: int) -> str | None:
+        return self.__records[offset - 1].hash if 0 < offset <= len(self.__records) else None
+
+    def expected_head(self) -> tuple[str | None, int]:
+        """In memory the list *is* the store, so this is recorded as each record is appended."""
+        return self.__head, self.__length
+
+    def __selected(self, incident_id: str | None) -> list[AuditRecord]:
+        if incident_id is None:
+            return list(self.__records)
+        return [r for r in self.__records if r.incident_id == incident_id]
+
+
+class InMemoryNotificationRepository(NotificationRepository):
+    def __init__(self) -> None:
+        self.__items: dict[int, Notification] = {}
+        self.__next_id = 1
+
+    def add(self, notification: Notification) -> Notification:
+        notification.identify(self.__next_id)
+        self.__items[self.__next_id] = notification
+        self.__next_id += 1
+        return notification
+
+    def save(self, notification: Notification) -> None:
+        if notification.id is None or notification.id not in self.__items:
+            raise NotFoundError(f"No notification {notification.id}.")
+        self.__items[notification.id] = notification
+
+    def get(self, notification_id: int) -> Notification:
+        try:
+            return self.__items[notification_id]
+        except KeyError:
+            raise NotFoundError(f"No notification {notification_id}.") from None
+
+    def in_app_for(
+        self, user_id: int, *, unread_only: bool = False, limit: int = 20
+    ) -> tuple[Notification, ...]:
+        found = [
+            n
+            for n in self.__items.values()
+            if n.user_id == user_id
+            and n.channel is ChannelName.IN_APP
+            and (not unread_only or not n.is_read)
+        ]
+        found.sort(key=lambda n: (n.created_at, n.id or 0), reverse=True)
+        return tuple(found[:limit])
+
+    def count_unread(self, user_id: int) -> int:
+        return len(self.in_app_for(user_id, unread_only=True, limit=10_000))
+
+
+class InMemoryCredentialsRepository(CredentialsRepository):
+    """Sign-in state beside the users it belongs to."""
+
+    def __init__(self, users: InMemoryUserRepository) -> None:
+        self.__users = users
+        self.__items: dict[int, Credentials] = {}
+
+    def get(self, user_id: int) -> Credentials:
+        self.__users.get(user_id)  # raises NotFoundError for an unknown account
+        return self.__items.setdefault(user_id, Credentials(user_id=user_id))
+
+    def find_by_email(self, email: EmailAddress) -> Credentials | None:
+        user = self.__users.find_by_email(email)
+        return None if user is None else self.get(user.id)
+
+    def save(self, credentials: Credentials) -> None:
+        self.__users.get(credentials.user_id)
+        self.__items[credentials.user_id] = credentials
+
+
+class InMemoryCatalogueRepository(CatalogueRepository):
+    """A technician's ``team_id`` is the single source of team membership, as in the schema."""
+
+    def __init__(self, users: InMemoryUserRepository) -> None:
+        self.__users = users
+        self.__skills: dict[int, Skill] = {}
+        self.__categories: dict[int, Category] = {}
+        self.__services: dict[int, ITService] = {}
+        self.__teams: dict[int, tuple[str, int | None]] = {}
+        self.__policies: dict[tuple[SLATier, Priority], SLATarget] = default_policies()
+
+    def save_skill(self, skill: Skill) -> None:
+        self.__skills[skill.id] = skill
+
+    def skills(self) -> tuple[Skill, ...]:
+        return tuple(self.__skills[key] for key in sorted(self.__skills))
+
+    def skill_names(self) -> Mapping[int, str]:
+        return {skill.id: skill.name for skill in self.skills()}
+
+    def save_category(self, category: Category) -> None:
+        self.__categories[category.id] = category
+
+    def get_category(self, category_id: int) -> Category:
+        try:
+            return self.__categories[category_id]
+        except KeyError:
+            raise NotFoundError(f"No category {category_id}.") from None
+
+    def categories(self, *, active_only: bool = False) -> tuple[Category, ...]:
+        found = (self.__categories[key] for key in sorted(self.__categories))
+        return tuple(c for c in found if c.active or not active_only)
+
+    def save_service(self, service: ITService) -> None:
+        self.__services[service.id] = service
+
+    def get_service(self, service_id: int) -> ITService:
+        try:
+            return self.__services[service_id]
+        except KeyError:
+            raise ServiceNotFoundError(f"No service {service_id}.") from None
+
+    def services(self, *, active_only: bool = False) -> tuple[ITService, ...]:
+        found = (self.__services[key] for key in sorted(self.__services))
+        return tuple(s for s in found if s.active or not active_only)
+
+    def save_team(self, team: Team) -> None:
+        self.__teams[team.id] = (team.name, team.lead_id)
+        for member_id in team.member_ids:
+            member = self.__users.get(member_id)
+            if isinstance(member, Technician):
+                member.join_team(team.id)
+
+    def get_team(self, team_id: int) -> Team:
+        if team_id not in self.__teams:
+            raise NotFoundError(f"No team {team_id}.")
+        name, lead_id = self.__teams[team_id]
+        members = tuple(t.id for t in self.__users.technicians() if t.team_id == team_id)
+        return Team.restore(team_id, name, lead_id=lead_id, member_ids=sorted(members))
+
+    def teams(self) -> tuple[Team, ...]:
+        return tuple(self.get_team(key) for key in sorted(self.__teams))
+
+    def save_policies(self, policies: Mapping[tuple[SLATier, Priority], SLATarget]) -> None:
+        self.__policies = dict(policies)
+
+    def policy_book(self) -> SLAPolicyBook:
+        return SLAPolicyBook(self.__policies)
+
+
+class InMemorySLAViolationRepository(SLAViolationRepository):
+    def __init__(self) -> None:
+        self.__items: list[SLAViolation] = []
+
+    def record(self, violation: SLAViolation) -> bool:
+        key = (violation.incident_id, violation.kind, violation.cycle)
+        if any((v.incident_id, v.kind, v.cycle) == key for v in self.__items):
+            return False
+        self.__items.append(violation)
+        return True
+
+    def for_incident(self, incident_id: str) -> tuple[SLAViolation, ...]:
+        return tuple(v for v in self.__items if v.incident_id == incident_id)
+
+    def recent(self, limit: int = 50) -> tuple[SLAViolation, ...]:
+        newest = sorted(self.__items, key=lambda v: v.detected_at, reverse=True)
+        return tuple(newest[:limit])
+
+    def count(self, *, breaches_only: bool = False) -> int:
+        return sum(1 for v in self.__items if v.kind.is_breach or not breaches_only)
+
+
+class InMemoryAnalyticsRepository(AnalyticsRepository):
+    """The same figures the SQL version computes, walked in Python over the stored incidents.
+
+    Keeping both means every dashboard number is checked twice: the contract suite runs these
+    tests against this implementation and against the SQL one, so a mistake in either shows up.
+    """
+
+    def __init__(
+        self,
+        incidents: InMemoryIncidentRepository,
+        users: InMemoryUserRepository,
+        catalogue: "InMemoryCatalogueRepository",
+    ) -> None:
+        self.__incidents = incidents
+        self.__users = users
+        self.__catalogue = catalogue
+
+    def overview(self, now: datetime, since: datetime | None = None) -> Overview:
+        found = self.__window(since)
+        breached = at_risk = 0
+        for incident in found:
+            status = sla_status_of(incident, now)
+            if incident.status in TERMINAL_STATUSES:
+                continue
+            if status is SLAStatus.BREACHED:
+                breached += 1
+            elif status is SLAStatus.AT_RISK:
+                at_risk += 1
+        return Overview(
+            total=len(found),
+            open_count=sum(1 for i in found if i.status in OPEN_STATUSES),
+            unassigned=sum(
+                1 for i in found if i.assignee_id is None and i.status not in TERMINAL_STATUSES
+            ),
+            awaiting_reporter=sum(1 for i in found if i.status in AWAITING_REPORTER),
+            breached=breached,
+            at_risk=at_risk,
+            critical_open=sum(
+                1 for i in found if i.priority is Priority.P1 and i.status not in TERMINAL_STATUSES
+            ),
+            resolved_in_window=sum(1 for i in found if i.resolved_at is not None),
+        )
+
+    def metrics(self, since: datetime | None = None) -> Metrics:
+        found = self.__window(since)
+        acknowledged = [i for i in found if i.acknowledged_at is not None]
+        resolved = [i for i in found if i.resolved_at is not None]
+        rated = [i for i in found if i.feedback is not None]
+        measured = [i for i in found if i.sla_clock is not None and i.resolved_at is not None]
+        met = sum(
+            1
+            for i in measured
+            if i.sla_clock is not None
+            and i.sla_clock.resolution_status(i.resolved_at or i.created_at)
+            is not SLAStatus.BREACHED
+        )
+        finished = [i for i in found if i.resolved_at is not None or i.closed_at is not None]
+        return Metrics(
+            acknowledgement=DurationStats(
+                sum(
+                    ((i.acknowledged_at or i.created_at) - i.created_at for i in acknowledged),
+                    timedelta(),
+                ),
+                len(acknowledged),
+            ),
+            resolution=DurationStats(
+                sum(
+                    ((i.resolved_at or i.created_at) - i.created_at for i in resolved), timedelta()
+                ),
+                len(resolved),
+            ),
+            sla_met=met,
+            sla_measured=len(measured),
+            satisfaction=SatisfactionStats(
+                sum(i.feedback.rating for i in rated if i.feedback is not None), len(rated)
+            ),
+            reopened=sum(1 for i in found if i.reopen_count > 0),
+            resolved_or_closed=len(finished),
+        )
+
+    def workload(self) -> tuple[TechnicianWorkload, ...]:
+        loads = self.__incidents.workloads()
+        rows = []
+        for technician in sorted(self.__users.technicians(), key=lambda t: t.id):
+            carried = [
+                i
+                for i in self.__incidents.all_incidents()
+                if i.assignee_id == technician.id and i.status in OPEN_STATUSES
+            ]
+            fixed = sum(
+                1
+                for i in self.__incidents.all_incidents()
+                if i.assignee_id == technician.id and i.resolution is not None
+            )
+            rows.append(
+                TechnicianWorkload(
+                    technician_id=technician.id,
+                    name=technician.full_name,
+                    available=technician.available and technician.active,
+                    open_count=len(carried),
+                    weighted_load=loads.get(technician.id, 0),
+                    max_load=MAX_LOAD,
+                    resolved=fixed,
+                )
+            )
+        return tuple(rows)
+
+    def by_service(
+        self, now: datetime, since: datetime | None = None
+    ) -> tuple[ServiceMetrics, ...]:
+        found = self.__window(since)
+        rows = []
+        for service in self.__catalogue.services():
+            mine = [i for i in found if i.service_id == service.id]
+            resolved = [i for i in mine if i.resolved_at is not None]
+            rows.append(
+                ServiceMetrics(
+                    service_id=service.id,
+                    name=service.name,
+                    incidents=len(mine),
+                    breached=sum(1 for i in mine if sla_status_of(i, now) is SLAStatus.BREACHED),
+                    resolution=DurationStats(
+                        sum(
+                            ((i.resolved_at or i.created_at) - i.created_at for i in resolved),
+                            timedelta(),
+                        ),
+                        len(resolved),
+                    ),
+                )
+            )
+        return tuple(rows)
+
+    def trend(self, since: datetime, until: datetime) -> tuple[TrendPoint, ...]:
+        reported: defaultdict[date, int] = defaultdict(int)
+        resolved: defaultdict[date, int] = defaultdict(int)
+        for incident in self.__incidents.all_incidents():
+            # §9: bucketed by the IST day, which is the day a reader on campus saw it.
+            if since <= incident.created_at <= until:
+                reported[in_ist(incident.created_at).date()] += 1
+            if incident.resolved_at is not None and since <= incident.resolved_at <= until:
+                resolved[in_ist(incident.resolved_at).date()] += 1
+        days = sorted(set(reported) | set(resolved))
+        return tuple(TrendPoint(day, reported[day], resolved[day]) for day in days)
+
+    def __window(self, since: datetime | None) -> tuple[Incident, ...]:
+        found = self.__incidents.all_incidents()
+        if since is None:
+            return found
+        return tuple(i for i in found if i.created_at >= since)
+
 
 class InMemoryUnitOfWork(UnitOfWork):
     def __init__(self) -> None:
         self.incidents = InMemoryIncidentRepository()
         self.users = InMemoryUserRepository()
+        self.credentials = InMemoryCredentialsRepository(self.users)
+        self.catalogue = InMemoryCatalogueRepository(self.users)
+        self.audit = InMemoryAuditRepository()
+        self.notifications = InMemoryNotificationRepository()
+        self.analytics = InMemoryAnalyticsRepository(self.incidents, self.users, self.catalogue)
+        self.violations = InMemorySLAViolationRepository()
         self.committed = 0
 
     def commit(self) -> None:

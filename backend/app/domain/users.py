@@ -184,6 +184,11 @@ class UserFactory:
     )
 
     @classmethod
+    def is_support_role(cls, role: Role) -> bool:
+        """True when the role has technician fields (skills, experience, availability, team)."""
+        return role in cls._SUPPORT
+
+    @classmethod
     def create(
         cls,
         role: Role,

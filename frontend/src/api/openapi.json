@@ -1,6 +1,256 @@
 {
   "components": {
     "schemas": {
+      "AssignmentAdviceResponse": {
+        "properties": {
+          "ranked": {
+            "items": {
+              "$ref": "#/components/schemas/CandidateScoreResponse"
+            },
+            "title": "Ranked",
+            "type": "array"
+          },
+          "strategy": {
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "strategy",
+          "ranked"
+        ],
+        "title": "AssignmentAdviceResponse",
+        "type": "object"
+      },
+      "CancelReason": {
+        "enum": [
+          "withdrawn",
+          "duplicate"
+        ],
+        "title": "CancelReason",
+        "type": "string"
+      },
+      "CancelRequest": {
+        "properties": {
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/CancelReason",
+            "default": "withdrawn"
+          }
+        },
+        "title": "CancelRequest",
+        "type": "object"
+      },
+      "CandidateScoreResponse": {
+        "description": "One ranked technician, with the reasons a human can check (\u00a75.3, \u00a76).",
+        "properties": {
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "technician_id": {
+            "title": "Technician Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "technician_id",
+          "score",
+          "reasons"
+        ],
+        "title": "CandidateScoreResponse",
+        "type": "object"
+      },
+      "CategoryOverrideRequest": {
+        "properties": {
+          "category_id": {
+            "minimum": 1.0,
+            "title": "Category Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category_id"
+        ],
+        "title": "CategoryOverrideRequest",
+        "type": "object"
+      },
+      "CategoryResponse": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "minimum_priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required_skill_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Skill Id"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "required_skill_id",
+          "keywords",
+          "minimum_priority",
+          "active"
+        ],
+        "title": "CategoryResponse",
+        "type": "object"
+      },
+      "ChannelName": {
+        "enum": [
+          "in_app",
+          "email",
+          "telegram"
+        ],
+        "title": "ChannelName",
+        "type": "string"
+      },
+      "ClassifyRequest": {
+        "description": "What the reporter has typed so far, for the while-typing suggestion (\u00a76.1).",
+        "properties": {
+          "text": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "ClassifyRequest",
+        "type": "object"
+      },
+      "DashboardResponse": {
+        "description": "Everything an admin dashboard shows, in one call.",
+        "properties": {
+          "metrics": {
+            "$ref": "#/components/schemas/MetricsResponse"
+          },
+          "overview": {
+            "$ref": "#/components/schemas/OverviewResponse"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceRowResponse"
+            },
+            "title": "Services",
+            "type": "array"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPointResponse"
+            },
+            "title": "Trend",
+            "type": "array"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          },
+          "workload": {
+            "items": {
+              "$ref": "#/components/schemas/WorkloadRowResponse"
+            },
+            "title": "Workload",
+            "type": "array"
+          }
+        },
+        "required": [
+          "window_days",
+          "overview",
+          "metrics",
+          "workload",
+          "services",
+          "trend"
+        ],
+        "title": "DashboardResponse",
+        "type": "object"
+      },
+      "DeliveryStatus": {
+        "enum": [
+          "pending",
+          "sent",
+          "failed"
+        ],
+        "title": "DeliveryStatus",
+        "type": "string"
+      },
+      "FeedbackResponse": {
+        "properties": {
+          "comment": {
+            "title": "Comment",
+            "type": "string"
+          },
+          "given_at": {
+            "format": "date-time",
+            "title": "Given At",
+            "type": "string"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rating",
+          "comment",
+          "given_at"
+        ],
+        "title": "FeedbackResponse",
+        "type": "object"
+      },
       "HealthResponse": {
         "description": "Health status of the API and its database.",
         "properties": {
@@ -42,6 +292,1710 @@
         ],
         "title": "HealthResponse",
         "type": "object"
+      },
+      "IncidentPageResponse": {
+        "description": "One page of results, with what the pager needs to draw itself.",
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "page_count": {
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "page_number": {
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit",
+          "page_number",
+          "page_count",
+          "has_more"
+        ],
+        "title": "IncidentPageResponse",
+        "type": "object"
+      },
+      "IncidentResponse": {
+        "description": "One incident in full, for the detail page and the timeline.",
+        "properties": {
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "assignee_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee Id"
+          },
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CancelReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "escalation_level": {
+            "title": "Escalation Level",
+            "type": "integer"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedbackResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "impact": {
+            "title": "Impact",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/WorkNoteResponse"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority_overridden": {
+            "title": "Priority Overridden",
+            "type": "boolean"
+          },
+          "priority_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority Score"
+          },
+          "reopen_count": {
+            "title": "Reopen Count",
+            "type": "integer"
+          },
+          "reporter_id": {
+            "title": "Reporter Id",
+            "type": "integer"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResolutionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          },
+          "sla": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SLAResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "urgency": {
+            "title": "Urgency",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "priority",
+          "service_id",
+          "category_id",
+          "reporter_id",
+          "assignee_id",
+          "created_at",
+          "escalation_level",
+          "sla",
+          "description",
+          "impact",
+          "urgency",
+          "priority_score",
+          "priority_overridden",
+          "parent_id",
+          "cancel_reason",
+          "acknowledged_at",
+          "resolved_at",
+          "closed_at",
+          "reopen_count",
+          "notes",
+          "resolution",
+          "feedback"
+        ],
+        "title": "IncidentResponse",
+        "type": "object"
+      },
+      "IncidentStatus": {
+        "enum": [
+          "NEW",
+          "CLASSIFIED",
+          "ASSIGNED",
+          "ACKNOWLEDGED",
+          "IN_PROGRESS",
+          "ON_HOLD",
+          "RESOLVED",
+          "VERIFIED",
+          "CLOSED",
+          "CANCELLED"
+        ],
+        "title": "IncidentStatus",
+        "type": "string"
+      },
+      "IncidentSummaryResponse": {
+        "description": "One row in a queue or list.",
+        "properties": {
+          "assignee_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee Id"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "escalation_level": {
+            "title": "Escalation Level",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reporter_id": {
+            "title": "Reporter Id",
+            "type": "integer"
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          },
+          "sla": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SLAResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "priority",
+          "service_id",
+          "category_id",
+          "reporter_id",
+          "assignee_id",
+          "created_at",
+          "escalation_level",
+          "sla"
+        ],
+        "title": "IncidentSummaryResponse",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "description": "Sign-in. The password is not length-checked here, so a wrong one still counts.",
+        "properties": {
+          "email": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "MeResponse": {
+        "description": "Who the caller is, where they belong and what they may do.",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "escalation_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Level"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "portal": {
+            "title": "Portal",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "technician": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TechnicianProfileResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "role",
+          "portal",
+          "active",
+          "escalation_level",
+          "permissions"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
+      "MetricsResponse": {
+        "description": "The five figures \u00a79 names, with None where there is nothing to average yet.",
+        "properties": {
+          "acknowledged": {
+            "title": "Acknowledged",
+            "type": "integer"
+          },
+          "csat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Csat"
+          },
+          "csat_responses": {
+            "title": "Csat Responses",
+            "type": "integer"
+          },
+          "mtta_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtta Hours"
+          },
+          "mttr_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mttr Hours"
+          },
+          "reopen_rate": {
+            "title": "Reopen Rate",
+            "type": "number"
+          },
+          "reopened": {
+            "title": "Reopened",
+            "type": "integer"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "integer"
+          },
+          "sla_compliance": {
+            "title": "Sla Compliance",
+            "type": "number"
+          },
+          "sla_measured": {
+            "title": "Sla Measured",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mtta_hours",
+          "mttr_hours",
+          "acknowledged",
+          "resolved",
+          "sla_compliance",
+          "sla_measured",
+          "csat",
+          "csat_responses",
+          "reopen_rate",
+          "reopened"
+        ],
+        "title": "MetricsResponse",
+        "type": "object"
+      },
+      "NoteKind": {
+        "enum": [
+          "note",
+          "info_request",
+          "info_response"
+        ],
+        "title": "NoteKind",
+        "type": "string"
+      },
+      "NoteRequest": {
+        "properties": {
+          "text": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "NoteRequest",
+        "type": "object"
+      },
+      "NotificationEvent": {
+        "description": "The nine rows of the \u00a75.4 table.",
+        "enum": [
+          "created",
+          "assigned",
+          "priority_changed",
+          "info_requested",
+          "info_provided",
+          "sla_approaching",
+          "sla_violated",
+          "escalated",
+          "resolved",
+          "closed"
+        ],
+        "title": "NotificationEvent",
+        "type": "string"
+      },
+      "NotificationResponse": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/ChannelName"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event": {
+            "$ref": "#/components/schemas/NotificationEvent"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeliveryStatus"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "event",
+          "channel",
+          "subject",
+          "body",
+          "incident_id",
+          "created_at",
+          "read_at",
+          "status"
+        ],
+        "title": "NotificationResponse",
+        "type": "object"
+      },
+      "NotificationSummaryResponse": {
+        "description": "What the bell shows: the unread count and the latest few.",
+        "properties": {
+          "latest": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationResponse"
+            },
+            "title": "Latest",
+            "type": "array"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unread",
+          "latest"
+        ],
+        "title": "NotificationSummaryResponse",
+        "type": "object"
+      },
+      "OverviewResponse": {
+        "properties": {
+          "at_risk": {
+            "title": "At Risk",
+            "type": "integer"
+          },
+          "awaiting_reporter": {
+            "title": "Awaiting Reporter",
+            "type": "integer"
+          },
+          "breached": {
+            "title": "Breached",
+            "type": "integer"
+          },
+          "breached_share": {
+            "title": "Breached Share",
+            "type": "number"
+          },
+          "critical_open": {
+            "title": "Critical Open",
+            "type": "integer"
+          },
+          "open_count": {
+            "title": "Open Count",
+            "type": "integer"
+          },
+          "open_share": {
+            "title": "Open Share",
+            "type": "number"
+          },
+          "resolved_in_window": {
+            "title": "Resolved In Window",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unassigned": {
+            "title": "Unassigned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "open_count",
+          "unassigned",
+          "awaiting_reporter",
+          "breached",
+          "at_risk",
+          "critical_open",
+          "resolved_in_window",
+          "open_share",
+          "breached_share"
+        ],
+        "title": "OverviewResponse",
+        "type": "object"
+      },
+      "Permission": {
+        "enum": [
+          "incident:create",
+          "incident:view_own",
+          "incident:add_info",
+          "incident:verify",
+          "incident:cancel_own",
+          "incident:view_assigned",
+          "incident:work",
+          "incident:override_priority",
+          "incident:override_category",
+          "incident:confirm_duplicate",
+          "workload:view_own",
+          "incident:view_team",
+          "incident:reassign",
+          "workload:view_team",
+          "incident:view_all",
+          "incident:cancel_any",
+          "users:manage",
+          "technicians:manage",
+          "catalogue:manage",
+          "sla:manage",
+          "strategy:manage",
+          "sla:view_violations",
+          "reports:view",
+          "audit:view",
+          "audit:verify"
+        ],
+        "title": "Permission",
+        "type": "string"
+      },
+      "Priority": {
+        "enum": [
+          "P1",
+          "P2",
+          "P3",
+          "P4"
+        ],
+        "title": "Priority",
+        "type": "string"
+      },
+      "PriorityOverrideRequest": {
+        "description": "BR-05: an override needs a reason and is audited.",
+        "properties": {
+          "priority": {
+            "$ref": "#/components/schemas/Priority"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "priority",
+          "reason"
+        ],
+        "title": "PriorityOverrideRequest",
+        "type": "object"
+      },
+      "RatingRequest": {
+        "properties": {
+          "comment": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Comment",
+            "type": "string"
+          },
+          "rating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Rating",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rating"
+        ],
+        "title": "RatingRequest",
+        "type": "object"
+      },
+      "ReasonRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ReasonRequest",
+        "type": "object"
+      },
+      "ReassignRequest": {
+        "properties": {
+          "technician_id": {
+            "minimum": 1.0,
+            "title": "Technician Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "technician_id"
+        ],
+        "title": "ReassignRequest",
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "description": "Self-registration (D-008). The role is never taken from the request.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "full_name",
+          "password"
+        ],
+        "title": "RegisterRequest",
+        "type": "object"
+      },
+      "ReportIncidentRequest": {
+        "description": "The plain-language report form (\u00a71: no jargon, three simple questions).",
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The confirmed category; omitted lets the AI suggest one",
+            "title": "Category Id"
+          },
+          "description": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "impact": {
+            "description": "1 just me, 2 my team, 3 everyone",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Impact",
+            "type": "integer"
+          },
+          "service_id": {
+            "minimum": 1.0,
+            "title": "Service Id",
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "urgency": {
+            "description": "1 when convenient, 2 today, 3 right now",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Urgency",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "service_id",
+          "impact",
+          "urgency"
+        ],
+        "title": "ReportIncidentRequest",
+        "type": "object"
+      },
+      "ReportedIncidentResponse": {
+        "description": "What the report form gets back: the incident, plus what the system did and why.",
+        "properties": {
+          "assignment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CandidateScoreResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incident": {
+            "$ref": "#/components/schemas/IncidentResponse"
+          },
+          "needs_triage": {
+            "title": "Needs Triage",
+            "type": "boolean"
+          },
+          "queued_for_team_lead": {
+            "title": "Queued For Team Lead",
+            "type": "boolean"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "incident",
+          "suggestion",
+          "assignment",
+          "queued_for_team_lead",
+          "needs_triage"
+        ],
+        "title": "ReportedIncidentResponse",
+        "type": "object"
+      },
+      "ResolutionResponse": {
+        "properties": {
+          "resolved_at": {
+            "format": "date-time",
+            "title": "Resolved At",
+            "type": "string"
+          },
+          "resolver_id": {
+            "title": "Resolver Id",
+            "type": "integer"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resolver_id",
+          "resolved_at",
+          "summary"
+        ],
+        "title": "ResolutionResponse",
+        "type": "object"
+      },
+      "ResolveRequest": {
+        "description": "BR-04: resolving requires a summary.",
+        "properties": {
+          "summary": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary"
+        ],
+        "title": "ResolveRequest",
+        "type": "object"
+      },
+      "Role": {
+        "enum": [
+          "employee",
+          "technician",
+          "team_lead",
+          "administrator",
+          "it_manager"
+        ],
+        "title": "Role",
+        "type": "string"
+      },
+      "SLAResponse": {
+        "description": "The live SLA picture the chips and countdowns need (\u00a75.2).",
+        "properties": {
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "resolution_deadline": {
+            "format": "date-time",
+            "title": "Resolution Deadline",
+            "type": "string"
+          },
+          "resolution_status": {
+            "$ref": "#/components/schemas/SLAStatus"
+          },
+          "responded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Responded At"
+          },
+          "response_deadline": {
+            "format": "date-time",
+            "title": "Response Deadline",
+            "type": "string"
+          },
+          "response_status": {
+            "$ref": "#/components/schemas/SLAStatus"
+          }
+        },
+        "required": [
+          "response_status",
+          "resolution_status",
+          "response_deadline",
+          "resolution_deadline",
+          "responded_at",
+          "paused"
+        ],
+        "title": "SLAResponse",
+        "type": "object"
+      },
+      "SLAStatus": {
+        "enum": [
+          "on_track",
+          "at_risk",
+          "breached"
+        ],
+        "title": "SLAStatus",
+        "type": "string"
+      },
+      "SLATier": {
+        "enum": [
+          "gold",
+          "silver",
+          "bronze"
+        ],
+        "title": "SLATier",
+        "type": "string"
+      },
+      "SearchFilters": {
+        "description": "The nine filters of \u00a79 plus free text, sorting and paging, as one query body.",
+        "properties": {
+          "assignee_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Assignee Ids",
+            "type": "array"
+          },
+          "category_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Category Ids",
+            "type": "array"
+          },
+          "created_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created From"
+          },
+          "created_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created To"
+          },
+          "descending": {
+            "default": true,
+            "title": "Descending",
+            "type": "boolean"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "limit": {
+            "default": 25,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "priorities": {
+            "items": {
+              "$ref": "#/components/schemas/Priority"
+            },
+            "title": "Priorities",
+            "type": "array"
+          },
+          "reporter_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Reporter Ids",
+            "type": "array"
+          },
+          "service_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Service Ids",
+            "type": "array"
+          },
+          "sla_statuses": {
+            "items": {
+              "$ref": "#/components/schemas/SLAStatus"
+            },
+            "title": "Sla Statuses",
+            "type": "array"
+          },
+          "sort_by": {
+            "$ref": "#/components/schemas/SortField",
+            "default": "created_at"
+          },
+          "statuses": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentStatus"
+            },
+            "title": "Statuses",
+            "type": "array"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "SearchFilters",
+        "type": "object"
+      },
+      "ServiceResponse": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "criticality": {
+            "title": "Criticality",
+            "type": "integer"
+          },
+          "depends_on": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required_skill_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Skill Id"
+          },
+          "sla_tier": {
+            "$ref": "#/components/schemas/SLATier"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "criticality",
+          "sla_tier",
+          "required_skill_id",
+          "depends_on",
+          "active"
+        ],
+        "title": "ServiceResponse",
+        "type": "object"
+      },
+      "ServiceRowResponse": {
+        "properties": {
+          "breach_share": {
+            "title": "Breach Share",
+            "type": "number"
+          },
+          "breached": {
+            "title": "Breached",
+            "type": "integer"
+          },
+          "incidents": {
+            "title": "Incidents",
+            "type": "integer"
+          },
+          "mttr_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mttr Hours"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "service_id",
+          "name",
+          "incidents",
+          "breached",
+          "breach_share",
+          "mttr_hours"
+        ],
+        "title": "ServiceRowResponse",
+        "type": "object"
+      },
+      "SkillResponse": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "SkillResponse",
+        "type": "object"
+      },
+      "SortField": {
+        "description": "What a list can be ordered by; the UI offers these columns.",
+        "enum": [
+          "created_at",
+          "priority",
+          "status",
+          "id"
+        ],
+        "title": "SortField",
+        "type": "string"
+      },
+      "SuggestionResponse": {
+        "description": "An AI suggestion, always shown with its confidence and never applied silently.",
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category_id",
+          "confidence",
+          "source"
+        ],
+        "title": "SuggestionResponse",
+        "type": "object"
+      },
+      "TeamResponse": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lead_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Id"
+          },
+          "member_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Member Ids",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "lead_id",
+          "member_ids"
+        ],
+        "title": "TeamResponse",
+        "type": "object"
+      },
+      "TechnicianProfileResponse": {
+        "description": "The technician-only part of ``/me``.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "experience_level": {
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Experience Level",
+            "type": "integer"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "required": [
+          "skills",
+          "experience_level",
+          "available",
+          "team_id"
+        ],
+        "title": "TechnicianProfileResponse",
+        "type": "object"
+      },
+      "TickResponse": {
+        "description": "What one monitor run did; the demo and the tests read this.",
+        "properties": {
+          "auto_closed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Auto Closed",
+            "type": "array"
+          },
+          "breached": {
+            "title": "Breached",
+            "type": "integer"
+          },
+          "escalated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Escalated",
+            "type": "array"
+          },
+          "warned": {
+            "title": "Warned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "warned",
+          "breached",
+          "escalated",
+          "auto_closed"
+        ],
+        "title": "TickResponse",
+        "type": "object"
+      },
+      "TokenResponse": {
+        "description": "A short-lived access token and just enough about the user to render the shell.",
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "portal": {
+            "title": "Portal",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "access_token",
+          "expires_in",
+          "user_id",
+          "role",
+          "portal",
+          "full_name"
+        ],
+        "title": "TokenResponse",
+        "type": "object"
+      },
+      "TrendPointResponse": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "reported": {
+            "title": "Reported",
+            "type": "integer"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "reported",
+          "resolved"
+        ],
+        "title": "TrendPointResponse",
+        "type": "object"
+      },
+      "ViolationKind": {
+        "description": "What the monitor noticed. Each is recorded at most once per incident cycle (\u00a75.2).",
+        "enum": [
+          "response_warning",
+          "response_breach",
+          "resolution_warning",
+          "resolution_breach"
+        ],
+        "title": "ViolationKind",
+        "type": "string"
+      },
+      "ViolationResponse": {
+        "properties": {
+          "cycle": {
+            "title": "Cycle",
+            "type": "integer"
+          },
+          "deadline": {
+            "format": "date-time",
+            "title": "Deadline",
+            "type": "string"
+          },
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "escalated_to_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalated To Level"
+          },
+          "incident_id": {
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "is_breach": {
+            "title": "Is Breach",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ViolationKind"
+          }
+        },
+        "required": [
+          "incident_id",
+          "kind",
+          "cycle",
+          "deadline",
+          "detected_at",
+          "escalated_to_level",
+          "is_breach"
+        ],
+        "title": "ViolationResponse",
+        "type": "object"
+      },
+      "WorkNoteResponse": {
+        "properties": {
+          "author_id": {
+            "title": "Author Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NoteKind"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "author_id",
+          "created_at",
+          "kind",
+          "text"
+        ],
+        "title": "WorkNoteResponse",
+        "type": "object"
+      },
+      "WorkloadRowResponse": {
+        "properties": {
+          "at_capacity": {
+            "title": "At Capacity",
+            "type": "boolean"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "capacity_free": {
+            "title": "Capacity Free",
+            "type": "number"
+          },
+          "max_load": {
+            "title": "Max Load",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "open_count": {
+            "title": "Open Count",
+            "type": "integer"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "integer"
+          },
+          "technician_id": {
+            "title": "Technician Id",
+            "type": "integer"
+          },
+          "weighted_load": {
+            "title": "Weighted Load",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "technician_id",
+          "name",
+          "available",
+          "open_count",
+          "weighted_load",
+          "max_load",
+          "capacity_free",
+          "at_capacity",
+          "resolved"
+        ],
+        "title": "WorkloadRowResponse",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -51,6 +2005,240 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/auth/login": {
+      "post": {
+        "description": "Sign in. Five failures lock the account for fifteen minutes (blueprint \u00a78).",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "description": "The signed-in user, their portal and their permissions.",
+        "operationId": "me_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "description": "Create an Employee account and sign the new user straight in.",
+        "operationId": "register_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/catalogue/categories": {
+      "get": {
+        "description": "The categories, with the keywords the rule-based classifier uses (\u00a76.1).",
+        "operationId": "categories_catalogue_categories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryResponse"
+                  },
+                  "title": "Response Categories Catalogue Categories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Categories",
+        "tags": [
+          "catalogue"
+        ]
+      }
+    },
+    "/catalogue/services": {
+      "get": {
+        "description": "The services someone can report an incident against.",
+        "operationId": "services_catalogue_services_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceResponse"
+                  },
+                  "title": "Response Services Catalogue Services Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Services",
+        "tags": [
+          "catalogue"
+        ]
+      }
+    },
+    "/catalogue/skills": {
+      "get": {
+        "operationId": "skills_catalogue_skills_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SkillResponse"
+                  },
+                  "title": "Response Skills Catalogue Skills Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Skills",
+        "tags": [
+          "catalogue"
+        ]
+      }
+    },
+    "/catalogue/teams": {
+      "get": {
+        "operationId": "teams_catalogue_teams_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeamResponse"
+                  },
+                  "title": "Response Teams Catalogue Teams Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Teams",
+        "tags": [
+          "catalogue"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "description": "Report whether the API is up and the database reachable.",
@@ -65,11 +2253,1570 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
           }
         },
         "summary": "Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/incidents": {
+      "post": {
+        "description": "Report an incident. It is classified, prioritised, given an SLA and assigned.",
+        "operationId": "report_incidents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportIncidentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportedIncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Report",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/classify": {
+      "post": {
+        "description": "Suggest a category for what the reporter has typed. Advice only (\u00a76.1).",
+        "operationId": "classify_incidents_classify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SuggestionResponse"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Classify Incidents Classify Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Classify",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/mine": {
+      "get": {
+        "description": "What the caller reported (BR-01).",
+        "operationId": "mine_incidents_mine_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IncidentSummaryResponse"
+                  },
+                  "title": "Response Mine Incidents Mine Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Mine",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/queue": {
+      "get": {
+        "description": "What the calling technician is carrying.",
+        "operationId": "queue_incidents_queue_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IncidentSummaryResponse"
+                  },
+                  "title": "Response Queue Incidents Queue Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Queue",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/search": {
+      "post": {
+        "description": "The nine filters plus free text, paged. Scoped to what the caller may see (BR-01).",
+        "operationId": "search_incidents_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchFilters"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentPageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Search",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/incidents/search/export": {
+      "post": {
+        "description": "The same filtered list as a CSV download (\u00a79).",
+        "operationId": "export_incidents_search_export_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchFilters"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {},
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The filtered list as CSV"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Export",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/incidents/{incident_id}": {
+      "get": {
+        "description": "One incident, if the caller may see it (BR-01). 403 otherwise, never a leak.",
+        "operationId": "detail_incidents__incident_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Detail",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/acknowledge": {
+      "post": {
+        "description": "BR-02, BR-07: acknowledging meets the response SLA.",
+        "operationId": "acknowledge_incidents__incident_id__acknowledge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Acknowledge",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/assignment-advice": {
+      "get": {
+        "description": "The ranked technicians and the reasons behind the ranking (\u00a75.3, \u00a76).",
+        "operationId": "assignment_advice_incidents__incident_id__assignment_advice_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentAdviceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Assignment Advice",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/cancel": {
+      "post": {
+        "description": "The reporter withdraws their own; an admin may cancel any, including as a duplicate.",
+        "operationId": "cancel_incidents__incident_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Cancel",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/category": {
+      "post": {
+        "description": "Correct the category, whether the AI or the reporter chose it (\u00a76.1).",
+        "operationId": "override_category_incidents__incident_id__category_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryOverrideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Override Category",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/close": {
+      "post": {
+        "operationId": "close_incidents__incident_id__close_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Close",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/information": {
+      "post": {
+        "description": "The reporter answers; an incident on hold resumes (D-006).",
+        "operationId": "provide_information_incidents__incident_id__information_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Provide Information",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/notes": {
+      "post": {
+        "operationId": "add_note_incidents__incident_id__notes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Add Note",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/priority": {
+      "post": {
+        "description": "BR-05: the reason is required and the override is audited.",
+        "operationId": "override_priority_incidents__incident_id__priority_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriorityOverrideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Override Priority",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/reassign": {
+      "post": {
+        "description": "BR-06: refused when the technician is unavailable or would exceed the cap.",
+        "operationId": "reassign_incidents__incident_id__reassign_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReassignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Reassign",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/reject": {
+      "post": {
+        "description": "BR-03, BR-04: only the reporter rejects, and only from RESOLVED.",
+        "operationId": "reject_incidents__incident_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Reject",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/request-information": {
+      "post": {
+        "description": "Ask the reporter a question; the resolution clock pauses (BR-07).",
+        "operationId": "request_information_incidents__incident_id__request_information_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Request Information",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/resolve": {
+      "post": {
+        "description": "BR-04: a resolution summary is required.",
+        "operationId": "resolve_incidents__incident_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Resolve",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/resume": {
+      "post": {
+        "operationId": "resume_incidents__incident_id__resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Resume",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/start": {
+      "post": {
+        "operationId": "start_incidents__incident_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Start",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/verify": {
+      "post": {
+        "description": "BR-03: only the reporter verifies, and the rating feeds the CSAT figure.",
+        "operationId": "verify_incidents__incident_id__verify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Verify",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "description": "The caller's own unread count and latest in-app notifications.",
+        "operationId": "bell_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Bell",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notifications/{notification_id}/read": {
+      "post": {
+        "description": "Mark one of the caller's own notifications read; somebody else's is a 403.",
+        "operationId": "mark_read_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "title": "Notification Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Mark Read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/reports/dashboard": {
+      "get": {
+        "description": "Everything the admin dashboard shows, in one call.",
+        "operationId": "dashboard_reports_dashboard_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Dashboard",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/metrics": {
+      "get": {
+        "description": "MTTA, MTTR, SLA compliance, CSAT and the reopen rate.",
+        "operationId": "metrics_reports_metrics_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Metrics",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/overview": {
+      "get": {
+        "operationId": "overview_reports_overview_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Overview",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/services": {
+      "get": {
+        "operationId": "services_reports_services_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceRowResponse"
+                  },
+                  "title": "Response Services Reports Services Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Services",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/services/export": {
+      "get": {
+        "operationId": "services_csv_reports_services_export_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {},
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Service analysis as CSV"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Services Csv",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/trend": {
+      "get": {
+        "operationId": "trend_reports_trend_get",
+        "parameters": [
+          {
+            "description": "How many days the figures cover",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "How many days the figures cover",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrendPointResponse"
+                  },
+                  "title": "Response Trend Reports Trend Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Trend",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/workload": {
+      "get": {
+        "description": "Every technician's load for a lead or an admin; a technician sees only their own.",
+        "operationId": "workload_reports_workload_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkloadRowResponse"
+                  },
+                  "title": "Response Workload Reports Workload Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Workload",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/workload/export": {
+      "get": {
+        "operationId": "workload_csv_reports_workload_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {},
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Workload as CSV"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Workload Csv",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/sla/tick": {
+      "post": {
+        "description": "Run the monitor now and report what it did (the scheduler does this on a timer).",
+        "operationId": "tick_sla_tick_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TickResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Tick",
+        "tags": [
+          "sla"
+        ]
+      }
+    },
+    "/sla/violations": {
+      "get": {
+        "description": "Everything the monitor has recorded, newest first.",
+        "operationId": "violations_sla_violations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ViolationResponse"
+                  },
+                  "title": "Response Violations Sla Violations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Violations",
+        "tags": [
+          "sla"
+        ]
+      }
+    },
+    "/sla/violations/{incident_id}": {
+      "get": {
+        "description": "One incident's own history of warnings and breaches, oldest first.",
+        "operationId": "for_incident_sla_violations__incident_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ViolationResponse"
+                  },
+                  "title": "Response For Incident Sla Violations  Incident Id  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "For Incident",
+        "tags": [
+          "sla"
         ]
       }
     }

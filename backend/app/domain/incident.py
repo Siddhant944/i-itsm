@@ -6,6 +6,7 @@ each of which asks the current State object whether the move is legal, applies t
 and records a domain event for audit and notifications.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -17,6 +18,7 @@ from app.domain.errors import (
     UnauthorizedOperationError,
 )
 from app.domain.events import (
+    CategoryChanged,
     DomainEvent,
     IncidentCreated,
     IncidentStateChanged,
@@ -107,6 +109,7 @@ class Incident:
         self.__resolved_at: datetime | None = None
         self.__closed_at: datetime | None = None
         self.__reopen_count = 0
+        self.__escalation_level = 0  # §5.5: 0 technician, 1 lead, 2 admin, 3 IT manager
         self.__priority: Priority | None = None
         self.__sla_clock: SLAClock | None = None
         self.__priority_score: int | None = None
@@ -115,6 +118,66 @@ class Incident:
         self.__resolution: Resolution | None = None
         self.__feedback: Feedback | None = None
         self.__events: list[DomainEvent] = []
+
+    @classmethod
+    def restore(
+        cls,
+        *,
+        incident_id: str,
+        reporter_id: int,
+        title: str,
+        description: str,
+        service_id: int,
+        impact: int,
+        urgency: int,
+        created_at: datetime,
+        status: IncidentStatus,
+        category_id: int | None = None,
+        assignee_id: int | None = None,
+        parent_id: str | None = None,
+        cancel_reason: CancelReason | None = None,
+        acknowledged_at: datetime | None = None,
+        resolved_at: datetime | None = None,
+        closed_at: datetime | None = None,
+        reopen_count: int = 0,
+        escalation_level: int = 0,
+        priority: Priority | None = None,
+        priority_score: int | None = None,
+        priority_overridden: bool = False,
+        sla_clock: SLAClock | None = None,
+        notes: Iterable[WorkNote] = (),
+        resolution: Resolution | None = None,
+        feedback: Feedback | None = None,
+    ) -> "Incident":
+        """Rebuild a stored incident. No events are recorded: they were dispatched already."""
+        incident = cls(
+            incident_id,
+            reporter_id,
+            title,
+            description,
+            service_id,
+            impact,
+            urgency,
+            created_at,
+            status,
+        )
+        incident.__category_id = category_id
+        incident.__assignee_id = assignee_id
+        incident.__parent_id = parent_id
+        incident.__cancel_reason = cancel_reason
+        incident.__acknowledged_at = acknowledged_at
+        incident.__resolved_at = resolved_at
+        incident.__closed_at = closed_at
+        incident.__reopen_count = reopen_count
+        incident.__escalation_level = escalation_level
+        incident.__priority = priority
+        incident.__priority_score = priority_score
+        incident.__priority_overridden = priority_overridden
+        incident.__sla_clock = sla_clock
+        incident.__notes = list(notes)
+        incident.__resolution = resolution
+        incident.__feedback = feedback
+        return incident
 
     # ------------------------------------------------------------ read-only views
     @property
@@ -187,6 +250,11 @@ class Incident:
         return self.__reopen_count
 
     @property
+    def escalation_level(self) -> int:
+        """How far up the chain this incident has been escalated (blueprint §5.5)."""
+        return self.__escalation_level
+
+    @property
     def priority(self) -> Priority | None:
         return self.__priority
 
@@ -250,11 +318,38 @@ class Incident:
         self.__category_id = category_id
         self._move(target, actor_id, clock, f"Classified as category {category_id}")
 
+    def recategorise(self, category_id: int, actor_id: int | None, clock: Clock) -> None:
+        """Correct the category of an incident that is already classified.
+
+        Classification is a lifecycle step (NEW to CLASSIFIED); correcting the category later is
+        not, so this changes only the category and records it for the audit trail (§6.1: an AI
+        suggestion can always be overridden, and the override is never silent).
+        """
+        if self.__state.is_terminal:
+            msg = "A closed or cancelled incident cannot be recategorised."
+            raise InvalidIncidentError(msg)
+        old = self.__category_id
+        self.__category_id = category_id
+        self.__events.append(CategoryChanged(clock.now(), self.__id, actor_id, old, category_id))
+
     def assign(self, technician_id: int, actor_id: int | None, clock: Clock) -> None:
         """Assign, reassign or escalate to ``technician_id``."""
         target = self.__state.assign()
         self.__assignee_id = technician_id
         self._move(target, actor_id, clock, f"Assigned to user {technician_id}")
+
+    def escalate(self, technician_id: int, level: int, actor_id: int | None, clock: Clock) -> None:
+        """Hand the incident to an escalation owner and raise its level (BR-08).
+
+        The level never goes down, so a later tick cannot re-escalate to a level already passed.
+        """
+        if level <= self.__escalation_level:
+            msg = f"Incident {self.__id} is already at escalation level {self.__escalation_level}."
+            raise InvalidIncidentError(msg)
+        target = self.__state.assign()
+        self.__assignee_id = technician_id
+        self.__escalation_level = level
+        self._move(target, actor_id, clock, f"Escalated to level {level} (user {technician_id})")
 
     def acknowledge(self, actor_id: int, clock: Clock) -> None:
         target = self.__state.acknowledge()
@@ -282,7 +377,12 @@ class Incident:
         self._move(target, actor_id, clock, "Work resumed")
 
     def provide_info(self, actor_id: int, clock: Clock, answer: str) -> None:
-        """The reporter answers; an incident on hold resumes (D-006)."""
+        """The reporter answers; an incident on hold resumes (D-006).
+
+        Refused once the incident is closed or cancelled: a reply to a finished incident is a
+        new incident (BR-04), not a note on the old one.
+        """
+        self.__refuse_if_finished("reply to")
         text = _text(answer, "answer")
         if self.__state.status is IncidentStatus.ON_HOLD:
             target = self.__state.resume()
@@ -378,7 +478,18 @@ class Incident:
 
     # ------------------------------------------------------------ notes
     def add_note(self, actor_id: int, clock: Clock, text: str) -> WorkNote:
+        """Add a work note. Refused once the incident is closed or cancelled (§4, BR-04).
+
+        §4 makes CLOSED and CANCELLED terminal, and BR-04 says a problem after closure becomes
+        a new, linked incident — so nothing may still be written against a finished one.
+        """
+        self.__refuse_if_finished("add a note to")
         return self._add(actor_id, clock, NoteKind.NOTE, _text(text, "text"))
+
+    def __refuse_if_finished(self, action: str) -> None:
+        if self.__state.is_terminal:
+            msg = f"You cannot {action} {self.__id}: it is already {self.status.value}."
+            raise InvalidIncidentError(msg)
 
     def _add(self, actor_id: int, clock: Clock, kind: NoteKind, text: str) -> WorkNote:
         note = WorkNote(actor_id, clock.now(), kind, text)

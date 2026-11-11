@@ -23,6 +23,23 @@ class SLATier(StrEnum):
     BRONZE = "bronze"
 
 
+class ViolationKind(StrEnum):
+    """What the monitor noticed. Each is recorded at most once per incident cycle (§5.2)."""
+
+    RESPONSE_WARNING = "response_warning"
+    RESPONSE_BREACH = "response_breach"
+    RESOLUTION_WARNING = "resolution_warning"
+    RESOLUTION_BREACH = "resolution_breach"
+
+    @property
+    def is_breach(self) -> bool:
+        return self in (ViolationKind.RESPONSE_BREACH, ViolationKind.RESOLUTION_BREACH)
+
+    @property
+    def is_response(self) -> bool:
+        return self in (ViolationKind.RESPONSE_WARNING, ViolationKind.RESPONSE_BREACH)
+
+
 class SLAStatus(StrEnum):
     ON_TRACK = "on_track"
     AT_RISK = "at_risk"
@@ -93,6 +110,22 @@ class SLAPolicyBook:
             return GOLD_TARGETS[priority], True
 
 
+@dataclass(frozen=True, slots=True)
+class SLAViolation:
+    """One thing the monitor recorded about one incident (blueprint §9 ``sla_violations``).
+
+    ``cycle`` is the incident's reopen count, so a fix that does not hold can breach again
+    without the monitor thinking it has already reported this one.
+    """
+
+    incident_id: str
+    kind: ViolationKind
+    cycle: int
+    deadline: datetime
+    detected_at: datetime
+    escalated_to_level: int | None = None
+
+
 class RiskEstimator(ABC):
     """Interface: is an incident at risk of breaching, given elapsed time and its target?"""
 
@@ -105,6 +138,10 @@ class ThresholdRiskEstimator(RiskEstimator):
 
     def __init__(self, fraction: float = AT_RISK_FRACTION) -> None:
         self.__fraction = fraction
+
+    @property
+    def fraction(self) -> float:
+        return self.__fraction
 
     def is_at_risk(self, elapsed: timedelta, target: timedelta) -> bool:
         return elapsed >= target * self.__fraction
@@ -121,6 +158,13 @@ def _status(elapsed: timedelta, target: timedelta, estimator: RiskEstimator) -> 
     return SLAStatus.ON_TRACK
 
 
+def _fraction(estimator: RiskEstimator | None) -> float:
+    """The threshold an estimator uses, or the §5.2 default of 75 %."""
+    if isinstance(estimator, ThresholdRiskEstimator):
+        return estimator.fraction
+    return AT_RISK_FRACTION
+
+
 class SLAClock:
     """Response and resolution timing for one incident (composed by Incident)."""
 
@@ -128,11 +172,37 @@ class SLAClock:
         self.__started_at = started_at
         self.__target = target
         self.__responded_at: datetime | None = None
-        self.__pauses: list[tuple[datetime, datetime]] = []
+        self.__paused_total = timedelta()  # completed pauses and resolved spells, accumulated
         self.__paused_since: datetime | None = None
         self.__stopped_at: datetime | None = None
         self.__response_met: bool | None = None  # decided at the first acknowledgement
         self.__resolution_target_at_stop: timedelta | None = None
+
+    @classmethod
+    def restore(
+        cls,
+        *,
+        started_at: datetime,
+        target: SLATarget,
+        responded_at: datetime | None,
+        paused_total: timedelta,
+        paused_since: datetime | None,
+        stopped_at: datetime | None,
+        response_met: bool | None,
+        resolution_target_at_stop: timedelta | None,
+    ) -> "SLAClock":
+        """Rebuild a clock from stored columns (used by the persistence mappers).
+
+        Only the accumulated paused time is kept, because that is all the measurements use.
+        """
+        clock = cls(started_at, target)
+        clock.__responded_at = responded_at
+        clock.__paused_total = paused_total
+        clock.__paused_since = paused_since
+        clock.__stopped_at = stopped_at
+        clock.__response_met = response_met
+        clock.__resolution_target_at_stop = resolution_target_at_stop
+        return clock
 
     @property
     def started_at(self) -> datetime:
@@ -147,6 +217,29 @@ class SLAClock:
         return self.__responded_at
 
     @property
+    def paused_accumulated(self) -> timedelta:
+        """Paused time already banked, excluding a pause still in progress (for storage)."""
+        return self.__paused_total
+
+    @property
+    def paused_since(self) -> datetime | None:
+        return self.__paused_since
+
+    @property
+    def stopped_at(self) -> datetime | None:
+        return self.__stopped_at
+
+    @property
+    def response_met(self) -> bool | None:
+        """Frozen at the first acknowledgement; None until then (D-017)."""
+        return self.__response_met
+
+    @property
+    def resolution_target_at_stop(self) -> timedelta | None:
+        """The resolution target frozen at RESOLVED, so a later retarget cannot rewrite it."""
+        return self.__resolution_target_at_stop
+
+    @property
     def is_paused(self) -> bool:
         return self.__paused_since is not None
 
@@ -157,6 +250,37 @@ class SLAClock:
     @property
     def response_deadline(self) -> datetime:
         return self.__started_at + self.__target.response
+
+    @property
+    def resolution_deadline_at_rest(self) -> datetime:
+        """The resolution deadline, ignoring a pause that is still running.
+
+        Persistence stores this so a search can compare it with "now" directly instead of
+        doing datetime arithmetic in SQL. A paused incident is excluded from breach searches,
+        which is why the current pause does not need to be counted here.
+
+        It uses the target frozen at RESOLVED when there is one, exactly as
+        ``resolution_status`` and ``risk_at`` do: D-017 says a later priority change must not
+        turn a met SLA into a breach, and a stored deadline computed from the new target would
+        do precisely that behind the search's back.
+        """
+        return self.__started_at + self.__resolution_target() + self.__paused_total
+
+    def risk_at(self, estimator: RiskEstimator | None = None) -> datetime:
+        """When the resolution clock becomes AT_RISK, on the "at rest" basis (§5.2)."""
+        return (
+            self.__started_at
+            + self.__resolution_target() * _fraction(estimator)
+            + self.__paused_total
+        )
+
+    def __resolution_target(self) -> timedelta:
+        """The target the status is measured against: frozen at RESOLVED, else the live one."""
+        return self.__resolution_target_at_stop or self.__target.resolution
+
+    def response_risk_at(self, estimator: RiskEstimator | None = None) -> datetime:
+        """When the response clock becomes AT_RISK. The response clock is never paused."""
+        return self.__started_at + self.__target.response * _fraction(estimator)
 
     # ------------------------------------------------------------ changes
     def retarget(self, target: SLATarget) -> None:
@@ -179,7 +303,7 @@ class SLAClock:
         if self.__paused_since is None:
             msg = "The SLA clock is not paused."
             raise InvalidIncidentError(msg)
-        self.__pauses.append((self.__paused_since, at))
+        self.__paused_total += max(at - self.__paused_since, timedelta())
         self.__paused_since = None
 
     def stop(self, at: datetime) -> None:
@@ -196,7 +320,7 @@ class SLAClock:
         if self.__stopped_at is None:
             msg = "The SLA clock is not stopped."
             raise InvalidIncidentError(msg)
-        self.__pauses.append((self.__stopped_at, at))
+        self.__paused_total += max(at - self.__stopped_at, timedelta())
         self.__stopped_at = None
         self.__resolution_target_at_stop = None
 
@@ -206,7 +330,7 @@ class SLAClock:
 
     def paused_total(self, now: datetime) -> timedelta:
         moment = self._effective(now)
-        total = sum((end - start for start, end in self.__pauses), timedelta())
+        total = self.__paused_total
         if self.__paused_since is not None:
             total += max(moment - self.__paused_since, timedelta())
         return total
@@ -227,5 +351,4 @@ class SLAClock:
         return _status(elapsed, self.__target.response, estimator)
 
     def resolution_status(self, now: datetime, estimator: RiskEstimator = _THRESHOLD) -> SLAStatus:
-        target = self.__resolution_target_at_stop or self.__target.resolution
-        return _status(self.resolution_elapsed(now), target, estimator)
+        return _status(self.resolution_elapsed(now), self.__resolution_target(), estimator)

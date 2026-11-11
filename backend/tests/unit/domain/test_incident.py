@@ -215,3 +215,60 @@ def test_review_refused_actions_leave_the_incident_unchanged(clock: FakeClock) -
         incident.reject(REPORTER, clock, reason="  ")
     assert (incident.status, incident.reopen_count, incident.notes) == (S.RESOLVED, 0, ())
     assert incident.resolution is not None
+
+
+def test_escalation_raises_the_level_and_reassigns(clock: FakeClock) -> None:
+    incident = new_incident(clock)
+    incident.classify(category_id=4, actor_id=0, clock=clock)
+    incident.assign(TECH, actor_id=0, clock=clock)
+    assert incident.escalation_level == 0
+    incident.pull_events()
+
+    incident.escalate(technician_id=9, level=1, actor_id=None, clock=clock)
+    assert (incident.escalation_level, incident.assignee_id) == (1, 9)
+    assert incident.status is S.ASSIGNED
+    [event] = incident.pull_events()
+    assert isinstance(event, IncidentStateChanged)
+    assert "level 1" in event.description
+
+
+def test_escalation_never_moves_back_down_a_level(clock: FakeClock) -> None:
+    incident = new_incident(clock)
+    incident.classify(category_id=4, actor_id=0, clock=clock)
+    incident.assign(TECH, actor_id=0, clock=clock)
+    incident.escalate(technician_id=9, level=2, actor_id=None, clock=clock)
+    for level in (1, 2):
+        with pytest.raises(InvalidIncidentError):
+            incident.escalate(technician_id=10, level=level, actor_id=None, clock=clock)
+    assert (incident.escalation_level, incident.assignee_id) == (2, 9)
+
+
+def test_escalation_is_refused_once_the_incident_is_closed(clock: FakeClock) -> None:
+    incident = in_progress(clock)
+    incident.resolve(TECH, clock, summary="fixed")
+    incident.verify(REPORTER, clock, rating=5)
+    incident.close(ADMIN, clock)
+    with pytest.raises(InvalidStateTransitionError):
+        incident.escalate(technician_id=9, level=1, actor_id=None, clock=clock)
+    assert incident.escalation_level == 0
+
+
+def test_a_finished_incident_takes_no_more_notes(clock: FakeClock) -> None:
+    """§4 makes CLOSED and CANCELLED terminal; BR-04 sends later problems to a new incident."""
+    closed = in_progress(clock)
+    closed.resolve(TECH, clock, summary="fixed")
+    closed.verify(REPORTER, clock, rating=5)
+    closed.close(ADMIN, clock)
+
+    cancelled = new_incident(clock, sequence=44)
+    cancelled.cancel(REPORTER, clock, CancelReason.WITHDRAWN)
+
+    for incident in (closed, cancelled):
+        incident.pull_events()  # forget the events of getting here
+        before = incident.notes
+        with pytest.raises(InvalidIncidentError):
+            incident.add_note(TECH, clock, "something new")
+        with pytest.raises(InvalidIncidentError):
+            incident.provide_info(REPORTER, clock, "something new")
+        assert incident.notes == before
+        assert incident.pull_events() == ()

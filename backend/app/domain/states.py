@@ -193,6 +193,14 @@ _REGISTRY: Mapping[S, IncidentState] = MappingProxyType(
 )
 
 
+#: An incident a technician is carrying: it counts towards their weighted load (§5.3).
+OPEN_STATUSES: frozenset[S] = frozenset({S.ASSIGNED, S.ACKNOWLEDGED, S.IN_PROGRESS, S.ON_HOLD})
+#: Work that is finished for the technician but not yet closed by the reporter.
+AWAITING_REPORTER: frozenset[S] = frozenset({S.RESOLVED})
+#: Nothing more will happen to these.
+TERMINAL_STATUSES: frozenset[S] = frozenset({S.CLOSED, S.CANCELLED})
+
+
 def state_for(status: S) -> IncidentState:
     """Turn a stored status back into its (stateless, shared) state object."""
     return _REGISTRY[status]

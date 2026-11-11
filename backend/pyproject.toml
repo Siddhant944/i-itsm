@@ -11,6 +11,11 @@ dependencies = [
     "pydantic-settings>=2.16,<3",
     "sqlalchemy>=2.0.40,<2.2",
     "psycopg[binary]>=3.3,<4",
+    "alembic>=1.17,<2",
+    "argon2-cffi>=25.1,<26",
+    "pyjwt>=2.11,<3",
+    "email-validator>=2.3,<3",
+    "apscheduler>=3.11,<4",
 ]
 
 [dependency-groups]
@@ -52,13 +57,21 @@ known-first-party = ["app", "tests", "scripts"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "ANN", "S105", "S106", "N802"]  # N802: test names carry BR-xx IDs
+# Alembic writes these; the shape is Alembic's, not ours.
+"alembic/versions/*" = ["E501", "D", "I001", "RUF"]
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests", "scripts"]
+files = ["app", "tests", "scripts", "alembic"]
+
+# APScheduler ships no type information; the one module we touch is wrapped in
+# app/services/scheduler.py, which is typed.
+[[tool.mypy.overrides]]
+module = ["apscheduler.*"]
+ignore_missing_imports = true
 
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
@@ -113,6 +126,18 @@ name = "Persistence and adapters depend only on domain and core"
 type = "forbidden"
 source_modules = ["app.repositories", "app.adapters"]
 forbidden_modules = ["app.api", "app.services", "app.main", "fastapi", "starlette"]
+
+[[tool.importlinter.contracts]]
+name = "Seed data depends only on domain, core and persistence"
+type = "forbidden"
+source_modules = ["app.seed"]
+forbidden_modules = ["app.api", "app.services", "app.main", "fastapi", "starlette"]
+
+[[tool.importlinter.contracts]]
+name = "Only the composition root and the seed CLI import app.seed"
+type = "forbidden"
+source_modules = ["app.domain", "app.services", "app.api", "app.repositories", "app.adapters", "app.core"]
+forbidden_modules = ["app.seed"]
 
 [[tool.importlinter.contracts]]
 name = "Core depends on no application layer"

@@ -6,17 +6,38 @@ against every implementation.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
+from datetime import datetime
 from types import TracebackType
 from typing import Self
 
+from app.domain.analytics import (
+    Metrics,
+    Overview,
+    ServiceMetrics,
+    TechnicianWorkload,
+    TrendPoint,
+)
+from app.domain.audit import AuditRecord
+from app.domain.catalogue import Category, ITService, Skill, Team
+from app.domain.credentials import Credentials
 from app.domain.incident import Incident
+from app.domain.notifications import Notification
+from app.domain.priority import Priority
+from app.domain.search import IncidentQuery, Page
+from app.domain.sla import SLAPolicyBook, SLATarget, SLATier, SLAViolation
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress
 
 
 class IncidentRepository(ABC):
     @abstractmethod
-    def add(self, incident: Incident) -> None: ...
+    def add(self, incident: Incident) -> None:
+        """Store a new incident with its notes, resolution and feedback."""
+
+    @abstractmethod
+    def save(self, incident: Incident) -> None:
+        """Write back a loaded incident. Raise ConcurrentModificationError if it moved on."""
 
     @abstractmethod
     def get(self, incident_id: str) -> Incident:
@@ -26,6 +47,37 @@ class IncidentRepository(ABC):
     def list_by_reporter(self, reporter_id: int) -> tuple[Incident, ...]: ...
 
     @abstractmethod
+    def list_for_assignee(self, technician_id: int) -> tuple[Incident, ...]:
+        """The incidents a technician is carrying, newest first."""
+
+    @abstractmethod
+    def workloads(self) -> Mapping[int, int]:
+        """Weighted load per technician over open incidents (§5.3: P1-P4 cost 4/3/2/1)."""
+
+    @abstractmethod
+    def past_fixes(self, service_id: int) -> Mapping[int, int]:
+        """How many incidents on ``service_id`` each technician has resolved (§5.3 n_t,s)."""
+
+    @abstractmethod
+    def awaiting_auto_close(self, resolved_before: datetime) -> tuple[Incident, ...]:
+        """Resolved incidents the reporter has not answered; BR-03 closes them after 72 h.
+
+        Strictly before ``resolved_before``: at the 72-hour mark the incident still stands,
+        exactly as an SLA is not breached at its deadline (§5.2).
+        """
+
+    @abstractmethod
+    def needing_sla_attention(self, now: datetime) -> tuple[Incident, ...]:
+        """Live incidents at risk or already breached, for the monitor to act on (§5.2)."""
+
+    @abstractmethod
+    def search(self, query: IncidentQuery, now: datetime) -> Page[Incident]:
+        """One page of the incidents the query matches, with the total that match.
+
+        ``now`` decides the SLA filters, so the caller's clock governs them too.
+        """
+
+    @abstractmethod
     def next_sequence(self, year: int) -> int:
         """The next number for INC-<year>-NNNN (1-based, per year)."""
 
@@ -33,6 +85,10 @@ class IncidentRepository(ABC):
 class UserRepository(ABC):
     @abstractmethod
     def add(self, user: User) -> None: ...
+
+    @abstractmethod
+    def save(self, user: User) -> None:
+        """Write back a loaded user; credentials and login counters are left untouched."""
 
     @abstractmethod
     def get(self, user_id: int) -> User:
@@ -45,12 +101,203 @@ class UserRepository(ABC):
     def technicians(self) -> tuple[Technician, ...]:
         """Every technician and team lead."""
 
+    @abstractmethod
+    def administrators(self) -> tuple[User, ...]:
+        """Administrators and IT managers, for the alerts §5.4 sends them."""
+
+    @abstractmethod
+    def next_id(self) -> int:
+        """The next free user id, for self-registration."""
+
+
+class AuditRepository(ABC):
+    """Append-only storage for the hash chain (BR-10): no update, no delete."""
+
+    @abstractmethod
+    def append(self, record: AuditRecord) -> None:
+        """Add one record. Callers must hold the head (see ``head_for_append``)."""
+
+    @abstractmethod
+    def head_for_append(self) -> AuditRecord | None:
+        """The newest record, locked against concurrent appends, or None on an empty chain."""
+
+    @abstractmethod
+    def records(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[AuditRecord, ...]:
+        """A page of the chain, oldest first."""
+
+    @abstractmethod
+    def count(self, *, incident_id: str | None = None) -> int: ...
+
+    @abstractmethod
+    def hash_before(self, offset: int) -> str | None:
+        """The hash of the record just before ``offset``, so one page can be verified alone."""
+
+    @abstractmethod
+    def expected_head(self) -> tuple[str | None, int]:
+        """The hash and the length the chain should end at (blueprint §8).
+
+        Recomputing the hashes cannot notice that the newest records were removed, because every
+        remaining link still verifies. This is recorded as records are appended so that a
+        truncated tail is detectable.
+        """
+
+
+class AnalyticsRepository(ABC):
+    """The aggregate queries behind the dashboards (blueprint §9).
+
+    These return numbers, never aggregates: counting ten thousand incidents must not mean
+    loading ten thousand objects.
+    """
+
+    @abstractmethod
+    def overview(self, now: datetime, since: datetime | None = None) -> Overview: ...
+
+    @abstractmethod
+    def metrics(self, since: datetime | None = None) -> Metrics:
+        """MTTA, MTTR, SLA compliance, CSAT and the reopen rate."""
+
+    @abstractmethod
+    def workload(self) -> tuple[TechnicianWorkload, ...]:
+        """One row per technician: open count, weighted load and how much they have fixed."""
+
+    @abstractmethod
+    def by_service(
+        self, now: datetime, since: datetime | None = None
+    ) -> tuple[ServiceMetrics, ...]:
+        """One row per service. "Breached" means the same here as on the overview card."""
+
+    @abstractmethod
+    def trend(self, since: datetime, until: datetime) -> tuple[TrendPoint, ...]:
+        """Reported and resolved per day, oldest first."""
+
+
+class SLAViolationRepository(ABC):
+    """What the monitor has already reported, so a tick can never report it twice."""
+
+    @abstractmethod
+    def record(self, violation: SLAViolation) -> bool:
+        """Store it, or return False when this incident, kind and cycle is already recorded."""
+
+    @abstractmethod
+    def for_incident(self, incident_id: str) -> tuple[SLAViolation, ...]: ...
+
+    @abstractmethod
+    def recent(self, limit: int = 50) -> tuple[SLAViolation, ...]:
+        """The newest violations, for the admin's SLA violations screen."""
+
+    @abstractmethod
+    def count(self, *, breaches_only: bool = False) -> int: ...
+
+
+class NotificationRepository(ABC):
+    """In-app notifications and the record of every attempted delivery (§5.4)."""
+
+    @abstractmethod
+    def add(self, notification: Notification) -> Notification:
+        """Store it and give it its id."""
+
+    @abstractmethod
+    def save(self, notification: Notification) -> None:
+        """Write back the delivery state (attempts, sent, read)."""
+
+    @abstractmethod
+    def get(self, notification_id: int) -> Notification:
+        """Raise NotFoundError when absent."""
+
+    @abstractmethod
+    def in_app_for(
+        self, user_id: int, *, unread_only: bool = False, limit: int = 20
+    ) -> tuple[Notification, ...]:
+        """The user's in-app notifications, newest first."""
+
+    @abstractmethod
+    def count_unread(self, user_id: int) -> int: ...
+
+
+class CredentialsRepository(ABC):
+    """Sign-in state, kept apart from the user so a route can never read a password hash."""
+
+    @abstractmethod
+    def get(self, user_id: int) -> Credentials:
+        """Raise NotFoundError when the user does not exist."""
+
+    @abstractmethod
+    def find_by_email(self, email: EmailAddress) -> Credentials | None:
+        """The credentials of the account with this email, or None."""
+
+    @abstractmethod
+    def save(self, credentials: Credentials) -> None:
+        """Write the hash and the failure counters back."""
+
+
+class CatalogueRepository(ABC):
+    """The admin-editable catalogue: skills, categories, services, teams and SLA policies.
+
+    Every ``save_*`` method inserts or updates, because the catalogue is edited in place.
+    """
+
+    @abstractmethod
+    def save_skill(self, skill: Skill) -> None: ...
+
+    @abstractmethod
+    def skills(self) -> tuple[Skill, ...]: ...
+
+    @abstractmethod
+    def skill_names(self) -> Mapping[int, str]:
+        """Skill names by id, for building the required-skill set (D-002)."""
+
+    @abstractmethod
+    def save_category(self, category: Category) -> None: ...
+
+    @abstractmethod
+    def get_category(self, category_id: int) -> Category:
+        """Raise NotFoundError when absent."""
+
+    @abstractmethod
+    def categories(self, *, active_only: bool = False) -> tuple[Category, ...]: ...
+
+    @abstractmethod
+    def save_service(self, service: ITService) -> None: ...
+
+    @abstractmethod
+    def get_service(self, service_id: int) -> ITService:
+        """Raise ServiceNotFoundError when absent."""
+
+    @abstractmethod
+    def services(self, *, active_only: bool = False) -> tuple[ITService, ...]: ...
+
+    @abstractmethod
+    def save_team(self, team: Team) -> None: ...
+
+    @abstractmethod
+    def get_team(self, team_id: int) -> Team:
+        """Raise NotFoundError when absent."""
+
+    @abstractmethod
+    def teams(self) -> tuple[Team, ...]: ...
+
+    @abstractmethod
+    def save_policies(self, policies: Mapping[tuple[SLATier, Priority], SLATarget]) -> None:
+        """Replace the SLA policy table (blueprint §5.2)."""
+
+    @abstractmethod
+    def policy_book(self) -> SLAPolicyBook:
+        """The configured targets; a missing row falls back to Gold (D-016)."""
+
 
 class UnitOfWork(ABC):
     """One transaction: changes and their audit records commit or roll back together."""
 
     incidents: IncidentRepository
     users: UserRepository
+    credentials: CredentialsRepository
+    catalogue: CatalogueRepository
+    audit: AuditRepository
+    notifications: NotificationRepository
+    analytics: AnalyticsRepository
+    violations: SLAViolationRepository
 
     def __enter__(self) -> Self:
         return self
@@ -69,3 +316,7 @@ class UnitOfWork(ABC):
 
     @abstractmethod
     def rollback(self) -> None: ...
+
+    def close(self) -> None:
+        """Release whatever the transaction held; in memory there is nothing to release."""
+        return
