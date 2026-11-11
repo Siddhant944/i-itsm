@@ -81,11 +81,11 @@ started, with the feature freeze on the 16th and recording on the 19th. See "Nee
   and the frontend bundle is one chunk (Recharts is most of it) that could be split by portal.
 
 ### Needs a human
-1. **Decide the P4 cuts now, together.** Five working days remain before the freeze for a
-   phase planned at four, with nothing in reserve. The plan's cut order is Telegram /report
-   chatbot → voice input → Locust → health map → Google Sign-In → Telegram alerts. Cutting the
-   first two today costs little and protects the never-cut list (duplicates, correlation, WF3,
-   Gemini with fallback, predictive SLA).
+1. **P4 cuts are decided (D-027):** the Telegram /report chatbot, voice input, the health map
+   and the Locust run are out for now; Telegram alerts and Google Sign-In stay. Two things
+   follow for people rather than code: reword Workflow 1a in the demo script (no voice
+   report), and P4.9 and P4.10 need a Telegram bot token, a Google OAuth client ID and the
+   campus domain before those sessions start.
 2. **Review this phase and merge the PR.** Add the `e2e` label so Playwright runs in CI: this
    phase is all UI.
 3. **Create the Render and Neon accounts and deploy**, following docs/DEPLOY.md (about ten
