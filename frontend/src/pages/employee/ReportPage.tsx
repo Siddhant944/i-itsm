@@ -8,6 +8,7 @@ import { ConfidenceBadge } from "../../components/ConfidenceBadge";
 import { SelectField, TextArea, TextField } from "../../components/Field";
 import { Card, ErrorState, PageHeader, Skeleton } from "../../components/States";
 import { useToasts } from "../../components/Toasts";
+import { confidenceBand } from "../../lib/confidence";
 import { usePortal } from "../../lib/usePortal";
 import { incidentPath } from "../../shell/nav";
 
@@ -80,7 +81,11 @@ export function ReportPage() {
   const [categoryId, setCategoryId] = useState("");
   const [impact, setImpact] = useState<number | null>(null);
   const [urgency, setUrgency] = useState<number | null>(null);
-  const [suggestion, setSuggestion] = useState<Schemas["SuggestionResponse"] | null>(null);
+  // A suggestion belongs to the text it was computed for; it is never shown for any other.
+  const [suggestion, setSuggestion] = useState<{
+    text: string;
+    found: Schemas["SuggestionResponse"] | null;
+  } | null>(null);
 
   const text = `${title} ${description}`.trim();
   const { mutate: requestSuggestion } = classify;
@@ -89,7 +94,10 @@ export function ReportPage() {
     const timer = window.setTimeout(() => {
       requestSuggestion(text, {
         onSuccess: (found) => {
-          setSuggestion(found);
+          setSuggestion({ text, found });
+        },
+        onError: () => {
+          setSuggestion(null);
         },
       });
     }, SUGGEST_DELAY_MS);
@@ -111,7 +119,7 @@ export function ReportPage() {
     );
   }
 
-  const shown = text.length >= SUGGEST_AFTER_CHARS ? suggestion : null;
+  const shown = suggestion !== null && suggestion.text === text ? suggestion.found : null;
   const suggested =
     shown?.category_id === null || shown === null
       ? undefined
@@ -147,6 +155,15 @@ export function ReportPage() {
           toasts.success(
             `${incident.id} reported${incident.priority === null ? "" : ` as ${incident.priority}`} and ${outcome}.`,
           );
+          // Left blank, the category was chosen by the classifier: say so, with how sure it
+          // was, rather than let it appear on the incident unannounced.
+          const applied = reported.suggestion;
+          const category = categories.data.find((c) => c.id === applied?.category_id);
+          if (applied !== null && category !== undefined) {
+            toasts.info(
+              `Classified automatically as ${category.name} (${confidenceBand(applied.confidence).label.toLowerCase()}, ${String(Math.round(applied.confidence * 100))}%). The help desk can change it.`,
+            );
+          }
           void navigate(incidentPath(portal, incident.id));
         },
       },
@@ -252,7 +269,7 @@ export function ReportPage() {
             )}
             <SelectField
               label="Category"
-              hint="Optional. Leave it and the help desk classifies the incident for you."
+              hint="Optional. Left blank, the incident is classified automatically from your description; you are told the result and the help desk can correct it."
               value={categoryId}
               error={fieldErrors.category_id}
               onChange={(event) => {

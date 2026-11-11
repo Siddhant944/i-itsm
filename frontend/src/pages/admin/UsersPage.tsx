@@ -5,7 +5,6 @@ import {
   useCreateUser,
   useSkills,
   useTeams,
-  useUpdateTechnician,
   useUpdateUser,
   useUsers,
   type UserRow,
@@ -195,7 +194,6 @@ function CreateUserDialog({ onClose }: { onClose: () => void }) {
 function EditUserDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
   const { user: me } = useAuth();
   const update = useUpdateUser();
-  const updateTechnician = useUpdateTechnician();
   const toasts = useToasts();
   const [role, setRole] = useState(user.role);
   const [fields, setFields] = useState<Fields>({
@@ -206,15 +204,26 @@ function EditUserDialog({ user, onClose }: { user: UserRow; onClose: () => void 
   });
   const isSelf = me?.id === user.id;
   const wasSupport = SUPPORT.includes(user.role);
-  const busy = update.isPending || updateTechnician.isPending;
-  const problem = update.error ?? updateTechnician.error;
+  const busy = update.isPending;
+  const problem = update.error;
 
-  const save = async () => {
-    if (role !== user.role) await update.mutateAsync({ id: user.id, body: { role } });
-    // The profile can only be edited once the person is (still) support staff.
-    if (SUPPORT.includes(role)) await updateTechnician.mutateAsync({ id: user.id, body: fields });
-    toasts.success(`${user.full_name} was updated.`);
-    onClose();
+  // One request: the role and the profile are applied together or not at all.
+  const save = () => {
+    update.mutate(
+      {
+        id: user.id,
+        body: {
+          ...(role === user.role ? {} : { role }),
+          ...(SUPPORT.includes(role) ? { technician: fields } : {}),
+        },
+      },
+      {
+        onSuccess: () => {
+          toasts.success(`${user.full_name} was updated.`);
+          onClose();
+        },
+      },
+    );
   };
 
   return (
@@ -223,8 +232,7 @@ function EditUserDialog({ user, onClose }: { user: UserRow; onClose: () => void 
         className="space-y-4"
         onSubmit={(event: SyntheticEvent) => {
           event.preventDefault();
-          // The failure is rendered from the mutation's own error state below.
-          save().catch(() => undefined);
+          save();
         }}
       >
         <SelectField

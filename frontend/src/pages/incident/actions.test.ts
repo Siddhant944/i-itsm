@@ -42,9 +42,34 @@ describe("availableActions", () => {
   it("BR-02 keeps another technician's hands off, but lets a lead reassign", () => {
     const other = on(availableActions(incident(), me("technician", 9)));
     expect(other).not.toContain("acknowledge");
-    const lead = on(availableActions(incident(), me("team_lead", 4)));
+    const lead = on(availableActions(incident(), me("team_lead", 4), [3, 4]));
     expect(lead).toEqual(expect.arrayContaining(["reassign", "acknowledge", "overridePriority"]));
     expect(on(availableActions(incident(), me("technician", 3)))).not.toContain("reassign");
+  });
+
+  it("offers a lead nothing on another team's incident, as the API would refuse it", () => {
+    // The lead reported it, so may see it, but its assignee (3) is not in the lead's team.
+    const mine = incident({ reporter_id: 4 });
+    expect(on(availableActions(mine, me("team_lead", 4), [4, 9]))).toEqual([
+      "cancel",
+      "provideInformation",
+    ]);
+  });
+
+  it("lets a lead assign what is queued for a team lead (D-028)", () => {
+    const queued = incident({ status: "CLASSIFIED", assignee_id: null });
+    expect(on(availableActions(queued, me("team_lead", 4), [3, 4]))).toEqual(
+      expect.arrayContaining(["reassign", "overridePriority"]),
+    );
+    expect(on(availableActions(queued, me("technician", 3)))).toEqual([]);
+  });
+
+  it("does not offer overrides on an incident the technician only reported", () => {
+    const reportedByTech = incident({ reporter_id: 3, assignee_id: 9 });
+    expect(on(availableActions(reportedByTech, me("technician", 3)))).toEqual([
+      "cancel",
+      "provideInformation",
+    ]);
   });
 
   it("lets an administrator cancel anyone's open incident", () => {

@@ -54,7 +54,7 @@ test("WF1: a reported incident is classified, prioritised, put on an SLA and ass
   await expect(page.getByText("Assigned", { exact: true })).toBeVisible();
   await expect(page.getByText(/^P[12] /)).toBeVisible();
   await expect(page.getByTestId("sla-chip")).toContainText("Response due in");
-  expect(await detail(page, "Category")).toBe("Network");
+  await expect.poll(() => detail(page, "Category")).toBe("Network");
   const assignee = await assigneeName(page);
 
   // The incident is in the reporter's list.

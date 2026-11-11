@@ -74,8 +74,10 @@ export function QueryView<T>({
   loadingLabel?: string | undefined;
   children: (data: T) => ReactNode;
 }) {
-  if (query.isPending) return <Skeleton label={loadingLabel ?? "Loading"} />;
-  if (query.isError || query.data === undefined) {
+  // Data we already have stays on screen when a background refresh fails: replacing the
+  // page with an error would throw away whatever the person was in the middle of typing.
+  if (query.data === undefined) {
+    if (query.isPending) return <Skeleton label={loadingLabel ?? "Loading"} />;
     return (
       <ErrorState
         error={query.error}
@@ -85,9 +87,25 @@ export function QueryView<T>({
       />
     );
   }
-  if (isEmpty?.(query.data) === true)
-    return <>{empty ?? <EmptyState title="Nothing here yet" />}</>;
-  return <>{children(query.data)}</>;
+  const stale = query.isError && (
+    <p role="status" className="mb-3 text-xs text-amber-700 dark:text-amber-300">
+      Could not refresh just now; showing what was loaded last. {errorMessage(query.error)}
+    </p>
+  );
+  if (isEmpty?.(query.data) === true) {
+    return (
+      <>
+        {stale}
+        {empty ?? <EmptyState title="Nothing here yet" />}
+      </>
+    );
+  }
+  return (
+    <>
+      {stale}
+      {children(query.data)}
+    </>
+  );
 }
 
 export function PageHeader({

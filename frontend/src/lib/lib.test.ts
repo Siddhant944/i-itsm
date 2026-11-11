@@ -126,6 +126,14 @@ describe("describeSla", () => {
     );
     expect(describeSla(null, "NEW", now).text).toBe("No SLA yet");
   });
+
+  it("does not call a late response or a cancelled incident 'met'", () => {
+    expect(describeSla({ ...sla, response_status: "breached" }, "CLOSED", now)).toEqual({
+      tone: "bad",
+      text: "SLA breached",
+    });
+    expect(describeSla(sla, "CANCELLED", now)).toEqual({ tone: "neutral", text: "SLA stopped" });
+  });
 });
 
 describe("queue order", () => {

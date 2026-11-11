@@ -123,7 +123,11 @@ export function me(role: Schemas["Role"], id = 1): Schemas["MeResponse"] {
     active: true,
     escalation_level: null,
     permissions: PERMISSIONS[role],
-    technician: null,
+    // Support staff belong to team 1 of BASE_ROUTES, whose members are users 3 and 4.
+    technician:
+      role === "technician" || role === "team_lead"
+        ? { skills: ["networking"], experience_level: 2, available: true, team_id: 1 }
+        : null,
   };
 }
 

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { routes } from "../App";
 import type { Portal } from "../auth/portal";
-import { me, renderRoutes } from "../test/utils";
+import { apiError, me, renderRoutes } from "../test/utils";
 import { NAVIGATION, PORTAL_HOME } from "./nav";
 
 const PORTALS: Portal[] = ["employee", "technician", "admin"];
@@ -38,6 +38,28 @@ describe("the three portals", () => {
   it("sends a signed-out visitor to the sign-in page", async () => {
     renderRoutes(routes, { path: "/admin/users" });
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("does not sign someone out because the API is unreachable", async () => {
+    const { router } = renderRoutes(routes, {
+      user: me("employee"),
+      routes: { "GET /auth/me": apiError(503, "The database is unavailable.") },
+      path: "/employee/incidents",
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("The database is unavailable.");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/employee/incidents");
+    expect(window.sessionStorage.getItem("iitsm.token")).toBe("test-token");
+  });
+
+  it("signs someone out when the API says the token is no longer good", async () => {
+    renderRoutes(routes, {
+      user: me("employee"),
+      routes: { "GET /auth/me": apiError(401, "Sign in to continue.") },
+      path: "/employee/incidents",
+    });
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("iitsm.token")).toBeNull();
   });
 
   it("gives an employee a top bar with their two screens", async () => {

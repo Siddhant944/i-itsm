@@ -189,6 +189,18 @@ describe("loading, empty and error states", () => {
     expect(screen.getByText("a,b")).toBeInTheDocument();
   });
 
+  it("keeps showing loaded data when a background refresh fails", () => {
+    const stale = query({
+      data: ["a", "b"],
+      isError: true,
+      error: new ApiError(0, "Cannot reach the server."),
+    });
+    render(view(stale));
+    expect(screen.getByText("a,b")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Could not refresh just now");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("includes field problems in an error", () => {
     render(<ErrorState error={new ApiError(422, "Invalid.", "x", { name: "Taken." })} />);
     expect(screen.getByRole("alert")).toHaveTextContent("Invalid. Taken.");

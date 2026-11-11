@@ -22,8 +22,11 @@ export interface SLAView {
 /** What the chip says, separated from the component so it can be tested without timers. */
 export function describeSla(sla: SLA | null, status: Status, now: number): SLAView {
   if (sla === null) return { tone: "neutral", text: "No SLA yet" };
+  // A cancelled incident was never resolved, so its SLA was neither met nor missed.
+  if (status === "CANCELLED") return { tone: "neutral", text: "SLA stopped" };
   if (STOPPED.includes(status)) {
-    return sla.resolution_status === "breached"
+    // "Met" means both halves: a fast fix does not undo a late first response.
+    return sla.resolution_status === "breached" || sla.response_status === "breached"
       ? { tone: "bad", text: "SLA breached" }
       : { tone: "good", text: "SLA met" };
   }

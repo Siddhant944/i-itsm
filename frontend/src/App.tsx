@@ -48,6 +48,7 @@ export const routes: RouteObject[] = [
       { path: "team", element: <TeamQueuePage /> },
       { path: "workload", element: <WorkloadPage /> },
       { path: "report", element: <ReportPage /> },
+      { path: "reports", element: <MyIncidentsPage /> },
       { path: "incidents/:id", element: <IncidentDetailPage /> },
     ],
   },

@@ -9,6 +9,7 @@ import {
   useIncident,
   useIncidentAction,
   useNames,
+  useTeams,
   type Incident,
   type IncidentAction,
 } from "../../api/hooks";
@@ -398,7 +399,9 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [note, setNote] = useState("");
   const [reply, setReply] = useState("");
-  const allowed = availableActions(incident, me);
+  const teams = useTeams();
+  const myTeam = teams.data?.find((team) => team.id === me.technician?.team_id);
+  const allowed = availableActions(incident, me, myTeam?.member_ids ?? []);
   const question = pendingQuestion(incident);
 
   const run = (next: IncidentAction, done: string, after?: () => void) => {

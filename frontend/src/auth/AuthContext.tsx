@@ -15,7 +15,10 @@ import type { Me } from "./portal";
 
 interface AuthState {
   /** "loading" while a stored token is being checked against /auth/me. */
-  status: "loading" | "signed-out" | "signed-in";
+  status: "loading" | "signed-out" | "signed-in" | "unavailable";
+  /** Why the session could not be checked, when status is "unavailable". */
+  problem: unknown;
+  retry: () => void;
   user: Me | null;
   signIn: (email: string, password: string) => Promise<void>;
   register: (fullName: string, email: string, password: string) => Promise<void>;
@@ -37,6 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     retry: false,
     staleTime: 60_000,
   });
+
+  const { refetch } = me;
 
   const signOut = useCallback(() => {
     setToken(null);
@@ -65,17 +70,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthState>(() => {
     const user = token !== null && me.data !== undefined ? me.data : null;
+    // A 401 clears the token (api/client.ts), which is the only thing that signs someone out.
+    // An outage is not a sign-out: say the server is unreachable and keep the session.
     const status =
-      token === null || me.isError ? "signed-out" : user === null ? "loading" : "signed-in";
+      token === null
+        ? "signed-out"
+        : user !== null
+          ? "signed-in"
+          : me.isError
+            ? "unavailable"
+            : "loading";
     return {
       status,
+      problem: me.error,
+      retry: () => {
+        void refetch();
+      },
       user,
       signIn,
       register,
       signOut,
       can: (permission) => user?.permissions.includes(permission) ?? false,
     };
-  }, [token, me.data, me.isError, signIn, register, signOut]);
+  }, [token, me.data, me.isError, me.error, refetch, signIn, register, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

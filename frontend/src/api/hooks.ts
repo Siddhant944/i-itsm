@@ -10,8 +10,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 
-import { api, apiBaseUrl, ApiError, toApiError, unwrap, type Schemas } from "./client";
-import { getToken } from "../lib/session";
+import { api, unwrap, type Schemas } from "./client";
 
 export type Incident = Schemas["IncidentResponse"];
 export type IncidentSummary = Schemas["IncidentSummaryResponse"];
@@ -76,14 +75,20 @@ export function useDirectory() {
 
 /** Lookups that turn the ids in an incident into words. Missing data reads as a dash. */
 export function useNames() {
-  const services = useServices();
-  const categories = useCategories();
+  // Retired rows included: an incident reported before a service was retired still has a name.
+  const services = useServices(true);
+  const categories = useCategories(true);
   const directory = useDirectory();
   const find = <T extends { id: number }>(rows: T[] | undefined, id: number | null) =>
     id === null ? undefined : rows?.find((row) => row.id === id);
   return {
-    service: (id: number | null) => find(services.data, id)?.name ?? "—",
-    category: (id: number | null) => find(categories.data, id)?.name ?? "Uncategorised",
+    // "…" while a list is still loading: a name we do not know yet is not "Uncategorised".
+    service: (id: number | null) =>
+      services.data === undefined ? "…" : (find(services.data, id)?.name ?? "—"),
+    category: (id: number | null) => {
+      if (id === null) return "Uncategorised";
+      return categories.data === undefined ? "…" : (find(categories.data, id)?.name ?? "—");
+    },
     person: (id: number | null) => {
       if (id === null) return "Unassigned";
       // A name that has not arrived yet is not "User 11": say nothing until we know.
@@ -319,30 +324,8 @@ export function useIncidentViolations(id: string, enabled: boolean) {
   });
 }
 
-/** Download a CSV the API streams as text; the token cannot ride on a plain link. */
-export async function downloadCsv(
-  path: "/incidents/search/export" | "/reports/workload/export" | "/reports/services/export",
-  filename: string,
-  body?: SearchFilters,
-): Promise<void> {
-  const token = getToken();
-  let response: Response;
-  try {
-    response = await globalThis.fetch(`${apiBaseUrl}${path}`, {
-      method: body === undefined ? "GET" : "POST",
-      headers: {
-        ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-  } catch {
-    throw new ApiError(0, "Cannot reach the server. Check your connection and try again.");
-  }
-  if (!response.ok) {
-    throw toApiError(response.status, await response.json().catch(() => null));
-  }
-  const url = URL.createObjectURL(new Blob([await response.text()], { type: "text/csv" }));
+function save(text: string, filename: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
@@ -351,6 +334,24 @@ export async function downloadCsv(
   link.remove();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Download one of the API's CSV exports. It goes through the generated client like every
+ * other call (the token cannot ride on a plain link), read as text rather than JSON.
+ */
+export async function downloadCsv(
+  path: "/incidents/search/export" | "/reports/workload/export" | "/reports/services/export",
+  filename: string,
+  body?: SearchFilters,
+): Promise<void> {
+  const text =
+    path === "/incidents/search/export"
+      ? await unwrap(api.POST(path, { body: body ?? EVERYTHING, parseAs: "text" }))
+      : await unwrap(api.GET(path, { parseAs: "text" }));
+  save(typeof text === "string" ? text : "", filename);
+}
+
+const EVERYTHING: SearchFilters = { sort_by: "created_at", descending: true, limit: 25, offset: 0 };
 
 // ------------------------------------------------------------------ administration
 export function useUsers() {
@@ -379,17 +380,6 @@ export function useUpdateUser() {
   return useMutation({
     mutationFn: ({ id, body }: { id: number; body: Schemas["UpdateUserRequest"] }) =>
       unwrap(api.PATCH("/users/{user_id}", { params: { path: { user_id: id } }, body })),
-    onSuccess: () => {
-      refreshPeople(client);
-    },
-  });
-}
-
-export function useUpdateTechnician() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Schemas["TechnicianFieldsRequest"] }) =>
-      unwrap(api.PUT("/users/{user_id}/technician", { params: { path: { user_id: id } }, body })),
     onSuccess: () => {
       refreshPeople(client);
     },

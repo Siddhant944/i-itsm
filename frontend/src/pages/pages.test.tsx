@@ -7,6 +7,7 @@ import { AuditPage } from "./admin/AuditPage";
 import { AssignmentPage } from "./admin/config/AssignmentPage";
 import { CategoriesPage } from "./admin/config/CategoriesPage";
 import { SLAPage } from "./admin/config/SLAPage";
+import { UsersPage } from "./admin/UsersPage";
 import { SearchPage } from "./admin/SearchPage";
 import { LoginPage } from "./auth/LoginPage";
 import { RegisterPage } from "./auth/RegisterPage";
@@ -156,7 +157,54 @@ describe("the employee portal", () => {
         category_id: null,
       });
     });
-    expect(await screen.findByRole("status")).toHaveTextContent("INC-2026-0001 reported as P2");
+    expect(await screen.findByText(/INC-2026-0001 reported as P2/)).toBeInTheDocument();
+  });
+
+  it("drops a suggestion as soon as the text it was made for changes", async () => {
+    renderPage(<ReportPage />, {
+      user: me("employee"),
+      routes: {
+        "POST /incidents/classify": (body: unknown) =>
+          // Only the wifi text gets a suggestion; the rewritten one fails to classify.
+          JSON.stringify(body).includes("printer")
+            ? apiError(503, "Classifier unavailable.")
+            : { category_id: 1, confidence: 0.82, source: "rules" },
+      },
+    });
+    await userEvent.type(await screen.findByLabelText(/one line/), "Wifi keeps dropping");
+    expect(await screen.findByTestId("ai-suggestion", {}, { timeout: 3000 })).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("What happened?"), "Actually it is the printer");
+    // Gone at once, not after the next answer arrives - and it stays gone when that one fails.
+    expect(screen.queryByTestId("ai-suggestion")).not.toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(screen.queryByTestId("ai-suggestion")).not.toBeInTheDocument();
+  });
+
+  it("tells the reporter which category was applied when they left it blank", async () => {
+    renderPage(<ReportPage />, {
+      user: me("employee"),
+      routes: {
+        "POST /incidents/classify": apiError(503, "Classifier unavailable."),
+        "POST /incidents": {
+          incident: incident(),
+          suggestion: { category_id: 1, confidence: 0.5, source: "rules" },
+          assignment: null,
+          needs_triage: false,
+          queued_for_team_lead: false,
+        },
+      },
+    });
+    await userEvent.type(await screen.findByLabelText(/one line/), "Wifi keeps dropping");
+    await userEvent.type(screen.getByLabelText("What happened?"), "No signal in the library");
+    await userEvent.selectOptions(screen.getByLabelText(/Which service/), "1");
+    await userEvent.click(screen.getByLabelText("Just me"));
+    await userEvent.click(screen.getByLabelText("I am blocked"));
+    await userEvent.click(screen.getByRole("button", { name: "Submit incident" }));
+    expect(
+      await screen.findByText(
+        "Classified automatically as Network (medium confidence, 50%). The help desk can change it.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("asks the reporter to confirm a fix, and sends the rating", async () => {
@@ -414,6 +462,49 @@ describe("the admin portal", () => {
       });
     });
     expect(await screen.findByRole("status")).toHaveTextContent("Load based strategy is active");
+  });
+
+  it("saves a role and a technician profile as one change", async () => {
+    const employee = {
+      id: 1,
+      email: "devika@campus.edu",
+      full_name: "Devika Rao",
+      role: "employee",
+      active: true,
+      skills: null,
+      experience_level: null,
+      available: null,
+      team_id: null,
+    };
+    const { calls } = renderPage(<UsersPage />, {
+      user: ADMIN,
+      routes: {
+        "GET /users": [employee],
+        "PATCH /users/1": { ...employee, role: "technician", skills: ["networking"] },
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit Devika Rao" });
+    await userEvent.selectOptions(within(dialog).getByLabelText("Role"), "technician");
+    await userEvent.click(await within(dialog).findByRole("button", { name: "networking" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => {
+      expect(calls.filter((c) => c.method !== "GET")).toEqual([
+        {
+          method: "PATCH",
+          path: "/users/1",
+          body: {
+            role: "technician",
+            technician: {
+              skills: ["networking"],
+              experience_level: 1,
+              available: true,
+              team_id: null,
+            },
+          },
+        },
+      ]);
+    });
   });
 
   const record = {

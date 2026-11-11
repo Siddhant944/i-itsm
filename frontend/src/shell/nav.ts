@@ -23,6 +23,8 @@ export const NAVIGATION: Record<Portal, readonly NavItem[]> = {
     { label: "Team queue", to: "/technician/team", permission: "incident:view_team" },
     { label: "Workload", to: "/technician/workload" },
     { label: "Report an incident", to: "/technician/report" },
+    // Only the reporter can confirm a fix (BR-03), so staff need a way back to what they reported.
+    { label: "My reports", to: "/technician/reports" },
   ],
   admin: [
     { label: "Dashboard", to: "/admin/dashboard", group: "Operations" },

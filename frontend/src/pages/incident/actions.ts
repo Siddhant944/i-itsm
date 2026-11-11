@@ -38,14 +38,24 @@ const REASSIGNABLE: readonly Status[] = ["CLASSIFIED", "ASSIGNED", "ACKNOWLEDGED
  * This only decides what is *shown*: the API checks the role, the ownership (BR-01, BR-02) and
  * the transition again, and its refusal is what the user sees if the two ever disagree.
  */
-export function availableActions(incident: Incident, me: Me): Available {
+export function availableActions(
+  incident: Incident,
+  me: Me,
+  teamMemberIds: readonly number[] = [],
+): Available {
   const can = (permission: Schemas["Permission"]) => me.permissions.includes(permission);
   const { status } = incident;
   const isReporter = incident.reporter_id === me.id;
   const isAssignee = incident.assignee_id === me.id;
-  // BR-02: the assignee works an incident; leads and admins can step in through reassignment.
-  const works = can("incident:work") && (isAssignee || can("incident:reassign"));
   const open = OPEN.includes(status);
+  // Nobody holds it yet: "queued for the Team Lead" (§5.3, D-028).
+  const waiting = incident.assignee_id === null && (status === "NEW" || status === "CLASSIFIED");
+  // BR-02, as the API applies it: the assignee, an admin, or a Team Lead for their own team's
+  // incidents and for the ones still waiting for anybody.
+  const leads =
+    can("incident:reassign") &&
+    (waiting || (incident.assignee_id !== null && teamMemberIds.includes(incident.assignee_id)));
+  const works = can("incident:work") && (isAssignee || can("incident:view_all") || leads);
 
   return {
     acknowledge: works && status === "ASSIGNED",
@@ -55,9 +65,9 @@ export function availableActions(incident: Incident, me: Me): Available {
     requestInformation: works && status === "IN_PROGRESS",
     resolve: works && status === "IN_PROGRESS",
     close: works && status === "VERIFIED",
-    reassign: can("incident:reassign") && REASSIGNABLE.includes(status),
-    overridePriority: can("incident:override_priority") && open,
-    overrideCategory: can("incident:override_category") && open,
+    reassign: can("incident:reassign") && works && REASSIGNABLE.includes(status),
+    overridePriority: can("incident:override_priority") && works && open,
+    overrideCategory: can("incident:override_category") && works && open,
     provideInformation: isReporter && can("incident:add_info") && open,
     verify: isReporter && can("incident:verify") && status === "RESOLVED",
     cancel: open && ((isReporter && can("incident:cancel_own")) || can("incident:cancel_any")),

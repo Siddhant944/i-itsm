@@ -6,8 +6,10 @@ services:
     name: i-itsm-api
     runtime: docker
     plan: free
-    rootDir: backend
-    dockerfilePath: ./Dockerfile
+    # Both paths are written from the repository root, so they mean the same thing whichever
+    # way the host resolves them.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     healthCheckPath: /health
     autoDeploy: true
     envVars:

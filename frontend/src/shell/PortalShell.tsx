@@ -4,7 +4,7 @@ import { useAuth } from "../auth/AuthContext";
 import { portalOf, type Portal } from "../auth/portal";
 import { Button } from "../components/Button";
 import { NotificationBell } from "../components/NotificationBell";
-import { Skeleton } from "../components/States";
+import { ErrorState, Skeleton } from "../components/States";
 import { roleLabel } from "../lib/format";
 import { incidentPath, NAVIGATION, PORTAL_HOME, PORTAL_TITLE, type NavItem } from "./nav";
 
@@ -122,6 +122,20 @@ function SidebarLayout({ portal }: { portal: Portal }) {
   );
 }
 
+/** Shown while the stored session is checked, or when the API cannot be reached to check it. */
+function SessionCheck() {
+  const { status, problem, retry } = useAuth();
+  return (
+    <div className="mx-auto max-w-md p-10">
+      {status === "unavailable" ? (
+        <ErrorState error={problem} onRetry={retry} />
+      ) : (
+        <Skeleton rows={3} label="Signing you in" />
+      )}
+    </div>
+  );
+}
+
 /**
  * The frame of one portal. Someone signed out goes to the sign-in page; someone signed in to a
  * different portal is sent to their own. This is navigation, not security: the API checks the
@@ -129,14 +143,8 @@ function SidebarLayout({ portal }: { portal: Portal }) {
  */
 export function PortalShell({ portal }: { portal: Portal }) {
   const { status, user } = useAuth();
-  if (status === "loading") {
-    return (
-      <div className="mx-auto max-w-md p-10">
-        <Skeleton rows={3} label="Signing you in" />
-      </div>
-    );
-  }
-  if (status === "signed-out" || user === null) return <Navigate to="/login" replace />;
+  if (status === "loading" || status === "unavailable") return <SessionCheck />;
+  if (user === null) return <Navigate to="/login" replace />;
   const own = portalOf(user);
   if (own !== portal) return <Navigate to={PORTAL_HOME[own]} replace />;
   return portal === "employee" ? (
@@ -149,13 +157,7 @@ export function PortalShell({ portal }: { portal: Portal }) {
 /** "/" and unknown paths: the caller's own portal, or the sign-in page. */
 export function HomeRedirect() {
   const { status, user } = useAuth();
-  if (status === "loading") {
-    return (
-      <div className="mx-auto max-w-md p-10">
-        <Skeleton rows={3} label="Signing you in" />
-      </div>
-    );
-  }
+  if (status === "loading" || status === "unavailable") return <SessionCheck />;
   if (user === null) return <Navigate to="/login" replace />;
   return <Navigate to={PORTAL_HOME[portalOf(user)]} replace />;
 }

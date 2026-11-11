@@ -5,9 +5,9 @@ Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECIS
 ## Status: P3 Frontend MVP and first deployment — done, PR open (11 Nov)
 
 On `claude/affectionate-mccarthy-txowq5`, cut from main after the P2 PR merged. All seven
-packages are done. The phase review is in progress; its findings are recorded under P3.7 below.
+packages are done and the phase review's findings are fixed (see P3.7 below).
 
-`make verify` passes: 871 backend tests and 73 frontend tests. Playwright runs
+`make verify` passes: 888 backend tests and 83 frontend tests. Playwright runs
 Workflow 1 and Workflow 2 in a real browser against a seeded database (`make e2e`, 3 specs).
 
 **The MVP exists.** Someone can register, report an incident, watch it get classified,
@@ -63,8 +63,30 @@ started, with the feature freeze on the 16th and recording on the 19th. See "Nee
   assignment → the assignee's notification and queue → the admin's audit trail, plus BR-01
   for another employee) and WF2 (acknowledge → request info with the clock paused → reply →
   resolve → reject → resolve → verify and rate → close, an illegal transition refused by the
-  API, the audit chain verified) both pass. The fresh-subagent review of the phase diff
-  is running; this entry is updated with what it finds.
+  API, the audit chain verified) both pass.
+  A fresh-context subagent then reviewed the whole phase diff and reported 16 findings, 9 of
+  them confirmed by running the API. All but the two listed under "Known gaps" are fixed, each
+  with a test that fails without the fix. The four that mattered most:
+  - retiring a service made every further step on its open incidents a 404;
+  - a technician holding open incidents, or a team's lead, could be deactivated, and an
+    escalation owner demoted, leaving incidents with someone who could not open them;
+  - an Administrator could demote, deactivate or create an IT Manager (D-029);
+  - incidents "queued for a Team Lead" were invisible to every lead (D-028).
+
+  Also fixed: `PATCH /users/{id}` was two transactions; the audit sequence was wrong under the
+  incident filter; SLA target validation ran when stored rows were loaded; a retired category
+  could still be chosen; retired services showed as "—" on older incidents; one failed
+  10-second refresh replaced the page with an error and lost typed text; a category applied by
+  the classifier was not announced to the reporter; a stale suggestion could be shown for new
+  text; technicians had no list of what they reported; the incident page offered actions the
+  API refuses; "SLA met" was shown for cancelled and late-response incidents; an API outage
+  signed people out; the CSV download bypassed the generated client.
+- **Known gaps, not fixed in P3.** (1) The timeline is built from what the incident itself
+  returns, so it shows reports, notes, questions, answers, resolution, feedback and closure but
+  not assignments, escalations or overrides; those are on the audit trail, which only admins
+  see. (2) An administrator cancelling someone else's incident is recorded with the reason
+  "withdrawn", because the domain has only "withdrawn" and "duplicate" until P4.1 confirms
+  duplicates. Both are small and both belong with P4 work that touches the same code.
 - Smaller things that came with it: SLA countdowns run on the application's clock rather than
   the browser's (D-023), the token is per tab so three people can be signed in side by side
   (D-022), and screens poll every 10 s until WebSockets arrive in P4.8 (D-024).
