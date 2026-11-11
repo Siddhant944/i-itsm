@@ -420,7 +420,9 @@ def test_BR10_the_integrity_check_passes_then_fails_after_tampering(
 def test_every_response_says_what_time_the_application_clock_reads(
     api: TestClient, clock: FakeClock
 ) -> None:
-    assert api.get("/health").headers["X-Server-Time"] == NOW.isoformat()
+    first = api.get("/health")
+    assert first.headers["X-Server-Time"] == NOW.isoformat()
+    assert first.headers["X-Clock-Rate"] == "0.0"
     clock.advance(timedelta(minutes=5))
     later = api.get("/health").headers["X-Server-Time"]
     assert datetime.fromisoformat(later) == NOW + timedelta(minutes=5)

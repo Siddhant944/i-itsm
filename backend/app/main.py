@@ -45,6 +45,7 @@ from app.services.scheduler import MonitorScheduler
 from app.services.sla_monitor import SLAMonitor, TickReport
 
 SERVER_TIME_HEADER = "X-Server-Time"
+CLOCK_RATE_HEADER = "X-Clock-Rate"
 
 
 def make_clock(settings: Settings) -> Clock:
@@ -101,7 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=[SERVER_TIME_HEADER],
+        expose_headers=[SERVER_TIME_HEADER, CLOCK_RATE_HEADER],
     )
 
     @app.middleware("http")
@@ -116,6 +117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response = await call_next(request)
         services: Services = request.app.state.services
         response.headers[SERVER_TIME_HEADER] = services.clock.now().isoformat()
+        response.headers[CLOCK_RATE_HEADER] = str(services.clock.rate)
         return response
 
     app.state.services = Services(

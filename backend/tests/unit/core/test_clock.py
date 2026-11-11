@@ -97,3 +97,10 @@ def test_utc_is_displayed_in_ist() -> None:
     # Still the same moment, in January too (India has no daylight saving).
     assert shown == datetime(2026, 11, 6, 9, 0, tzinfo=UTC)
     assert in_ist(datetime(2027, 1, 1, 20, 0, tzinfo=UTC)).day == 2
+
+
+def test_each_clock_reports_how_fast_it_runs() -> None:
+    start = datetime(2026, 11, 11, 9, 0, tzinfo=UTC)
+    assert SystemClock().rate == 1.0
+    assert FakeClock(start).rate == 0.0
+    assert AcceleratedClock(10, start).rate == 10

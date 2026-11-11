@@ -38,6 +38,11 @@ class Clock(ABC):
         """Real (wall) seconds that pass while this clock advances by ``interval``."""
         return interval.total_seconds()
 
+    @property
+    def rate(self) -> float:
+        """Clock seconds per real second, so a browser can count down at this clock's speed."""
+        return 1.0
+
 
 class SystemClock(Clock):
     """Production clock: the real current time."""
@@ -54,6 +59,11 @@ class FakeClock(Clock):
 
     def now(self) -> datetime:
         return self.__now
+
+    @property
+    def rate(self) -> float:
+        """A fake clock stands still between the moments a test moves it."""
+        return 0.0
 
     def advance(self, delta: timedelta) -> None:
         """Move time forward by ``delta``."""
@@ -99,3 +109,7 @@ class AcceleratedClock(Clock):
 
     def real_seconds(self, interval: timedelta) -> float:
         return interval.total_seconds() / self.__factor
+
+    @property
+    def rate(self) -> float:
+        return self.__factor
