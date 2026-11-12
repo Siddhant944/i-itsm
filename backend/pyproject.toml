@@ -92,6 +92,9 @@ source = ["app"]
 branch = true
 
 [tool.coverage.report]
+# P5.3: the whole backend may not fall below 90 % (97 % on 12 Nov). Domain and services have
+# their own 80 % gate in scripts/dev.py and CI, so a well-tested API cannot hide them.
+fail_under = 90
 skip_empty = true
 show_missing = false
 exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@abstractmethod"]
@@ -135,10 +138,10 @@ source_modules = ["app.seed"]
 forbidden_modules = ["app.api", "app.services", "app.main", "fastapi", "starlette"]
 
 [[tool.importlinter.contracts]]
-name = "Only the composition root and the seed CLI import app.seed"
+name = "Only the composition roots (app.main, app.demo) and the seed CLI import app.seed"
 type = "forbidden"
 source_modules = ["app.domain", "app.services", "app.api", "app.repositories", "app.adapters", "app.core"]
-forbidden_modules = ["app.seed"]
+forbidden_modules = ["app.seed", "app.demo"]
 
 [[tool.importlinter.contracts]]
 name = "Core depends on no application layer"

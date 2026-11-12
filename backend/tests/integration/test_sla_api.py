@@ -198,6 +198,7 @@ def test_the_clock_endpoints_do_not_exist_in_production(database_url: str) -> No
         app_env=AppEnv.PROD,
         database_url=database_url,
         jwt_secret="a-production-secret-of-more-than-32-characters",
+        cors_origins=["https://i-itsm-web.onrender.com"],
         sla_tick_seconds=0,
         _env_file=None,
     )
@@ -214,6 +215,7 @@ def test_production_refuses_a_fake_clock(database_url: str) -> None:
             database_url=database_url,
             clock_mode=ClockMode.FAKE,
             jwt_secret="a-production-secret-of-more-than-32-characters",
+            cors_origins=["https://i-itsm-web.onrender.com"],
             _env_file=None,
         )
 

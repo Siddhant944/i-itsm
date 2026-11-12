@@ -78,6 +78,12 @@ def setup(_: argparse.Namespace) -> None:
 
 def dev(_: argparse.Namespace) -> None:
     """Run the API (http://127.0.0.1:8000) and the web app (http://localhost:5173) with reload."""
+    serve(reload=True)
+
+
+def serve(*, reload: bool, extra_env: dict[str, str] | None = None) -> None:
+    """Run the API and the web app side by side until Ctrl+C."""
+    reload_flag = ["--reload"] if reload else []
     procs = [
         subprocess.Popen(  # noqa: S603
             [
@@ -86,16 +92,16 @@ def dev(_: argparse.Namespace) -> None:
                 "uvicorn",
                 "app.main:create_app",
                 "--factory",
-                "--reload",
+                *reload_flag,
                 "--host",
                 "127.0.0.1",
                 "--port",
                 "8000",
             ],
             cwd=BACKEND,
-            env=child_env(),
+            env=child_env(extra_env),
         ),
-        subprocess.Popen([exe("npm"), "run", "dev"], cwd=FRONTEND, env=child_env()),  # noqa: S603
+        subprocess.Popen([exe("npm"), "run", "dev"], cwd=FRONTEND, env=child_env(extra_env)),  # noqa: S603
     ]
     print("API http://127.0.0.1:8000/health · web http://localhost:5173 · Ctrl+C stops both")
     try:
@@ -121,9 +127,22 @@ def dev(_: argparse.Namespace) -> None:
                 p.kill()
 
 
+#: P5.3: domain and services, on their own, stay at or above 80 % (CI runs the same command).
+CORE_COVERAGE_GATE = [
+    "uv",
+    "run",
+    "coverage",
+    "report",
+    "--include=app/domain/*,app/services/*",
+    "--fail-under=80",
+    "--format=total",
+]
+
+
 def test(_: argparse.Namespace) -> None:
     """Run the backend and frontend unit and integration tests."""
     run(["uv", "run", "pytest", "--cov", "--cov-report=term:skip-covered"], BACKEND)
+    run(CORE_COVERAGE_GATE, BACKEND)
     run(["npm", "test"], FRONTEND)
 
 
@@ -238,13 +257,6 @@ def secrets_staged(_: argparse.Namespace) -> None:
     run([_gitleaks(), "git", "--pre-commit", "--staged", "--redact", "--no-banner", "."], REPO)
 
 
-def not_yet(phase: str) -> Callable[[argparse.Namespace], None]:
-    def task(_: argparse.Namespace) -> None:
-        raise TaskError(f"not available until {phase} (see docs/PLAN.md)")
-
-    return task
-
-
 def migrate(_: argparse.Namespace) -> None:
     """Bring the database named by DATABASE_URL up to the latest migration."""
     run(["uv", "run", "alembic", "upgrade", "head"], BACKEND)
@@ -254,6 +266,17 @@ def seed(args: argparse.Namespace) -> None:
     """Migrate, then fill the database with the campus catalogue, demo accounts and history."""
     migrate(args)
     run(["uv", "run", "python", "-m", "app.seed"], BACKEND)
+
+
+#: Blueprint §14: the recording runs on the ×10 clock, so a P1's 5-minute window takes 30 s.
+DEMO_ENV = {"APP_ENV": "demo", "CLOCK_MODE": "accelerated"}
+
+
+def demo_reset(_: argparse.Namespace) -> None:
+    """Wipe and reseed the database, stage the workflows, then serve both apps at ×10 (P5.5)."""
+    run(["uv", "run", "python", "-m", "app.demo"], BACKEND, DEMO_ENV)
+    # No --reload: a reload would restart the accelerated clock from the real time.
+    serve(reload=False, extra_env=DEMO_ENV)
 
 
 def diagrams(_: argparse.Namespace) -> None:
@@ -297,7 +320,7 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], None]] = {
     "secrets-staged": secrets_staged,
     "migrate": migrate,
     "seed": seed,
-    "demo-reset": not_yet("P5.5"),
+    "demo-reset": demo_reset,
     "diagrams": diagrams,
     "report": report,
 }

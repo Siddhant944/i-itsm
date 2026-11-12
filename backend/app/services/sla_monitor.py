@@ -177,7 +177,7 @@ class SLAMonitor:
         """Ask the chain who should own this now, and hand it over if that is someone new.
 
         Only an incident that can still be reassigned is asked about: §4 has no ASSIGNED move
-        out of RESOLVED or VERIFIED, so asking the chain about one would mean attempting an
+        out of NEW, RESOLVED or VERIFIED, so asking the chain about one would mean attempting an
         escalation that cannot happen and logging the failure on every tick for ever.
         """
         if incident.priority is None or not _can_be_escalated(incident):
@@ -336,8 +336,9 @@ def _can_be_escalated(incident: Incident) -> bool:
     return incident.status in OPEN_STATUSES or incident.status in _CLASSIFIED_BUT_UNASSIGNED
 
 
-#: An incident nobody has picked up yet can still be escalated to a lead (§5.5).
-_CLASSIFIED_BUT_UNASSIGNED = frozenset({IncidentStatus.NEW, IncidentStatus.CLASSIFIED})
+#: A classified incident nobody has picked up yet can still be escalated to a lead (§5.5).
+#: NEW cannot: §4 has no NEW → ASSIGNED move (issue #6).
+_CLASSIFIED_BUT_UNASSIGNED = frozenset({IncidentStatus.CLASSIFIED})
 
 #: §5.5's chain by level: 1 Team Lead, 2 Administrator, 3 IT Manager.
 _ROLE_AT_LEVEL: Mapping[int, Role] = MappingProxyType(

@@ -2,7 +2,107 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P4 Intelligence and integrations — done, PR open (12 Nov)
+## Status: P5 Hardening — done, PR open (12 Nov)
+
+On `claude/gallant-darwin-vrgc1q`, cut from main after the P4 PR merged. Every P5 package still
+in scope after D-027 is done (P5.2, the Locust run, stays cut), and the phase review's findings
+are fixed. `make verify` passes: 1080 backend tests (97.4 % coverage, 98 % on domain and
+services) and 106 frontend tests. Playwright passes 9 specs (`make e2e`): WF1 (2), WF2, WF3, live
+updates, an accessibility check of every screen in the three portals, and the phone drawer.
+
+**Four days ahead of the freeze.** P5 was planned for 15-16 Nov and finished on the 12th, so the
+diagrams, the report and the demo script (P6) can start early, and the cut items can come back
+in D-027's reverse order if the team wants them (health map first).
+
+### Done
+- **P5.5 `make demo-reset`** (D-036). Wipes the local database, migrates, seeds, then runs one
+  SLA-monitor tick that notifies nobody, so the seeded history's 173 breaches, 62 escalations
+  and 30 auto-closes are recorded before the recording rather than in the middle of it (the
+  next tick does nothing; a test proves it). Then it stages two starting points through the
+  normal service: a P4 Fee Payment Portal report from another employee, so Workflow 1's live
+  report shows the "similar open incident" hint (scores 0.77 and 0.84 against θ 0.49 for two
+  typical phrasings), and a P4 Wi-Fi incident in the demo technician's queue for Workflow 2.
+  Workflow 3 is reported live, because a P1 staged in advance would escalate within 90 real
+  seconds on the ×10 clock. Finally it serves both apps with `APP_ENV=demo` and the ×10 clock,
+  without reload (a reload would restart the clock). It refuses to run with `APP_ENV=prod`.
+- The deployment's first-start seed (`SEED_ON_START`) gets the same quiet catch-up, so the
+  first live tick on a new deployment no longer notifies dozens of people about months-old
+  breaches. `DEMO_RESET_ON_START=true` turns a deployment into a demo instance that resets
+  on every start (docs/DEPLOY.md, "A demo instance").
+- **P5.1 Production settings** (D-037). `render.yaml` now runs the API with `APP_ENV=prod`,
+  which refuses a weak `JWT_SECRET`, a fake clock, and any `CORS_ORIGINS` that is not the web
+  app's `https://` origin; the `/dev` routes do not exist. HTTPS is Render's. The deployment
+  itself still waits for the accounts (Needs a human 2).
+- **P5.3 Coverage gate.** `make test` and CI fail below 90 % overall and below 80 % on domain
+  and services (now 97.4 % and 98 %).
+- **P5.4 All three workflows in CI.** Already true since P4: `e2e.yml` runs every spec on PRs
+  labelled `e2e`; it now also runs the accessibility spec.
+- **P5.6 UX pass.** The technician and admin sidebars fold into a drawer below 1024 px (Menu
+  button, Escape and any link close it); the employee bar gives its links a row of their own
+  on a phone. Each screen is its own chunk: the first download drops from 865 kB to 340 kB and
+  only admins fetch the dashboard's charts (405 kB). A PWA manifest and icons make it
+  installable on a phone (no service worker, so nothing is cached). An axe-core spec opens all
+  16 screens and fails on any serious or critical WCAG 2.1 A/AA problem; its first run found
+  that wide tables could not be scrolled from the keyboard, now fixed.
+- **Bug [#6](https://github.com/Siddhant944/i-itsm/issues/6)** (found while building the
+  reset): the monitor tried to escalate NEW incidents, which §4 forbids, and logged a warning
+  for each of them on every tick, every three real seconds in the demo. Fixed with a
+  regression test.
+
+### Phase review
+A fresh-context subagent reviewed the whole phase diff and reported 8 findings: 3 confirmed by
+running code, 5 from reading it. It also ran the reset twice on a real PostgreSQL 16 and
+exercised every branch of the image's start command. All 8 are fixed, the code ones each with a
+test that fails without the fix:
+- **`make demo-reset` could wipe the production database.** It sets `APP_ENV=demo` itself, so
+  the "never in prod" check could not fire. With the Neon URL in `.env` (DEPLOY.md hands it
+  out for `make migrate`), it would have dropped every table. The reset now also refuses any
+  database that is not SQLite or a local or Compose PostgreSQL, unless given
+  `--allow-remote-database`, which only the image's opt-in `DEMO_RESET_ON_START` passes.
+- **A redeploy broke open tabs.** With screens loaded on demand, a tab opened before a push to
+  main asked for a chunk that no longer existed and got React Router's developer error page.
+  It now reloads once to pick up the new build, and otherwise shows "This screen could not be
+  opened" with a Reload button.
+- **The drawer did not move focus.** Keyboard users had to Shift+Tab to reach its links, and
+  Escape dropped focus to the page body. Focus now moves into the drawer and back to Menu, and
+  the page behind it is inert. The jsdom test could not see this, so the accessibility spec now
+  checks the drawer in a real browser at phone width.
+- **`CORS_ORIGINS` with a trailing slash** (copied from the address bar) passed the prod check
+  but never matches a browser's `Origin`, so every sign-in would fail. Origins must now be
+  exactly `https://host[:port]`.
+- **A failed first catch-up was never retried**, because the seed marker was already written.
+  The catch-up now has a marker of its own. Its test now also runs on CI's PostgreSQL leg.
+- **Docs:**
+  - DEPLOY.md's step 2 contradicted the new prod check; it now has you enter the URLs up front.
+  - The way back from a demo instance would have kept future-dated data; it now resets on the
+    real clock first.
+  - D-037 and DEPLOY.md now say plainly that the seeded admin password is public on the
+    deployment and should be deactivated after the evaluation (Needs a human 2).
+
+One finding is answered rather than changed: `DemoResetRefusedError` is a `ValueError` and not
+an `ITSMError`. It is a command-line guard that never reaches the API, like the settings
+validators, and the §8 hierarchy is pinned at exactly 8 groups and 14 specific errors.
+
+### Next
+- **P6 Documentation and demo** (planned 17-18 Nov; can start now): PlantUML diagrams
+  (`make diagrams`), the report chapters, the test-case table generated from a real run, the
+  final README with screenshots, and `docs/DEMO_SCRIPT.md`.
+- Restore cut items only if the team wants them, in D-027's reverse order: health map (P4.11),
+  then the Locust run (P5.2), voice input (P4.12), the Telegram /report bot (P4.13).
+
+### Needs a human
+1. **Review and merge this PR.** Add the `e2e` label so Playwright runs in CI.
+2. **Create the Render and Neon accounts and deploy** (docs/DEPLOY.md). The deployment now
+   needs `CORS_ORIGINS` set to the web app's https URL, or the API refuses to start. The seeded
+   admin and manager accounts use the public demo password: deactivate them after the
+   evaluation.
+3. **Try `make demo-reset` before dry run 2** (15 Nov) and say whether the staged incidents
+   suit the script; P6.5 writes the shot list around them.
+4. Still open from P4: the keys (`GEMINI_*`, `TELEGRAM_BOT_TOKEN`, `GOOGLE_*`) on the host;
+   re-tune θ once a Gemini key exists; confirm D-032 and D-028; review the 52 labelled
+   duplicate pairs; confirm the video file-name year with the IC.
+
+## Previous: P4 Intelligence and integrations (merged 12 Nov, PR #5)
 
 On `claude/awesome-brahmagupta-65bn2j`, cut from main after the P3 PR merged. Every P4 package
 still in scope after D-027 is done, and the phase review's findings are fixed. `make verify`

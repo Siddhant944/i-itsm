@@ -15,7 +15,10 @@ interface DataTableProps<Row> {
   onRowClick?: (row: Row) => void;
 }
 
-/** One table for every list in the three portals; the caption is read by screen readers. */
+/**
+ * One table for every list in the three portals; the caption is read by screen readers. A wide
+ * table scrolls sideways on a narrow screen, so its frame takes keyboard focus (P5.6, WCAG 2.1.1).
+ */
 export function DataTable<Row>({
   caption,
   columns,
@@ -24,7 +27,12 @@ export function DataTable<Row>({
   onRowClick,
 }: DataTableProps<Row>) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+    <div
+      role="region"
+      aria-label={caption}
+      tabIndex={0}
+      className="overflow-x-auto rounded-lg border border-line bg-surface focus-visible:outline-2 focus-visible:outline-accent"
+    >
       <table className="w-full border-collapse text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead>

@@ -72,7 +72,7 @@ Then open http://localhost:8080.
 | `make gen-client` | Regenerate the typed TypeScript client from the API's OpenAPI document |
 | `make migrate` | Bring the database at `DATABASE_URL` up to the latest Alembic migration |
 | `make seed` | Migrate, then load the campus catalogue, the demo accounts and 420 historical incidents |
-| `make demo-reset` | Reset the demo: reseed on an accelerated clock (from P5) |
+| `make demo-reset` | Wipe and reseed the local database, stage Workflows 1 and 2, then serve both apps on the ×10 demo clock |
 | `make diagrams` / `make report` | Render PlantUML diagrams / build the report PDF with tectonic |
 
 Configuration lives in environment variables; copy `.env.example` to `.env` (never commit it).

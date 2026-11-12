@@ -7,6 +7,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -102,6 +103,35 @@ class Settings(BaseSettings):
             msg = f"JWT_SECRET must be set to at least {MIN_PROD_SECRET_LENGTH} characters in prod"
             raise ValueError(msg)
         return self
+
+    @model_validator(mode="after")
+    def _lock_cors_in_prod(self) -> Self:
+        """P5.1: in prod the browser may call the API only from the deployed web app's origin."""
+        if self.app_env is not AppEnv.PROD:
+            return self
+        loose = [o for o in self.cors_origins if not _is_https_origin(o)]
+        if not self.cors_origins or loose:
+            msg = (
+                "CORS_ORIGINS must list the web app's https:// origin(s) in prod"
+                f" (refused: {loose or 'an empty list'})"
+            )
+            raise ValueError(msg)
+        return self
+
+
+def _is_https_origin(value: str) -> bool:
+    """An origin as browsers send it: ``https://host[:port]``, with no path and no slash.
+
+    ``https://web.example.com/`` (copied from the address bar) never equals the ``Origin``
+    header, so accepting it would let the API start and then refuse every sign-in (P5 review).
+    """
+    parts = urlsplit(value)
+    return (
+        parts.scheme == "https"
+        and bool(parts.netloc)
+        and not (parts.path or parts.query or parts.fragment)
+        and not value.endswith("/")
+    )
 
 
 @lru_cache
