@@ -29,6 +29,7 @@ from app.services.configuration import ConfigurationService, active_strategy
 from app.services.dispatcher import PostCommitDispatcher
 from app.services.duplicates import DuplicateDetector
 from app.services.incident_service import IncidentService
+from app.services.live import LiveHub, LivePublisher
 from app.services.notifications import EmailChannel, default_factory
 from app.services.notifications.service import NotificationService
 from app.services.resolution_advisor import ResolutionAdvisor
@@ -55,6 +56,8 @@ class Services:
     embeddings: EmbeddingProvider = field(default_factory=TfIdfEmbeddings)
     #: §6.1: Gemini summarises past fixes when configured; without it the list stands alone.
     summarizer: ResolutionSummarizer | None = None
+    #: P4.8: the open WebSockets; one per process.
+    live: LiveHub = field(default_factory=LiveHub)
 
 
 def get_services(request: Request) -> Services:
@@ -118,7 +121,9 @@ def get_incident_service(
     return IncidentService(
         uow,
         services.clock,
-        dispatcher=PostCommitDispatcher([notifications.on_event]),
+        dispatcher=PostCommitDispatcher(
+            [notifications.on_event, LivePublisher(uow, services.live).on_event]
+        ),
         advisor=services.advisor,
         # §5.3: the admin's saved choice, read per request so a switch takes effect at once.
         assignment_strategy=active_strategy(uow.settings),

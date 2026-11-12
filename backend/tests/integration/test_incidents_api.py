@@ -13,6 +13,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
+from starlette.websockets import WebSocketDisconnect
 
 from app.adapters.smtp_email import ConsoleEmailSender
 from app.api.deps import Services
@@ -763,3 +764,37 @@ def test_the_fee_portal_incident_names_the_database_outage_as_its_likely_root_ca
     api.post(f"/incidents/{database['id']}/cancel", json={}, headers=reporter)
     after = api.get(f"/incidents/{fees['id']}/correlation", headers=admin).json()
     assert after == {"hint": None, "root_causes": [], "impacted": []}
+
+
+# ---------------------------------------------------------------- live updates (P4.8)
+def test_a_socket_without_a_valid_token_is_closed_with_4401(api: TestClient) -> None:
+    for first in ({"token": "not-a-token"}, {"hello": "there"}):
+        with api.websocket_connect("/ws") as socket:
+            socket.send_json(first)
+            with pytest.raises(WebSocketDisconnect) as closed:
+                socket.receive_json()
+            assert closed.value.code == 4401
+
+
+def test_the_reporter_and_the_admin_hear_about_a_change_after_it_commits(
+    api: TestClient, reporter: dict[str, str], admin: dict[str, str]
+) -> None:
+    def bearer(headers: dict[str, str]) -> str:
+        return headers["Authorization"].removeprefix("Bearer ")
+
+    with (
+        api.websocket_connect("/ws") as mine,
+        api.websocket_connect("/ws") as watching,
+    ):
+        mine.send_json({"token": bearer(reporter)})
+        watching.send_json({"token": bearer(admin)})
+        assert mine.receive_json() == {"type": "ready"}
+        assert watching.receive_json() == {"type": "ready"}
+
+        incident_id = report(api, reporter)["incident"]["id"]
+
+        pushed = mine.receive_json()
+        assert pushed == {"type": "incident", "incident_id": incident_id, "status": "ASSIGNED"}
+        assert watching.receive_json()["incident_id"] == incident_id
+        # Only the id and status travel; the content is read through the API (BR-01).
+        assert set(pushed) == {"type", "incident_id", "status"}

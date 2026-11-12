@@ -7,6 +7,8 @@ import { NotificationBell } from "../components/NotificationBell";
 import { ErrorState, Skeleton } from "../components/States";
 import { roleLabel } from "../lib/format";
 import { incidentPath, NAVIGATION, PORTAL_HOME, PORTAL_TITLE, type NavItem } from "./nav";
+import { useLive } from "../api/useLive";
+import { useLiveState } from "../lib/live";
 
 function useVisibleNav(portal: Portal): NavItem[] {
   const { can } = useAuth();
@@ -38,6 +40,20 @@ function UserMenu() {
   );
 }
 
+/** P4.8: said once, quietly, while live updates are down; screens keep polling meanwhile. */
+export function LiveBanner() {
+  if (useLiveState() !== "reconnecting") return null;
+  return (
+    <p
+      role="status"
+      data-testid="live-banner"
+      className="mb-4 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs"
+    >
+      Live updates paused — reconnecting. Screens refresh every few seconds meanwhile.
+    </p>
+  );
+}
+
 /** Employee: a top bar and one centred column. */
 function TopBarLayout({ portal }: { portal: Portal }) {
   const items = useVisibleNav(portal);
@@ -64,6 +80,7 @@ function TopBarLayout({ portal }: { portal: Portal }) {
         </div>
       </header>
       <main className="mx-auto max-w-4xl px-4 py-8">
+        <LiveBanner />
         <Outlet />
       </main>
     </div>
@@ -115,6 +132,7 @@ function SidebarLayout({ portal }: { portal: Portal }) {
           <UserMenu />
         </header>
         <main className="min-w-0 flex-1 px-6 py-6">
+          <LiveBanner />
           <Outlet />
         </main>
       </div>
@@ -143,6 +161,8 @@ function SessionCheck() {
  */
 export function PortalShell({ portal }: { portal: Portal }) {
   const { status, user } = useAuth();
+  // P4.8: pushes while signed in; tests drive the hook directly with a fake socket.
+  useLive(user !== null && import.meta.env.MODE !== "test");
   if (status === "loading" || status === "unavailable") return <SessionCheck />;
   if (user === null) return <Navigate to="/login" replace />;
   const own = portalOf(user);

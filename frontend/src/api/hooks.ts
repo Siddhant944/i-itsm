@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-query";
 
 import { api, unwrap, type Schemas } from "./client";
+import { liveInterval, POLL_MS } from "../lib/live";
 
 export type Incident = Schemas["IncidentResponse"];
 export type IncidentSummary = Schemas["IncidentSummaryResponse"];
@@ -19,8 +20,8 @@ export type Category = Schemas["CategoryResponse"];
 export type SearchFilters = Schemas["SearchFilters"];
 export type UserRow = Schemas["UserResponse"];
 
-/** How often open screens re-read live data until WebSockets arrive (P4.8). */
-export const LIVE_MS = 10_000;
+/** How often open screens re-read live data: slowly while pushes arrive (P4.8). */
+export const LIVE_MS = POLL_MS;
 
 // ------------------------------------------------------------------ catalogue and names
 export function useServices(includeInactive = false) {
@@ -103,7 +104,7 @@ export function useMyIncidents() {
   return useQuery({
     queryKey: ["incidents", "mine"],
     queryFn: () => unwrap(api.GET("/incidents/mine")),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -111,7 +112,7 @@ export function useQueue() {
   return useQuery({
     queryKey: ["incidents", "queue"],
     queryFn: () => unwrap(api.GET("/incidents/queue", { params: { query: { limit: 100 } } })),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -120,7 +121,7 @@ export function useIncident(id: string) {
     queryKey: ["incident", id],
     queryFn: () =>
       unwrap(api.GET("/incidents/{incident_id}", { params: { path: { incident_id: id } } })),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -129,7 +130,7 @@ export function useSearch(filters: SearchFilters, live = false) {
     queryKey: ["incidents", "search", filters],
     queryFn: () => unwrap(api.POST("/incidents/search", { body: filters })),
     placeholderData: keepPreviousData,
-    refetchInterval: live ? LIVE_MS : false,
+    refetchInterval: live ? liveInterval : false,
   });
 }
 
@@ -207,7 +208,7 @@ export function useRisk(id: string, enabled: boolean) {
     queryFn: () =>
       unwrap(api.GET("/incidents/{incident_id}/risk", { params: { path: { incident_id: id } } })),
     enabled,
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -222,7 +223,7 @@ export function useCorrelation(id: string, enabled: boolean) {
         }),
       ),
     enabled,
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -340,7 +341,7 @@ export function useNotifications(enabled = true) {
   return useQuery({
     queryKey: ["notifications"],
     queryFn: () => unwrap(api.GET("/notifications", { params: { query: { limit: 20 } } })),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
     enabled,
   });
 }
@@ -365,7 +366,7 @@ export function useWorkload() {
   return useQuery({
     queryKey: ["workload"],
     queryFn: () => unwrap(api.GET("/reports/workload")),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -374,7 +375,7 @@ export function useDashboard(windowDays: number) {
     queryKey: ["dashboard", windowDays],
     queryFn: () =>
       unwrap(api.GET("/reports/dashboard", { params: { query: { window_days: windowDays } } })),
-    refetchInterval: LIVE_MS * 3,
+    refetchInterval: () => liveInterval() * 3,
     placeholderData: keepPreviousData,
   });
 }
@@ -383,7 +384,7 @@ export function useViolations() {
   return useQuery({
     queryKey: ["violations"],
     queryFn: () => unwrap(api.GET("/sla/violations", { params: { query: { limit: 100 } } })),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 

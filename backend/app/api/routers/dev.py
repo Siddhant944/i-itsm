@@ -12,9 +12,10 @@ from typing import Annotated
 from fastapi import APIRouter, Body
 from pydantic import BaseModel, Field
 
-from app.api.deps import CurrentUser, MonitorDep, ServicesDep
+from app.api.deps import CurrentUser, MonitorDep, ServicesDep, UowDep
 from app.core.clock import FakeClock, in_ist
 from app.domain.errors import InvalidUserInputError
+from app.services.live import LivePublisher
 
 router = APIRouter(prefix="/dev", tags=["dev"])
 MAX_ADVANCE_SECONDS = 60 * 60 * 24 * 14  # a fortnight is more than any demo needs
@@ -57,6 +58,7 @@ def advance_clock(
     user: CurrentUser,
     services: ServicesDep,
     monitor: MonitorDep,
+    uow: UowDep,
     payload: Annotated[AdvanceRequest, Body()],
 ) -> AdvanceResponse:
     """Move the clock forward, then tick the monitor so the consequences are visible."""
@@ -67,6 +69,8 @@ def advance_clock(
         )
     clock.advance(timedelta(seconds=payload.seconds))
     report = monitor.tick() if payload.tick else None
+    if report is not None:
+        LivePublisher(uow, services.live).incidents_changed(report.changed)
     state = _state(services)
     return AdvanceResponse(
         **state.model_dump(),

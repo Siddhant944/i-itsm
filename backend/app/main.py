@@ -31,6 +31,7 @@ from app.api.routers import notifications as notifications_router
 from app.api.routers import reports as reports_router
 from app.api.routers import users as users_router
 from app.api.routers import violations as violations_router
+from app.api.routers import ws as ws_router
 from app.core.clock import AcceleratedClock, Clock, FakeClock, SystemClock
 from app.core.config import ClockMode, Settings, get_settings
 from app.core.logging import configure_logging
@@ -43,6 +44,7 @@ from app.domain.similarity import TfIdfEmbeddings
 from app.repositories.database import make_engine, ping
 from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session_factory
 from app.services.auth_service import AuthPolicy
+from app.services.live import LiveHub, LivePublisher
 from app.services.notifications import EmailChannel, default_factory
 from app.services.notifications.service import NotificationService
 from app.services.scheduler import MonitorScheduler
@@ -169,7 +171,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.dependency_overrides[get_settings] = lambda: settings
 
-    scheduler = _schedule_monitor(app, settings, sessions, clock)
+    scheduler = _schedule_monitor(app, settings, sessions, clock, app.state.services.live)
     register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(auth_router.router)
@@ -181,6 +183,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(users_router.router)
     app.include_router(configuration_router.router)
     app.include_router(audit_router.router)
+    app.include_router(ws_router.router)
     if settings.clock_control_enabled:
         # D-009: controlling time is for the test and demo environments only.
         app.include_router(dev_router.router)
@@ -193,6 +196,7 @@ def _schedule_monitor(
     settings: Settings,
     sessions: sessionmaker[Session],
     clock: Clock,
+    hub: LiveHub,
 ) -> MonitorScheduler | None:
     """The background SLA monitor, unless SLA_TICK_SECONDS is 0 (D-003).
 
@@ -211,7 +215,9 @@ def _schedule_monitor(
                 email=EmailChannel(email, lambda user_id: _address(uow, user_id))
             )
             notifications = NotificationService(uow, clock, channels)
-            return SLAMonitor(uow, clock, notify=notifications.notify).tick()
+            report = SLAMonitor(uow, clock, notify=notifications.notify).tick()
+            LivePublisher(uow, hub).incidents_changed(report.changed)
+            return report
         finally:
             uow.close()
 
