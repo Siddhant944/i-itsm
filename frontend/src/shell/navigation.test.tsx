@@ -1,4 +1,5 @@
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { matchRoutes } from "react-router";
 import { describe, expect, it } from "vitest";
 
@@ -108,5 +109,28 @@ describe("the three portals", () => {
     const nav = await screen.findByRole("navigation", { name: "Main" });
     expect(within(nav).getAllByRole("link")).toHaveLength(NAVIGATION.admin.length);
     expect(container.querySelector("[data-portal]")).toHaveAttribute("data-portal", "admin");
+  });
+
+  it("folds the sidebar into a drawer on narrow screens (P5.6)", async () => {
+    const user = userEvent.setup();
+    const { router } = renderRoutes(routes, {
+      user: me("technician", 3),
+      routes: QUEUE,
+      path: "/technician/queue",
+    });
+    const menu = await screen.findByRole("button", { name: "Menu" });
+    expect(menu).toHaveAttribute("aria-controls", "portal-nav");
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(menu);
+    expect(menu).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Escape}");
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(menu);
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    await user.click(within(nav).getByRole("link", { name: "Workload" }));
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+    expect(router.state.location.pathname).toBe("/technician/workload");
   });
 });

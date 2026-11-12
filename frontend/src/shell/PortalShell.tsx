@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Navigate, NavLink, Outlet, useNavigate } from "react-router";
 
 import { useAuth } from "../auth/AuthContext";
@@ -72,6 +72,15 @@ export function LiveBanner() {
   );
 }
 
+/** P5.6: a screen's chunk is fetched the first time it opens; the frame stays put meanwhile. */
+function Screen() {
+  return (
+    <Suspense fallback={<Skeleton rows={4} label="Loading the screen" />}>
+      <Outlet />
+    </Suspense>
+  );
+}
+
 /** Employee: a top bar and one centred column. */
 function TopBarLayout({ portal }: { portal: Portal }) {
   const items = useVisibleNav(portal);
@@ -79,14 +88,18 @@ function TopBarLayout({ portal }: { portal: Portal }) {
     <div data-portal={portal} className="min-h-screen bg-page text-ink">
       <header className="bg-nav text-nav-ink">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-4 px-4 py-3">
-          <p className="text-lg font-semibold">I-ITSM {PORTAL_TITLE[portal]}</p>
-          <nav aria-label="Main" className="flex flex-1 flex-wrap gap-1">
+          <p className="mr-auto text-lg font-semibold sm:mr-0">I-ITSM {PORTAL_TITLE[portal]}</p>
+          {/* P5.6: on a phone the links take a row of their own below the name and the bell. */}
+          <nav
+            aria-label="Main"
+            className="order-last flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto sm:flex-1"
+          >
             {items.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `rounded-md px-3 py-1.5 text-sm font-medium ${isActive ? "bg-nav-active" : "hover:bg-white/10"}`
+                  `rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap ${isActive ? "bg-nav-active" : "hover:bg-white/10"}`
                 }
               >
                 {item.label}
@@ -99,24 +112,52 @@ function TopBarLayout({ portal }: { portal: Portal }) {
       </header>
       <main className="mx-auto max-w-4xl px-4 py-8">
         <LiveBanner />
-        <Outlet />
+        <Screen />
       </main>
     </div>
   );
 }
 
-/** Technician and Admin: a sidebar and a wide working area. */
+/**
+ * Technician and Admin: a sidebar and a wide working area. Below 1024 px the sidebar folds into
+ * a drawer behind a "Menu" button (P5.6), so a phone or a split screen keeps the working area.
+ */
 function SidebarLayout({ portal }: { portal: Portal }) {
   const items = useVisibleNav(portal);
   const groups = [...new Set(items.map((item) => item.group ?? ""))];
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+  const close = () => {
+    setMenuOpen(false);
+  };
   return (
     <div data-portal={portal} className="flex min-h-screen bg-page text-ink">
-      <aside className="flex w-56 shrink-0 flex-col bg-nav text-nav-ink">
+      {menuOpen && (
+        <div
+          aria-hidden="true"
+          data-testid="menu-backdrop"
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={close}
+        />
+      )}
+      <aside
+        id="portal-nav"
+        className={`${menuOpen ? "fixed inset-y-0 left-0 z-40 flex shadow-xl" : "hidden"} w-56 shrink-0 flex-col overflow-y-auto bg-nav text-nav-ink lg:static lg:flex lg:shadow-none`}
+      >
         <p className="px-4 pt-5 pb-1 text-xs font-semibold tracking-widest uppercase opacity-70">
           I-ITSM
         </p>
         <p className="px-4 pb-4 text-base font-semibold">{PORTAL_TITLE[portal]}</p>
-        <nav aria-label="Main" className="flex-1 space-y-4 px-2">
+        <nav aria-label="Main" className="flex-1 space-y-4 px-2 pb-4">
           {groups.map((group) => (
             <div key={group}>
               {group !== "" && (
@@ -131,6 +172,7 @@ function SidebarLayout({ portal }: { portal: Portal }) {
                     <li key={item.to}>
                       <NavLink
                         to={item.to}
+                        onClick={close}
                         className={({ isActive }) =>
                           `block rounded-md px-2 py-1.5 text-sm ${isActive ? "bg-nav-active font-semibold text-white" : "hover:bg-white/10"}`
                         }
@@ -145,13 +187,24 @@ function SidebarLayout({ portal }: { portal: Portal }) {
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-end gap-4 border-b border-line bg-surface px-6 py-2.5">
+        <header className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-2.5 sm:px-6">
+          <button
+            type="button"
+            className="mr-auto rounded-md border border-line px-3 py-1.5 text-sm font-medium lg:hidden"
+            aria-expanded={menuOpen}
+            aria-controls="portal-nav"
+            onClick={() => {
+              setMenuOpen((open) => !open);
+            }}
+          >
+            Menu
+          </button>
           <NotificationBell incidentHref={(id) => incidentPath(portal, id)} />
           <UserMenu />
         </header>
-        <main className="min-w-0 flex-1 px-6 py-6">
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
           <LiveBanner />
-          <Outlet />
+          <Screen />
         </main>
       </div>
     </div>

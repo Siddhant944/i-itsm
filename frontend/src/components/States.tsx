@@ -6,7 +6,7 @@ import { Button } from "./Button";
 /** Placeholder rows shown while a list loads. */
 export function Skeleton({ rows = 4, label = "Loading" }: { rows?: number; label?: string }) {
   return (
-    <div role="status" aria-label={label} className="animate-pulse space-y-3">
+    <div role="status" aria-busy="true" aria-label={label} className="animate-pulse space-y-3">
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className="h-9 rounded-md bg-raised" />
       ))}

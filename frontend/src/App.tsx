@@ -1,28 +1,43 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { lazy, useState, type ComponentType } from "react";
 import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from "react-router";
 
 import { ApiError } from "./api/client";
 import { AuthProvider } from "./auth/AuthContext";
 import { ToastProvider } from "./components/Toasts";
-import { AuditPage } from "./pages/admin/AuditPage";
-import { AssignmentPage } from "./pages/admin/config/AssignmentPage";
-import { CategoriesPage } from "./pages/admin/config/CategoriesPage";
-import { ServicesPage } from "./pages/admin/config/ServicesPage";
-import { SLAPage } from "./pages/admin/config/SLAPage";
-import { DashboardPage } from "./pages/admin/DashboardPage";
-import { SearchPage } from "./pages/admin/SearchPage";
-import { UsersPage } from "./pages/admin/UsersPage";
-import { ViolationsPage } from "./pages/admin/ViolationsPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
-import { MyIncidentsPage } from "./pages/employee/MyIncidentsPage";
-import { ReportPage } from "./pages/employee/ReportPage";
-import { IncidentDetailPage } from "./pages/incident/IncidentDetailPage";
-import { QueuePage } from "./pages/technician/QueuePage";
-import { TeamQueuePage } from "./pages/technician/TeamQueuePage";
-import { WorkloadPage } from "./pages/technician/WorkloadPage";
 import { HomeRedirect, PortalShell } from "./shell/PortalShell";
+
+/**
+ * P5.6: each screen is its own chunk, fetched when first opened, so an employee never downloads
+ * the admin dashboard's charts. The shell shows a skeleton meanwhile (PortalShell's Suspense).
+ */
+function page<K extends string>(
+  load: () => Promise<Record<K, ComponentType>>,
+  name: K,
+): ComponentType {
+  return lazy(async (): Promise<{ default: ComponentType }> => ({ default: (await load())[name] }));
+}
+
+const AuditPage = page(() => import("./pages/admin/AuditPage"), "AuditPage");
+const AssignmentPage = page(() => import("./pages/admin/config/AssignmentPage"), "AssignmentPage");
+const CategoriesPage = page(() => import("./pages/admin/config/CategoriesPage"), "CategoriesPage");
+const ServicesPage = page(() => import("./pages/admin/config/ServicesPage"), "ServicesPage");
+const SLAPage = page(() => import("./pages/admin/config/SLAPage"), "SLAPage");
+const DashboardPage = page(() => import("./pages/admin/DashboardPage"), "DashboardPage");
+const SearchPage = page(() => import("./pages/admin/SearchPage"), "SearchPage");
+const UsersPage = page(() => import("./pages/admin/UsersPage"), "UsersPage");
+const ViolationsPage = page(() => import("./pages/admin/ViolationsPage"), "ViolationsPage");
+const MyIncidentsPage = page(() => import("./pages/employee/MyIncidentsPage"), "MyIncidentsPage");
+const ReportPage = page(() => import("./pages/employee/ReportPage"), "ReportPage");
+const IncidentDetailPage = page(
+  () => import("./pages/incident/IncidentDetailPage"),
+  "IncidentDetailPage",
+);
+const QueuePage = page(() => import("./pages/technician/QueuePage"), "QueuePage");
+const TeamQueuePage = page(() => import("./pages/technician/TeamQueuePage"), "TeamQueuePage");
+const WorkloadPage = page(() => import("./pages/technician/WorkloadPage"), "WorkloadPage");
 
 /** Every route of the three portals. Exported so the navigation test can walk it. */
 // eslint-disable-next-line react-refresh/only-export-components -- route table, not a component
