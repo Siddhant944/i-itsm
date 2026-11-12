@@ -11,6 +11,7 @@ import {
   useIncidentAction,
   useNames,
   usePossibleDuplicates,
+  useRisk,
   useTeams,
   type Incident,
   type IncidentAction,
@@ -21,6 +22,7 @@ import { Badge, PriorityBadge, StatusBadge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { SelectField, TextArea } from "../../components/Field";
 import { Modal } from "../../components/Modal";
+import { RiskChip } from "../../components/RiskChip";
 import { SLAChip } from "../../components/SLAChip";
 import { Card, ErrorState, QueryView, Skeleton } from "../../components/States";
 import { useToasts } from "../../components/Toasts";
@@ -564,6 +566,8 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
   const teams = useTeams();
   const myTeam = teams.data?.find((team) => team.id === me.technician?.team_id);
   const allowed = availableActions(incident, me, myTeam?.member_ids ?? []);
+  // §6.3 is for the people working the incident; the reporter sees the SLA chip only.
+  const risk = useRisk(incident.id, can("incident:view_assigned"));
   const question = pendingQuestion(incident);
 
   const run = (next: IncidentAction, done: string, after?: () => void) => {
@@ -594,6 +598,7 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
           <StatusBadge status={incident.status} />
           <PriorityBadge priority={incident.priority} />
           <SLAChip sla={incident.sla} status={incident.status} />
+          {risk.data !== undefined && risk.data !== null && <RiskChip risk={risk.data} />}
           {incident.escalation_level > 0 && (
             <Badge tone="bad">Escalated · level {String(incident.escalation_level)}</Badge>
           )}
@@ -603,6 +608,11 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
           )}
         </div>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{incident.title}</h1>
+        {risk.data !== undefined && risk.data !== null && (
+          <p data-testid="risk-reason" className="mt-1 text-xs text-muted">
+            {risk.data.reason}
+          </p>
+        )}
       </div>
 
       {question !== null && allowed.provideInformation && (

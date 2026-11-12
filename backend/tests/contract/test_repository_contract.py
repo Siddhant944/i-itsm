@@ -26,7 +26,7 @@ from app.domain.notifications import (
     NotificationEvent,
 )
 from app.domain.permissions import Role
-from app.domain.priority import Priority
+from app.domain.priority import Priority, PriorityAssessment
 from app.domain.repositories import UnitOfWork
 from app.domain.similarity import StoredEmbedding
 from app.domain.sla import GOLD_TARGETS, SLATarget, SLATier, default_policies
@@ -781,3 +781,49 @@ def test_an_embedding_is_stored_per_incident_and_tagged_with_its_model(
     assert uow.embeddings.get_many([second.id], provider="gemini", model="embed-1") == {
         second.id: (0.0, 1.0, 0.0)
     }
+
+
+# ------------------------------------------------------------------ predictive risk (§6.3)
+def test_resolution_durations_exclude_paused_time_and_unfinished_work(
+    backend: Backend, uow: UnitOfWork
+) -> None:
+    clock = FakeClock(NOW)
+    backend.with_catalogue(uow)
+    reporter(uow)
+    uow.users.add(
+        UserFactory.create(Role.TECHNICIAN, user_id=2, email="t@campus.edu", full_name="T")
+    )
+
+    def worked(minutes: int, *, paused: int = 0, priority: Priority = Priority.P2) -> Incident:
+        incident = new_incident(uow, clock)
+        incident.prioritise(PriorityAssessment(priority, None, "test"), clock)
+        incident.apply_sla(TARGET)
+        uow.incidents.add(incident)
+        incident.classify(1, None, clock)
+        incident.assign(2, None, clock)
+        incident.acknowledge(2, clock)
+        incident.start(2, clock)
+        if paused:
+            incident.hold(2, clock, "Which building?")
+            clock.advance(timedelta(minutes=paused))
+            incident.provide_info(1, clock, "Library")
+        clock.advance(timedelta(minutes=minutes))
+        return incident
+
+    first = worked(30, paused=45)
+    first.resolve(2, clock, "Fixed")
+    uow.incidents.save(first)
+    second = worked(90)
+    second.resolve(2, clock, "Fixed")
+    uow.incidents.save(second)
+    uow.incidents.save(worked(500))  # still in progress: no resolution time yet
+    other = worked(10, priority=Priority.P3)
+    other.resolve(2, clock, "Fixed")
+    uow.incidents.save(other)
+    uow.commit()
+
+    found = uow.incidents.resolution_durations(1, Priority.P2)
+    assert found == (timedelta(minutes=90), timedelta(minutes=30))  # newest first
+    assert uow.incidents.resolution_durations(1, Priority.P2, limit=1) == (timedelta(minutes=90),)
+    assert uow.incidents.resolution_durations(1, Priority.P3) == (timedelta(minutes=10),)
+    assert uow.incidents.resolution_durations(2, Priority.P2) == ()

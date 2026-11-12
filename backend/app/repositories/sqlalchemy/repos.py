@@ -82,6 +82,7 @@ from app.domain.sla import (
 from app.domain.states import (
     AWAITING_REPORTER,
     OPEN_STATUSES,
+    RESOLVED_STATUSES,
     TERMINAL_STATUSES,
     IncidentStatus,
 )
@@ -260,6 +261,31 @@ class SqlAlchemyIncidentRepository(IncidentRepository):
         row.value = {"next": issued + 1}  # a new dict, so SQLAlchemy sees the change
         self.__session.flush()
         return issued
+
+    def resolution_durations(
+        self, category_id: int, priority: Priority, *, limit: int = 1000
+    ) -> tuple[timedelta, ...]:
+        rows = self.__session.execute(
+            select(
+                IncidentRow.sla_started_at,
+                IncidentRow.sla_stopped_at,
+                IncidentRow.sla_paused_total,
+            )
+            .where(
+                IncidentRow.category_id == category_id,
+                IncidentRow.priority == priority,
+                IncidentRow.status.in_(RESOLVED_STATUSES),
+                IncidentRow.sla_started_at.is_not(None),
+                IncidentRow.sla_stopped_at.is_not(None),
+            )
+            .order_by(IncidentRow.sla_stopped_at.desc(), IncidentRow.id.desc())
+            .limit(limit)
+        ).all()
+        return tuple(
+            stopped - started - (paused or timedelta(0))
+            for started, stopped, paused in rows
+            if started is not None and stopped is not None
+        )
 
     def duplicates_of(self, parent_id: str) -> tuple[Incident, ...]:
         rows = self.__session.scalars(

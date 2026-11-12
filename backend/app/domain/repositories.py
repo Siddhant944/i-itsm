@@ -7,7 +7,7 @@ against every implementation.
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Self
 
@@ -81,6 +81,17 @@ class IncidentRepository(ABC):
     @abstractmethod
     def next_sequence(self, year: int) -> int:
         """The next number for INC-<year>-NNNN (1-based, per year)."""
+
+    @abstractmethod
+    def resolution_durations(
+        self, category_id: int, priority: Priority, *, limit: int = 1000
+    ) -> tuple[timedelta, ...]:
+        """How long past incidents in this category and priority took to resolve (§6.3).
+
+        Working time from the start of the SLA clock to the resolution, paused time excluded,
+        for incidents resolved and not reopened since (RESOLVED, VERIFIED, CLOSED); the most
+        recent ``limit`` of them.
+        """
 
     @abstractmethod
     def duplicates_of(self, parent_id: str) -> tuple[Incident, ...]:

@@ -58,6 +58,7 @@ from app.domain.sla import (
 from app.domain.states import (
     AWAITING_REPORTER,
     OPEN_STATUSES,
+    RESOLVED_STATUSES,
     TERMINAL_STATUSES,
     IncidentStatus,
 )
@@ -145,6 +146,24 @@ class InMemoryIncidentRepository(IncidentRepository):
     def next_sequence(self, year: int) -> int:
         self.__sequences[year] += 1
         return self.__sequences[year]
+
+    def resolution_durations(
+        self, category_id: int, priority: Priority, *, limit: int = 1000
+    ) -> tuple[timedelta, ...]:
+        done: list[tuple[datetime, timedelta]] = []
+        for incident in self.__items.values():
+            clock = incident.sla_clock
+            if (
+                incident.category_id != category_id
+                or incident.priority is not priority
+                or incident.status not in RESOLVED_STATUSES
+                or clock is None
+                or clock.stopped_at is None
+            ):
+                continue
+            done.append((clock.stopped_at, clock.resolution_elapsed(clock.stopped_at)))
+        done.sort(key=lambda pair: pair[0], reverse=True)
+        return tuple(duration for _, duration in done[:limit])
 
     def duplicates_of(self, parent_id: str) -> tuple[Incident, ...]:
         found = [i for i in self.__items.values() if i.parent_id == parent_id]

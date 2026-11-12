@@ -22,6 +22,7 @@ from app.domain.incident import (
     NoteKind,
 )
 from app.domain.priority import Priority
+from app.domain.risk import RiskMethod
 from app.domain.sla import SLAStatus
 from app.domain.states import IncidentStatus
 from app.services.duplicates import DuplicateCandidate
@@ -88,6 +89,16 @@ class RelatedIncidentResponse(LinkedIncidentResponse):
     service_name: str
     hops: int = Field(ge=1, description="How many dependency edges apart the two services are")
     path: list[str] = Field(description="Service names from this incident's service to its own")
+
+
+class RiskResponse(BaseModel):
+    """§6.3: the predicted chance of a resolution breach, and the evidence in plain words."""
+
+    at_risk: bool
+    method: RiskMethod
+    reason: str
+    probability: float | None = Field(ge=0.0, le=1.0)
+    samples: int
 
 
 class CorrelationResponse(BaseModel):

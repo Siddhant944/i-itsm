@@ -180,6 +180,7 @@ export const BASE_ROUTES: Record<string, Handler> = {
   "POST /incidents/similar": { provider: "tfidf", candidates: [] },
   "GET /incidents/INC-2026-0001/possible-duplicates": { provider: "tfidf", candidates: [] },
   "GET /incidents/INC-2026-0001/correlation": { hint: null, root_causes: [], impacted: [] },
+  "GET /incidents/INC-2026-0001/risk": () => null,
   "GET /catalogue/services": [
     {
       id: 1,

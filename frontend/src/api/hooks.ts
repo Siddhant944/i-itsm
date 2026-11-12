@@ -186,6 +186,17 @@ export function usePossibleDuplicates(id: string, enabled: boolean) {
   });
 }
 
+/** §6.3: the predicted breach risk; null when there is nothing to forecast. */
+export function useRisk(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["incident", id, "risk"],
+    queryFn: () =>
+      unwrap(api.GET("/incidents/{incident_id}/risk", { params: { path: { incident_id: id } } })),
+    enabled,
+    refetchInterval: LIVE_MS,
+  });
+}
+
 /** §6.2: the likely root cause and what this incident may be causing (staff only). */
 export function useCorrelation(id: string, enabled: boolean) {
   return useQuery({
@@ -304,6 +315,7 @@ export function useIncidentAction(id: string) {
       refreshIncidents(client, incident);
       void client.invalidateQueries({ queryKey: ["incident", id, "advice"] });
       void client.invalidateQueries({ queryKey: ["incident", id, "duplicates"] });
+      void client.invalidateQueries({ queryKey: ["incident", id, "risk"] });
       void client.invalidateQueries({ queryKey: ["violations"] });
     },
   });

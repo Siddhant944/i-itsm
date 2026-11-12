@@ -59,6 +59,7 @@ from app.domain.permissions import Permission
 from app.domain.ports import AIAdvisor, CategoryInfo, Classification
 from app.domain.priority import Priority, PriorityStrategy, WeightedProductPriorityStrategy
 from app.domain.repositories import UnitOfWork
+from app.domain.risk import HistoricalRiskEstimator, RiskEstimate
 from app.domain.search import MAX_PAGE_SIZE, IncidentQuery
 from app.domain.states import IncidentStatus
 from app.domain.users import Technician, User
@@ -238,6 +239,33 @@ class IncidentService:
             self.__clock.now(),
         )
         return correlate(incident, graph, page.items)
+
+    def risk(self, actor: User, incident_id: str) -> RiskEstimate | None:
+        """§6.3: how likely this incident is to breach its resolution target, and why.
+
+        None when there is nothing to forecast: no SLA clock yet, the clock has stopped
+        (resolved, closed or cancelled), it is paused waiting for the reporter, or the
+        incident has no category or priority to compare it with.
+        """
+        incident = self.get(actor, incident_id)
+        clock = incident.sla_clock
+        if (
+            clock is None
+            or clock.is_stopped
+            or clock.is_paused
+            or incident.category_id is None
+            or incident.priority is None
+        ):
+            return None
+        category = self.__category(incident.category_id)
+        estimator = HistoricalRiskEstimator(
+            self.__uow.incidents.resolution_durations(category.id, incident.priority),
+            label=f"{incident.priority.value} {category.name}",
+        )
+        # A running clock measures against its live target (D-017 freezes it only at RESOLVED).
+        return estimator.estimate(
+            clock.resolution_elapsed(self.__clock.now()), clock.target.resolution
+        )
 
     def service_names(self) -> Mapping[int, str]:
         """Every service's name, retired ones included, for the words of a hint."""

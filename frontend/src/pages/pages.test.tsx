@@ -797,3 +797,54 @@ describe("correlation (§6.2)", () => {
     expect(calls.some((c) => c.path.endsWith("/correlation"))).toBe(false);
   });
 });
+
+describe("predictive SLA risk (§6.3)", () => {
+  it("shows the technician the predicted breach risk and the evidence behind it", async () => {
+    renderRoutes([{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }], {
+      path: "/technician/incidents/INC-2026-0001",
+      user: me("technician", 3),
+      routes: {
+        "GET /incidents/INC-2026-0001": incident(),
+        "GET /incidents/INC-2026-0001/risk": {
+          at_risk: true,
+          method: "history",
+          probability: 0.62,
+          samples: 13,
+          reason:
+            "62 % of past P2 Network incidents still open at 1 h 20 m went on to breach (8 of 13).",
+        },
+      },
+    });
+    expect(await screen.findByTestId("risk-chip")).toHaveTextContent("Breach risk 62%");
+    expect(screen.getByTestId("risk-reason")).toHaveTextContent(
+      "62 % of past P2 Network incidents still open at 1 h 20 m went on to breach",
+    );
+  });
+
+  it("says when the 75 % rule answered for want of history", async () => {
+    renderRoutes([{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }], {
+      path: "/technician/incidents/INC-2026-0001",
+      user: me("technician", 3),
+      routes: {
+        "GET /incidents/INC-2026-0001": incident(),
+        "GET /incidents/INC-2026-0001/risk": {
+          at_risk: false,
+          method: "threshold",
+          probability: null,
+          samples: 3,
+          reason: "40 % of the resolution target used; too few past P2 Network incidents (3).",
+        },
+      },
+    });
+    expect(await screen.findByTestId("risk-chip")).toHaveTextContent("On track (75 % rule)");
+  });
+
+  it("is not asked for in the employee portal", async () => {
+    const { calls } = detail({
+      user: me("employee", 1),
+      routes: { "GET /incidents/INC-2026-0001": incident() },
+    });
+    expect(await screen.findByText("Wi-Fi down")).toBeInTheDocument();
+    expect(calls.some((c) => c.path.endsWith("/risk"))).toBe(false);
+  });
+});

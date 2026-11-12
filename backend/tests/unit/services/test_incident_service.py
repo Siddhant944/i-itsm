@@ -25,6 +25,7 @@ from app.domain.events import DomainEvent, IncidentCreated, IncidentStateChanged
 from app.domain.incident import CancelReason, NoteKind
 from app.domain.permissions import Role
 from app.domain.priority import Priority
+from app.domain.risk import RiskMethod
 from app.domain.rule_advisor import RuleBasedAdvisor
 from app.domain.sla import default_policies
 from app.domain.states import IncidentStatus as S
@@ -684,3 +685,59 @@ def test_every_ai_classification_is_audited_with_its_source_and_confidence(
     assert not any(
         r.action is AuditAction.AI_CLASSIFIED for r in uow.audit.records(incident_id=chosen)
     )
+
+
+# ------------------------------------------------------------------ predictive risk (§6.3)
+def _work_and_resolve(
+    service: IncidentService, uow: InMemoryUnitOfWork, clock: FakeClock, worked: timedelta
+) -> None:
+    incident_id = report(service, uow)
+    assignee = who(uow, uow.incidents.get(incident_id).assignee_id or 0)
+    service.acknowledge(assignee, incident_id)
+    service.start(assignee, incident_id)
+    clock.advance(worked)
+    service.resolve(assignee, incident_id, "Fixed")
+
+
+def test_risk_is_predicted_from_comparable_past_incidents(
+    service: IncidentService, uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    probe = report(service, uow)
+    target = uow.incidents.get(probe).sla_clock.target.resolution  # type: ignore[union-attr]
+    service.cancel(who(uow, REPORTER), probe)
+    # Fourteen past incidents like it: ten done in 31 minutes, four that overran.
+    for worked in [timedelta(minutes=31)] * 10 + [target + timedelta(hours=1)] * 4:
+        _work_and_resolve(service, uow, clock, worked)
+
+    incident_id = report(service, uow)
+    early = service.risk(who(uow, ADMIN), incident_id)
+    assert early is not None
+    assert early.method is RiskMethod.HISTORY
+    assert early.probability == pytest.approx(4 / 14)
+    assert not early.at_risk
+    priority = uow.incidents.get(incident_id).priority
+    assert priority is not None
+    assert f"past {priority.value} Network incidents" in early.reason
+
+    # Past 31 minutes only the four long ones were still open: too few, so the rule answers.
+    clock.advance(timedelta(minutes=32))
+    later = service.risk(who(uow, REPORTER), incident_id)
+    assert later is not None
+    assert later.method is RiskMethod.THRESHOLD
+
+
+def test_there_is_no_forecast_without_a_running_clock_or_for_a_stranger(
+    service: IncidentService, uow: InMemoryUnitOfWork
+) -> None:
+    incident_id = report(service, uow)
+    with pytest.raises(UnauthorizedOperationError):
+        service.risk(who(uow, OTHER), incident_id)  # BR-01
+    assignee = who(uow, uow.incidents.get(incident_id).assignee_id or 0)
+    service.acknowledge(assignee, incident_id)
+    service.start(assignee, incident_id)
+    service.request_information(assignee, incident_id, "Which floor?")
+    assert service.risk(assignee, incident_id) is None  # paused, waiting for the reporter
+    service.resume(assignee, incident_id)
+    assert service.risk(assignee, incident_id) is not None
+    service.cancel(who(uow, REPORTER), incident_id)
+    assert service.risk(assignee, incident_id) is None

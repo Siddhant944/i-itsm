@@ -31,6 +31,7 @@ from app.api.schemas.incidents import (
     ReportedIncidentResponse,
     ReportIncidentRequest,
     ResolveRequest,
+    RiskResponse,
     SimilarRequest,
     SuggestionResponse,
     detail_of,
@@ -38,11 +39,14 @@ from app.api.schemas.incidents import (
     similar_of,
     summary_of,
 )
+from app.core.clock import Clock
 from app.domain.assignment import CandidateScore
 from app.domain.dependency_graph import Correlation, hint
+from app.domain.incident import Incident
 from app.domain.permissions import Permission
 from app.domain.ports import Classification
 from app.domain.users import User
+from app.services.incident_service import IncidentService
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -75,7 +79,7 @@ def report(
         follow=payload.follow,
     )
     return ReportedIncidentResponse(
-        incident=detail_of(result.incident, services.clock),
+        incident=_full(incidents, result.incident, services.clock),
         suggestion=_suggestion(result.suggestion),
         assignment=None if result.assignment is None else _score(result.assignment),
         queued_for_team_lead=result.queued_for_team_lead,
@@ -138,9 +142,7 @@ def detail(
     incident_id: str, user: CurrentUser, incidents: IncidentsDep, services: ServicesDep
 ) -> IncidentResponse:
     """One incident, if the caller may see it (BR-01). 403 otherwise, never a leak."""
-    incident = incidents.get(user, incident_id)
-    parent, count = incidents.duplicate_links(incident)
-    return detail_of(incident, services.clock, duplicate_of=parent, duplicate_count=count)
+    return _full(incidents, incidents.get(user, incident_id), services.clock)
 
 
 @router.get("/{incident_id}/possible-duplicates", response_model=DuplicateCheckResponse)
@@ -176,14 +178,14 @@ def acknowledge(
     incident_id: str, user: Worker, incidents: IncidentsDep, services: ServicesDep
 ) -> IncidentResponse:
     """BR-02, BR-07: acknowledging meets the response SLA."""
-    return detail_of(incidents.acknowledge(user, incident_id), services.clock)
+    return _full(incidents, incidents.acknowledge(user, incident_id), services.clock)
 
 
 @router.post("/{incident_id}/start", response_model=IncidentResponse)
 def start(
     incident_id: str, user: Worker, incidents: IncidentsDep, services: ServicesDep
 ) -> IncidentResponse:
-    return detail_of(incidents.start(user, incident_id), services.clock)
+    return _full(incidents, incidents.start(user, incident_id), services.clock)
 
 
 @router.post("/{incident_id}/notes", response_model=IncidentResponse)
@@ -194,7 +196,7 @@ def add_note(
     incidents: IncidentsDep,
     services: ServicesDep,
 ) -> IncidentResponse:
-    return detail_of(incidents.add_note(user, incident_id, payload.text), services.clock)
+    return _full(incidents, incidents.add_note(user, incident_id, payload.text), services.clock)
 
 
 @router.post("/{incident_id}/request-information", response_model=IncidentResponse)
@@ -206,14 +208,16 @@ def request_information(
     services: ServicesDep,
 ) -> IncidentResponse:
     """Ask the reporter a question; the resolution clock pauses (BR-07)."""
-    return detail_of(incidents.request_information(user, incident_id, payload.text), services.clock)
+    return _full(
+        incidents, incidents.request_information(user, incident_id, payload.text), services.clock
+    )
 
 
 @router.post("/{incident_id}/resume", response_model=IncidentResponse)
 def resume(
     incident_id: str, user: Worker, incidents: IncidentsDep, services: ServicesDep
 ) -> IncidentResponse:
-    return detail_of(incidents.resume(user, incident_id), services.clock)
+    return _full(incidents, incidents.resume(user, incident_id), services.clock)
 
 
 @router.post("/{incident_id}/resolve", response_model=IncidentResponse)
@@ -225,14 +229,14 @@ def resolve(
     services: ServicesDep,
 ) -> IncidentResponse:
     """BR-04: a resolution summary is required."""
-    return detail_of(incidents.resolve(user, incident_id, payload.summary), services.clock)
+    return _full(incidents, incidents.resolve(user, incident_id, payload.summary), services.clock)
 
 
 @router.post("/{incident_id}/close", response_model=IncidentResponse)
 def close(
     incident_id: str, user: Worker, incidents: IncidentsDep, services: ServicesDep
 ) -> IncidentResponse:
-    return detail_of(incidents.close(user, incident_id), services.clock)
+    return _full(incidents, incidents.close(user, incident_id), services.clock)
 
 
 @router.post("/{incident_id}/reassign", response_model=IncidentResponse)
@@ -244,7 +248,9 @@ def reassign(
     services: ServicesDep,
 ) -> IncidentResponse:
     """BR-06: refused when the technician is unavailable or would exceed the cap."""
-    return detail_of(incidents.reassign(user, incident_id, payload.technician_id), services.clock)
+    return _full(
+        incidents, incidents.reassign(user, incident_id, payload.technician_id), services.clock
+    )
 
 
 @router.post("/{incident_id}/priority", response_model=IncidentResponse)
@@ -256,7 +262,8 @@ def override_priority(
     services: ServicesDep,
 ) -> IncidentResponse:
     """BR-05: the reason is required and the override is audited."""
-    return detail_of(
+    return _full(
+        incidents,
         incidents.override_priority(user, incident_id, payload.priority, payload.reason),
         services.clock,
     )
@@ -271,8 +278,25 @@ def override_category(
     services: ServicesDep,
 ) -> IncidentResponse:
     """Correct the category, whether the AI or the reporter chose it (§6.1)."""
-    return detail_of(
-        incidents.override_category(user, incident_id, payload.category_id), services.clock
+    return _full(
+        incidents,
+        incidents.override_category(user, incident_id, payload.category_id),
+        services.clock,
+    )
+
+
+@router.get("/{incident_id}/risk", response_model=RiskResponse | None)
+def risk(incident_id: str, user: CurrentUser, incidents: IncidentsDep) -> RiskResponse | None:
+    """§6.3: predicted breach risk from comparable past incidents; null when nothing to forecast."""
+    found = incidents.risk(user, incident_id)
+    if found is None:
+        return None
+    return RiskResponse(
+        at_risk=found.at_risk,
+        method=found.method,
+        reason=found.reason,
+        probability=found.probability,
+        samples=found.samples,
     )
 
 
@@ -315,9 +339,9 @@ def confirm_duplicate(
     services: ServicesDep,
 ) -> IncidentResponse:
     """BR-09: cancel this incident as a duplicate; its reporter then follows the parent."""
-    incident = incidents.confirm_duplicate(user, incident_id, payload.parent_id)
-    parent, count = incidents.duplicate_links(incident)
-    return detail_of(incident, services.clock, duplicate_of=parent, duplicate_count=count)
+    return _full(
+        incidents, incidents.confirm_duplicate(user, incident_id, payload.parent_id), services.clock
+    )
 
 
 # ---------------------------------------------------------------- reporter actions
@@ -330,7 +354,9 @@ def provide_information(
     services: ServicesDep,
 ) -> IncidentResponse:
     """The reporter answers; an incident on hold resumes (D-006)."""
-    return detail_of(incidents.provide_information(user, incident_id, payload.text), services.clock)
+    return _full(
+        incidents, incidents.provide_information(user, incident_id, payload.text), services.clock
+    )
 
 
 @router.post("/{incident_id}/verify", response_model=IncidentResponse)
@@ -342,8 +368,10 @@ def verify(
     services: ServicesDep,
 ) -> IncidentResponse:
     """BR-03: only the reporter verifies, and the rating feeds the CSAT figure."""
-    return detail_of(
-        incidents.verify(user, incident_id, payload.rating, payload.comment), services.clock
+    return _full(
+        incidents,
+        incidents.verify(user, incident_id, payload.rating, payload.comment),
+        services.clock,
     )
 
 
@@ -356,7 +384,7 @@ def reject(
     services: ServicesDep,
 ) -> IncidentResponse:
     """BR-03, BR-04: only the reporter rejects, and only from RESOLVED."""
-    return detail_of(incidents.reject(user, incident_id, payload.reason), services.clock)
+    return _full(incidents, incidents.reject(user, incident_id, payload.reason), services.clock)
 
 
 @router.post("/{incident_id}/cancel", response_model=IncidentResponse)
@@ -368,13 +396,20 @@ def cancel(
     services: ServicesDep,
 ) -> IncidentResponse:
     """The reporter withdraws their own; an admin may cancel any, including as a duplicate."""
-    return detail_of(
+    return _full(
+        incidents,
         incidents.cancel(user, incident_id, payload.reason, payload.duplicate_of),
         services.clock,
     )
 
 
 # ---------------------------------------------------------------- mapping helpers
+def _full(incidents: IncidentService, incident: Incident, clock: Clock) -> IncidentResponse:
+    """The incident with its duplicate links, so every answer shows the same picture (§6.2)."""
+    parent, count = incidents.duplicate_links(incident)
+    return detail_of(incident, clock, duplicate_of=parent, duplicate_count=count)
+
+
 def _suggestion(classification: Classification | None) -> SuggestionResponse | None:
     if classification is None:
         return None

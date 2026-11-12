@@ -740,6 +740,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents/{incident_id}/risk": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Risk
+     * @description §6.3: predicted breach risk from comparable past incidents; null when nothing to forecast.
+     */
+    get: operations["risk_incidents__incident_id__risk_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/incidents/{incident_id}/start": {
     parameters: {
       query?: never;
@@ -1849,6 +1869,26 @@ export interface components {
     ResolveRequest: {
       /** Summary */
       summary: string;
+    };
+    /**
+     * RiskMethod
+     * @enum {string}
+     */
+    RiskMethod: "history" | "threshold";
+    /**
+     * RiskResponse
+     * @description §6.3: the predicted chance of a resolution breach, and the evidence in plain words.
+     */
+    RiskResponse: {
+      /** At Risk */
+      at_risk: boolean;
+      method: components["schemas"]["RiskMethod"];
+      /** Probability */
+      probability: number | null;
+      /** Reason */
+      reason: string;
+      /** Samples */
+      samples: number;
     };
     /**
      * Role
@@ -3459,6 +3499,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  risk_incidents__incident_id__risk_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RiskResponse"] | null;
         };
       };
       /** @description Validation error */

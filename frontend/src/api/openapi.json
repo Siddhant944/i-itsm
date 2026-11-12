@@ -1829,6 +1829,56 @@
         "title": "ResolveRequest",
         "type": "object"
       },
+      "RiskMethod": {
+        "enum": [
+          "history",
+          "threshold"
+        ],
+        "title": "RiskMethod",
+        "type": "string"
+      },
+      "RiskResponse": {
+        "description": "\u00a76.3: the predicted chance of a resolution breach, and the evidence in plain words.",
+        "properties": {
+          "at_risk": {
+            "title": "At Risk",
+            "type": "boolean"
+          },
+          "method": {
+            "$ref": "#/components/schemas/RiskMethod"
+          },
+          "probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probability"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at_risk",
+          "method",
+          "reason",
+          "probability",
+          "samples"
+        ],
+        "title": "RiskResponse",
+        "type": "object"
+      },
       "Role": {
         "enum": [
           "employee",
@@ -4577,6 +4627,55 @@
           }
         ],
         "summary": "Resume",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/risk": {
+      "get": {
+        "description": "\u00a76.3: predicted breach risk from comparable past incidents; null when nothing to forecast.",
+        "operationId": "risk_incidents__incident_id__risk_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RiskResponse"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Risk Incidents  Incident Id  Risk Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Risk",
         "tags": [
           "incidents"
         ]
