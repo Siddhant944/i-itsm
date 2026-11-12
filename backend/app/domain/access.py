@@ -11,9 +11,19 @@ from collections.abc import Collection
 from app.domain.errors import UnauthorizedOperationError
 from app.domain.incident import Incident
 from app.domain.permissions import Permission
+from app.domain.search import AWAITING_ASSIGNMENT
 from app.domain.users import User
 
 NO_TEAM: frozenset[int] = frozenset()
+
+
+def awaits_a_lead(incident: Incident) -> bool:
+    """True for an incident nobody holds yet (§5.3: "queued for the Team Lead").
+
+    It belongs to no team until someone assigns it, so every Team Lead may see and assign it;
+    otherwise the queue the blueprint describes would be one that no lead could open.
+    """
+    return incident.assignee_id is None and incident.status in AWAITING_ASSIGNMENT
 
 
 def can_view(user: User, incident: Incident, team_member_ids: Collection[int] = NO_TEAM) -> bool:
@@ -29,6 +39,8 @@ def can_view(user: User, incident: Incident, team_member_ids: Collection[int] = 
     if incident.reporter_id == user.id:
         return True
     if incident.assignee_id == user.id and user.can(Permission.INCIDENT_VIEW_ASSIGNED):
+        return True
+    if user.can(Permission.INCIDENT_VIEW_TEAM) and awaits_a_lead(incident):
         return True
     return (
         user.can(Permission.INCIDENT_VIEW_TEAM)
@@ -48,6 +60,8 @@ def can_work(user: User, incident: Incident, team_member_ids: Collection[int] = 
     if user.can(Permission.INCIDENT_VIEW_ALL):
         return True
     if incident.assignee_id == user.id:
+        return True
+    if user.can(Permission.INCIDENT_REASSIGN) and awaits_a_lead(incident):
         return True
     return (
         user.can(Permission.INCIDENT_REASSIGN)

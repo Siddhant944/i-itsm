@@ -92,7 +92,8 @@ def test_BR02_the_escalation_owner_may_work(incident: Incident) -> None:
     assert can_work(user(Role.TECHNICIAN, ASSIGNEE_ID), incident) is False
 
 
-def test_an_unassigned_incident_may_only_be_worked_by_an_admin() -> None:
+def test_an_unassigned_incident_is_for_a_team_lead_or_an_admin_to_pick_up() -> None:
+    """D-028: "queued for the Team Lead" (§5.3) must be something a lead can open and assign."""
     clock = FakeClock(NOW)
     unassigned = IncidentFactory.create(
         sequence=2,
@@ -105,7 +106,9 @@ def test_an_unassigned_incident_may_only_be_worked_by_an_admin() -> None:
         urgency=1,
     )
     assert can_work(user(Role.TECHNICIAN, ASSIGNEE_ID), unassigned) is False
-    assert can_work(user(Role.TEAM_LEAD, LEAD_ID), unassigned, TEAM) is False
+    assert can_view(user(Role.TECHNICIAN, ASSIGNEE_ID), unassigned) is False
+    assert can_work(user(Role.TEAM_LEAD, LEAD_ID), unassigned, TEAM) is True
+    assert can_view(user(Role.TEAM_LEAD, LEAD_ID), unassigned) is True
     assert can_work(user(Role.ADMINISTRATOR, ADMIN_ID), unassigned) is True
 
 

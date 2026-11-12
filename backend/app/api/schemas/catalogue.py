@@ -25,6 +25,7 @@ class ServiceResponse(BaseModel):
     name: str
     criticality: int
     sla_tier: SLATier
+    tier_overridden: bool = False
     required_skill_id: int | None
     depends_on: list[int]
     active: bool

@@ -98,6 +98,10 @@ class UserRepository(ABC):
     def find_by_email(self, email: EmailAddress) -> User | None: ...
 
     @abstractmethod
+    def all(self) -> tuple[User, ...]:
+        """Every account, in id order, for the admin's user screen and the name directory."""
+
+    @abstractmethod
     def technicians(self) -> tuple[Technician, ...]:
         """Every technician and team lead."""
 
@@ -126,6 +130,16 @@ class AuditRepository(ABC):
         self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
     ) -> tuple[AuditRecord, ...]:
         """A page of the chain, oldest first."""
+
+    @abstractmethod
+    def numbered(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[tuple[int, AuditRecord], ...]:
+        """The same page as ``records``, each with its 1-based position in the whole chain.
+
+        The position is what "verify integrity" reports a break at, so it must not change
+        when the list is filtered to one incident.
+        """
 
     @abstractmethod
     def count(self, *, incident_id: str | None = None) -> int: ...
@@ -287,6 +301,18 @@ class CatalogueRepository(ABC):
         """The configured targets; a missing row falls back to Gold (D-016)."""
 
 
+class SettingsRepository(ABC):
+    """Admin-editable settings kept as data (§3): one JSON-like value per key."""
+
+    @abstractmethod
+    def get(self, key: str) -> Mapping[str, object] | None:
+        """The stored value, or None when nothing has been saved under ``key``."""
+
+    @abstractmethod
+    def put(self, key: str, value: Mapping[str, object], *, updated_by: int | None) -> None:
+        """Store ``value`` under ``key``, replacing what was there."""
+
+
 class UnitOfWork(ABC):
     """One transaction: changes and their audit records commit or roll back together."""
 
@@ -298,6 +324,7 @@ class UnitOfWork(ABC):
     notifications: NotificationRepository
     analytics: AnalyticsRepository
     violations: SLAViolationRepository
+    settings: SettingsRepository
 
     def __enter__(self) -> Self:
         return self

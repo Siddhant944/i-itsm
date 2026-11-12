@@ -1,5 +1,99 @@
 @import "tailwindcss";
 
-@theme {
+/*
+ * One component library, three visibly different portals (blueprint §12, AGENTS.md: Frontend).
+ * Components use the semantic colours below; each portal sets them on its root element.
+ */
+@theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-nav: var(--nav);
+  --color-nav-ink: var(--nav-ink);
+  --color-nav-active: var(--nav-active);
 }
+
+/* Signed-out pages and the default. */
+:root {
+  --page: #f8fafc;
+  --surface: #ffffff;
+  --raised: #f1f5f9;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --accent-ink: #ffffff;
+  --accent-soft: #ccfbf1;
+  --nav: #ffffff;
+  --nav-ink: #0f172a;
+  --nav-active: #ccfbf1;
+}
+
+/* Employee: warm, light, a top bar and one centred column — a place to ask for help. */
+[data-portal="employee"] {
+  --page: #f7f5f0;
+  --surface: #ffffff;
+  --raised: #f3efe6;
+  --ink: #1c1917;
+  --muted: #6b6257;
+  --line: #e7e0d3;
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --accent-ink: #ffffff;
+  --accent-soft: #d5f2ec;
+  --nav: #134e4a;
+  --nav-ink: #f0fdfa;
+  --nav-active: #0f766e;
+}
+
+/* Technician: a dark, dense operations console with an amber accent. */
+[data-portal="technician"] {
+  --page: #0b1220;
+  --surface: #131c2e;
+  --raised: #1c2740;
+  --ink: #e5e9f2;
+  --muted: #94a3b8;
+  --line: #2a3654;
+  --accent: #f59e0b;
+  --accent-strong: #fbbf24;
+  --accent-ink: #1c1407;
+  --accent-soft: #3b2f12;
+  --nav: #070c16;
+  --nav-ink: #cbd5e1;
+  --nav-active: #1c2740;
+  color-scheme: dark;
+}
+
+/* Admin: a cool, light back office with an indigo sidebar. */
+[data-portal="admin"] {
+  --page: #f5f6fb;
+  --surface: #ffffff;
+  --raised: #eef0f8;
+  --ink: #111827;
+  --muted: #5b6478;
+  --line: #dfe3ee;
+  --accent: #4338ca;
+  --accent-strong: #3730a3;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0e7ff;
+  --nav: #1e1b4b;
+  --nav-ink: #e0e7ff;
+  --nav-active: #3730a3;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+}
+
+/* `dark:` follows the technician console rather than the operating system. */
+@custom-variant dark (&:where([data-portal="technician"], [data-portal="technician"] *));

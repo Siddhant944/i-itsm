@@ -171,7 +171,7 @@ class IncidentService:
         kept so the UI can show what happened and let a technician override it.
         """
         self.__require(actor, Permission.INCIDENT_CREATE)
-        service = self.__service(service_id)
+        service = self.__service(service_id, offered=True)
 
         incident = IncidentFactory.create(
             sequence=self.__uow.incidents.next_sequence(self.__clock.now().year),
@@ -191,7 +191,7 @@ class IncidentService:
         suggestion = None
         category = None
         if category_id is not None:
-            category = self.__category(category_id)
+            category = self.__category(category_id, offered=True)
         else:
             suggestion = self.classify_text(f"{title}\n{description}")
             if suggestion is not None and suggestion.category_id is not None:
@@ -275,7 +275,7 @@ class IncidentService:
         self.__require(actor, Permission.INCIDENT_OVERRIDE_CATEGORY)
 
         def change(incident: Incident) -> None:
-            category = self.__category(category_id)
+            category = self.__category(category_id, offered=True)
             if incident.category_id is None:
                 incident.classify(category.id, actor.id, self.__clock)
             else:
@@ -454,14 +454,23 @@ class IncidentService:
             return frozenset()
         return frozenset(self.__uow.catalogue.get_team(actor.team_id).member_ids)
 
-    def __service(self, service_id: int) -> ITService:
+    def __service(self, service_id: int, *, offered: bool = False) -> ITService:
+        """A service by id. ``offered`` insists it can still be reported against.
+
+        Only reporting asks for that: an incident already open on a service that has since
+        been retired must stay workable, or retiring a service would strand its incidents.
+        """
         service = self.__uow.catalogue.get_service(service_id)
-        if not service.active:
+        if offered and not service.active:
             raise ServiceNotFoundError(f"{service.name} is no longer offered.")
         return service
 
-    def __category(self, category_id: int) -> Category:
-        return self.__uow.catalogue.get_category(category_id)
+    def __category(self, category_id: int, *, offered: bool = False) -> Category:
+        """A category by id; ``offered`` refuses a retired one for a new choice."""
+        category = self.__uow.catalogue.get_category(category_id)
+        if offered and not category.active:
+            raise InvalidUserInputError({"category_id": f"{category.name} is no longer offered."})
+        return category
 
     def __technician(self, technician_id: int) -> Technician:
         user = self.__uow.users.get(technician_id)

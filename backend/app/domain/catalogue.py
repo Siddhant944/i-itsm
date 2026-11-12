@@ -310,3 +310,24 @@ def required_skills_for(
         if skill_id is not None
     ]
     return SkillSet(skill_names[skill_id] for skill_id in ids if skill_id in skill_names)
+
+
+def dependency_cycle(services: Iterable[ITService], changed: ITService) -> bool:
+    """True when ``changed``'s dependencies would make a service depend on itself (§6.2).
+
+    The correlation hint walks ``depends_on`` outward from a failing service, so the graph has
+    to stay acyclic; this is checked before an edited service is saved.
+    """
+    edges = {service.id: service.depends_on for service in services}
+    edges[changed.id] = changed.depends_on
+    seen: set[int] = set()
+    frontier = list(changed.depends_on)
+    while frontier:
+        current = frontier.pop()
+        if current == changed.id:
+            return True
+        if current in seen:
+            continue
+        seen.add(current)
+        frontier.extend(edges.get(current, ()))
+    return False

@@ -23,6 +23,7 @@ services:
       DATABASE_URL: postgresql+psycopg://itsm:itsm@postgres:5432/itsm
       CORS_ORIGINS: '["http://localhost:8080"]'
       FRONTEND_URL: http://localhost:8080
+      SEED_ON_START: "true" # demo data on the first start only
     depends_on:
       postgres:
         condition: service_healthy

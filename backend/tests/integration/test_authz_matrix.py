@@ -42,6 +42,14 @@ from app.services.auth_service import AuthPolicy
 NOW = datetime(2026, 11, 20, 9, 0, tzinfo=UTC)
 PASSWORD = "correct horse battery"
 SERVICE, CATEGORY = 1, 1
+#: Path parameters that name seeded rows: the technician, the one service, the one category.
+PATH_VALUES = {
+    "{user_id}": "3",
+    "{service_id}": str(SERVICE),
+    "{category_id}": str(CATEGORY),
+    "{tier}": "gold",
+    "{priority}": "P1",
+}
 
 #: Who exists, and what they are. The Team Lead is marked unavailable so auto-assignment
 #: always picks ``technician``: the matrix has to be deterministic to mean anything.
@@ -236,6 +244,66 @@ MATRIX: tuple[Operation, ...] = (
         EVERYONE,
         notes="ownership checked in test_only_your_own_notification",
     ),
+    # --- names beside ids (P3)
+    Operation("GET", "/users/directory", EVERYONE, notes="BR-01: employees see staff only"),
+    # --- administration (P3.4, P3.5)
+    Operation("GET", "/users", ADMINS),
+    Operation(
+        "POST",
+        "/users",
+        ADMINS,
+        body={
+            "email": "hired@campus.edu",
+            "full_name": "Newly Hired",
+            "password": PASSWORD,
+            "role": "technician",
+        },
+    ),
+    Operation("PATCH", "/users/{user_id}", ADMINS, body={}),
+    Operation(
+        "PUT",
+        "/users/{user_id}/technician",
+        ADMINS,
+        body={"skills": ["networking"], "experience_level": 2, "available": True, "team_id": 1},
+    ),
+    Operation(
+        "POST",
+        "/catalogue/categories",
+        ADMINS,
+        body={"name": "Printing", "keywords": ["printer"]},
+    ),
+    Operation(
+        "PUT",
+        "/catalogue/categories/{category_id}",
+        ADMINS,
+        body={"name": "Network", "required_skill_id": 1, "keywords": ["wifi", "network"]},
+    ),
+    Operation("POST", "/catalogue/services", ADMINS, body={"name": "LMS", "criticality": 2}),
+    Operation(
+        "PUT",
+        "/catalogue/services/{service_id}",
+        ADMINS,
+        body={"name": "Campus Wi-Fi", "criticality": 2},
+    ),
+    Operation("GET", "/sla/policies", ADMINS),
+    Operation(
+        "PUT",
+        "/sla/policies/{tier}/{priority}",
+        ADMINS,
+        body={"response_minutes": 5, "resolution_minutes": 30},
+    ),
+    Operation("GET", "/config/assignment", ADMINS),
+    Operation(
+        "PUT",
+        "/config/assignment",
+        ADMINS,
+        body={
+            "strategy": "smart",
+            "weights": {"skills": 0.4, "capacity": 0.3, "experience": 0.15, "history": 0.15},
+        },
+    ),
+    Operation("GET", "/audit", ADMINS),
+    Operation("POST", "/audit/verify", ADMINS),
 )
 
 
@@ -367,6 +435,8 @@ def call(world: World, operation: Operation, account: str | None) -> int:
         bell = world.api.get("/notifications", headers=world.tokens[account or "employee"]).json()
         first = bell["latest"][0]["id"] if bell["latest"] else 1
         path = path.replace("{notification_id}", str(first))
+    for name, value in PATH_VALUES.items():
+        path = path.replace(name, value)
     headers = {} if account is None else world.tokens[account]
     response = world.api.request(operation.method, path, json=operation.body, headers=headers)
     return int(response.status_code)

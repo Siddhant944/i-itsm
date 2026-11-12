@@ -33,6 +33,10 @@ class SortField(StrEnum):
     ID = "id"
 
 
+#: An incident nobody holds yet: reported, perhaps classified, not assigned (§4).
+AWAITING_ASSIGNMENT = (IncidentStatus.NEW, IncidentStatus.CLASSIFIED)
+
+
 @dataclass(frozen=True, slots=True)
 class IncidentQuery:
     """The nine filters of §9, plus free text, sorting and one page's worth of paging."""
@@ -46,6 +50,8 @@ class IncidentQuery:
     category_ids: tuple[int, ...] = field(default_factory=tuple)
     service_ids: tuple[int, ...] = field(default_factory=tuple)
     assignee_ids: tuple[int, ...] = field(default_factory=tuple)
+    #: With ``assignee_ids``: also match incidents still waiting for anyone (NEW, CLASSIFIED).
+    include_unassigned: bool = False
     reporter_ids: tuple[int, ...] = field(default_factory=tuple)
     sla_statuses: tuple[SLAStatus, ...] = field(default_factory=tuple)
     sort_by: SortField = SortField.CREATED_AT
@@ -107,9 +113,15 @@ class IncidentQuery:
     def restricted_to_assignee(self, user_id: int) -> Self:
         return replace(self, assignee_ids=(user_id,))
 
-    def restricted_to_assignees(self, user_ids: Sequence[int]) -> Self:
-        """Narrow to a set of technicians, e.g. a Team Lead's own team (D-004)."""
-        return replace(self, assignee_ids=tuple(user_ids))
+    def restricted_to_assignees(
+        self, user_ids: Sequence[int], *, include_unassigned: bool = False
+    ) -> Self:
+        """Narrow to a set of technicians, e.g. a Team Lead's own team (D-004).
+
+        ``include_unassigned`` adds what nobody holds yet: an incident queued for a Team Lead
+        (§5.3) has no assignee, so a lead who could only see their team's would never see it.
+        """
+        return replace(self, assignee_ids=tuple(user_ids), include_unassigned=include_unassigned)
 
 
 @dataclass(frozen=True, slots=True)

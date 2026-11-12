@@ -13,7 +13,11 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from types import MappingProxyType
 
-from app.domain.errors import InvalidIncidentError, MissingSLAConfigurationError
+from app.domain.errors import (
+    InvalidIncidentError,
+    InvalidUserInputError,
+    MissingSLAConfigurationError,
+)
 from app.domain.priority import Priority
 
 
@@ -50,6 +54,21 @@ class SLAStatus(StrEnum):
 class SLATarget:
     response: timedelta
     resolution: timedelta
+
+    @classmethod
+    def checked(cls, response: timedelta, resolution: timedelta) -> "SLATarget":
+        """A target an administrator is setting, refused when it cannot be met as written.
+
+        Stored targets are rebuilt with the plain constructor: a row written before this rule
+        must still load, or one odd policy would make every incident on it unreadable.
+        """
+        if response <= timedelta(0) or resolution <= timedelta(0):
+            raise InvalidUserInputError({"target": "Both targets must be longer than zero."})
+        if response > resolution:
+            raise InvalidUserInputError(
+                {"target": "The response target cannot be longer than the resolution target."}
+            )
+        return cls(response, resolution)
 
     def scaled(self, factor: int) -> "SLATarget":
         return SLATarget(self.response * factor, self.resolution * factor)
@@ -94,6 +113,11 @@ class SLAPolicyBook:
 
     def __init__(self, policies: Mapping[tuple[SLATier, Priority], SLATarget]) -> None:
         self.__policies = MappingProxyType(dict(policies))
+
+    @property
+    def policies(self) -> Mapping[tuple[SLATier, Priority], SLATarget]:
+        """Every configured target, read-only, for the admin's SLA grid."""
+        return self.__policies
 
     def target_for(self, tier: SLATier, priority: Priority) -> SLATarget:
         try:

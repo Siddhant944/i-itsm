@@ -401,6 +401,21 @@ def test_filter_by_category_service_assignee_and_reporter(uow: UnitOfWork) -> No
     ]
 
 
+def test_a_team_scope_can_include_what_nobody_holds_yet(uow: UnitOfWork) -> None:
+    """Both stores agree on "these technicians, or waiting for anyone" (the lead's queue)."""
+    everything = uow.incidents.search(IncidentQuery(limit=100), NOW).items
+    waiting = sorted(
+        i.id for i in everything if i.assignee_id is None and i.status in (S.NEW, S.CLASSIFIED)
+    )
+    assert waiting, "the fixture needs an incident nobody holds"
+    held = sorted(ids(uow, IncidentQuery(assignee_ids=(TECH2,))))
+    scoped = IncidentQuery().restricted_to_assignees((TECH2,), include_unassigned=True)
+    assert sorted(ids(uow, scoped)) == sorted(held + waiting)
+    # Without the flag nothing changes, and the flag alone (no assignees) filters nothing.
+    assert sorted(ids(uow, IncidentQuery().restricted_to_assignees((TECH2,)))) == held
+    assert len(ids(uow, IncidentQuery(include_unassigned=True, limit=100))) == len(everything)
+
+
 def test_filter_by_sla_status(uow: UnitOfWork) -> None:
     """The ninth filter: the SLA state computed from the clock (§5.2)."""
     breached = ids(uow, IncidentQuery(sla_statuses=(SLAStatus.BREACHED,)))

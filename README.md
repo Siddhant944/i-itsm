@@ -8,7 +8,7 @@ notifies and audits every step until the incident is verified and closed.
 
 CS F213 / MAC F212 Object-Oriented Programming, Semester I 2026–27 · Group 15
 
-> Status: **P0 foundations**. The app currently serves a health page; features land phase by phase (see [docs/PLAN.md](docs/PLAN.md)).
+> Status: **P3, the MVP**. The Employee, Technician and Admin portals work end to end on the full backend; the intelligence features land in P4 (see [docs/PLAN.md](docs/PLAN.md)). Deploying: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Quick start (Linux / macOS)
 
@@ -23,6 +23,7 @@ make dev
 ```
 
 Then open http://localhost:5173 (the API runs at http://127.0.0.1:8000, docs at `/docs`).
+Run `make seed` first for the demo accounts below and three months of history to look at.
 
 ## Windows, without make or Docker
 
@@ -109,7 +110,8 @@ Data: SQLite locally, PostgreSQL in Docker and deployment.
 | `admin@campus.edu` | Administrator | Admin |
 | `manager@campus.edu` | IT Manager | Admin |
 
-These are development credentials for a seeded database; a deployment seeds its own.
+These are demo credentials for a seeded database. Each browser tab holds its own sign-in, so the
+three portals can be open side by side as three different people.
 
 ## Tests
 

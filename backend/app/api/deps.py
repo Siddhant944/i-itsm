@@ -24,12 +24,14 @@ from app.domain.users import User
 from app.services.analytics import AnalyticsService
 from app.services.audit import AuditService
 from app.services.auth_service import AuthPolicy, AuthService
+from app.services.configuration import ConfigurationService, active_strategy
 from app.services.dispatcher import PostCommitDispatcher
 from app.services.incident_service import IncidentService
 from app.services.notifications import EmailChannel, default_factory
 from app.services.notifications.service import NotificationService
 from app.services.search import SearchService
 from app.services.sla_monitor import SLAMonitor
+from app.services.user_admin import UserAdminService
 
 #: ``auto_error=False`` so a missing header becomes our own 401 body, not FastAPI's.
 bearer = HTTPBearer(auto_error=False, scheme_name="Bearer")
@@ -111,10 +113,26 @@ def get_incident_service(
         services.clock,
         dispatcher=PostCommitDispatcher([notifications.on_event]),
         advisor=services.advisor,
+        # §5.3: the admin's saved choice, read per request so a switch takes effect at once.
+        assignment_strategy=active_strategy(uow.settings),
     )
 
 
 IncidentsDep = Annotated[IncidentService, Depends(get_incident_service)]
+
+
+def get_configuration_service(services: ServicesDep, uow: UowDep) -> ConfigurationService:
+    return ConfigurationService(uow, services.clock)
+
+
+ConfigurationDep = Annotated[ConfigurationService, Depends(get_configuration_service)]
+
+
+def get_user_admin_service(services: ServicesDep, uow: UowDep) -> UserAdminService:
+    return UserAdminService(uow, services.clock, services.hasher)
+
+
+UserAdminDep = Annotated[UserAdminService, Depends(get_user_admin_service)]
 
 
 def get_search_service(services: ServicesDep, uow: UowDep) -> SearchService:

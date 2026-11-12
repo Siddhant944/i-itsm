@@ -1,0 +1,46 @@
+# Render Blueprint (P3.6, docs/DEPLOY.md): the API as a Docker web service and the web app as
+# a static site, both on the free plan and both redeployed on every push to main.
+# PostgreSQL is on Neon (PROGRESS.md, P2.10): Render's free database expires after 30 days.
+services:
+  - type: web
+    name: i-itsm-api
+    runtime: docker
+    plan: free
+    # Both paths are written from the repository root, so they mean the same thing whichever
+    # way the host resolves them.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: demo
+      - key: SEED_ON_START
+        value: "true"
+      - key: DATABASE_URL # Neon, as postgresql+psycopg://...?sslmode=require
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS # the static site's URL, as a JSON list: ["https://....onrender.com"]
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+  - type: web
+    name: i-itsm-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npx vite build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL # the API service's URL, with no trailing slash
+        sync: false
+    routes:
+      - type: rewrite # a single-page app: every path is served by index.html
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable

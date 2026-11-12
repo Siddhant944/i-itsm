@@ -279,6 +279,58 @@ def test_when_nobody_has_capacity_the_incident_is_queued_for_the_team_lead(
     assert result.incident.status is S.CLASSIFIED
 
 
+def test_an_incident_queued_for_the_team_lead_can_be_seen_and_assigned_by_one(
+    service: IncidentService, uow: InMemoryUnitOfWork
+) -> None:
+    """P3 review: with no assignee it matched no team, so no lead could open or assign it."""
+    for technician_id in (TECH, TECH2, LEAD):
+        away(uow, technician_id)
+    queued = report(service, uow)
+
+    assert service.get(who(uow, LEAD), queued).assignee_id is None
+    with pytest.raises(UnauthorizedOperationError):
+        service.get(who(uow, TECH), queued)
+    with pytest.raises(UnauthorizedOperationError):
+        service.get(who(uow, OTHER), queued)
+
+    back = uow.users.get(TECH)
+    assert isinstance(back, Technician)
+    back.mark_available()
+    uow.users.save(back)
+    assigned = service.reassign(who(uow, LEAD), queued, TECH)
+    assert assigned.assignee_id == TECH
+    assert assigned.status is S.ASSIGNED
+
+
+def test_an_incident_on_a_since_retired_service_can_still_be_worked(
+    service: IncidentService, uow: InMemoryUnitOfWork
+) -> None:
+    """P3 review: retiring a service made every further step on its incidents a 404."""
+    incident_id = report(service, uow)
+    wifi = uow.catalogue.get_service(WIFI)
+    wifi.retire()
+    uow.catalogue.save_service(wifi)
+
+    assert service.assignment_advice(service.get(who(uow, ADMIN), incident_id)).ranked
+    overridden = service.override_priority(who(uow, ADMIN), incident_id, Priority.P1, "Exam week")
+    assert overridden.priority is Priority.P1
+    with pytest.raises(ServiceNotFoundError):
+        report(service, uow)
+
+
+def test_a_retired_category_is_refused_for_a_new_choice(
+    service: IncidentService, uow: InMemoryUnitOfWork
+) -> None:
+    incident_id = report(service, uow)
+    payments = uow.catalogue.get_category(PAYMENTS)
+    payments.retire()
+    uow.catalogue.save_category(payments)
+    with pytest.raises(InvalidUserInputError):
+        report(service, uow, category_id=PAYMENTS)
+    with pytest.raises(InvalidUserInputError):
+        service.override_category(who(uow, ADMIN), incident_id, PAYMENTS)
+
+
 # ---------------------------------------------------------------- BR-01, BR-02
 def test_BR01_an_employee_cannot_read_another_persons_incident(
     service: IncidentService, uow: InMemoryUnitOfWork

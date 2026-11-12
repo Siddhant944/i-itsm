@@ -2,27 +2,129 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P2 Persistence, services, API — done, PR open (11 Nov)
+## Status: P3 Frontend MVP and first deployment — done, PR open (11 Nov)
 
-On `claude/jolly-newton-82k47h`, cut from main after the P1 PR merged. All eleven packages are
-done, the phase review's findings are fixed, and the PR is open for the four of us to review.
+On `claude/affectionate-mccarthy-txowq5`, cut from main after the P2 PR merged. All seven
+packages are done and the phase review's findings are fixed (see P3.7 below).
 
-`make verify` passes: 789 backend tests, 97 % coverage. The whole suite also passes against a
-real PostgreSQL 16, migrations, a full seed, the authorisation matrix and a concurrent-writer
-audit test included — which is where four bugs turned up that SQLite alone would have hidden.
+`make verify` passes: 888 backend tests and 83 frontend tests. Playwright runs
+Workflow 1 and Workflow 2 in a real browser against a seeded database (`make e2e`, 3 specs).
 
-**We are behind the plan.** docs/PLAN.md had P2 finishing on 7 Nov and P3 (the frontend) on
-10 Nov; it is the 11th and P3 has not started. The backend is complete and the remaining phases
-are unchanged, but P3, P4 and P5 now have ten days rather than thirteen, with the recording on
-19-20 Nov. Worth deciding together whether to start cutting from the P4 list early (the cut
-order is in PLAN.md's usage rules) rather than discovering the squeeze in week three.
+**The MVP exists.** Someone can register, report an incident, watch it get classified,
+prioritised, put on an SLA and assigned; the technician can work it through every step; the
+reporter can answer a question, reject a fix and rate the next one; an admin can search,
+configure and audit. That is every MVP line of the brief, in three portals that look different.
 
-The API now has 45 endpoints and the backend is feature-complete for the MVP: an employee can
-report an incident and follow it, a technician can work it, an admin can search, configure and
-watch the SLAs, and the monitor escalates and auto-closes on its own. The frontend (P3) is the
-next phase.
+**Still behind the plan, by one day less.** P3 was planned for 8-10 Nov and finished on the
+11th in one session. P4 (intelligence and integrations) was planned for 11-14 Nov and has not
+started, with the feature freeze on the 16th and recording on the 19th. See "Needs a human" 1.
 
 ### Done
+- **Admin API (not in the plan; D-020).** The P3.4 and P3.5 screens had nothing to call, so
+  this phase added 15 operations: `GET /users/directory` (names beside ids; an employee sees
+  support staff only), user management (`GET/POST /users`, `PATCH /users/{id}` for role and
+  active, `PUT /users/{id}/technician`), catalogue edits (`POST/PUT` categories and services,
+  with a cycle check on dependencies), the SLA grid (`GET /sla/policies`, `PUT` one cell), the
+  assignment settings (`GET/PUT /config/assignment`, stored in `system_config` and read per
+  request so a switch takes effect on the next assignment) and the audit log (`GET /audit`
+  newest first, `POST /audit/verify`). Every change is audited in the same transaction. The
+  authorisation matrix now declares and proves all 60 operations.
+- **P3.1 Design system and shell.** One component library over semantic colour tokens, themed
+  three ways (`frontend/src/index.css`): a warm top-bar help desk for employees, a dark dense
+  console for technicians, an indigo back office for admins. Badge, SLAChip (a live countdown),
+  ConfidenceBadge, DataTable, FilterBar, Skeleton / Empty / Error states behind one `QueryView`
+  so no screen can forget one, Toasts, NotificationBell, Modal. Sign-in and registration.
+  `shell/nav.ts` is the single table of every screen; a test compares it with the route table
+  in both directions, so a screen cannot exist without a link to it.
+- **P3.2 Employee portal.** The report form asks the two plain-language questions of §5.1 and
+  shows the AI's category with its confidence; it is applied only when the reporter clicks,
+  and can be changed again. My incidents, the timeline, replying to an information request
+  (with the "clock is paused" notice), and confirming or rejecting a fix with a 1-5 rating.
+- **P3.3 Technician portal.** The queue most urgent first, the team queue for a Team Lead,
+  workload against the 10-point cap, and one shared incident page that offers only the next
+  legal step (§4) — the API still refuses anything else, and the refusal is what the user
+  sees. Notes, request information, resolve, override priority (a reason is required),
+  change category, and for leads the smart-assignment panel with the top three candidates and
+  their reasons.
+- **P3.4 Admin configuration.** Categories (keywords, required skill, priority floor),
+  services (criticality, SLA tier or "follow criticality", dependencies), the SLA grid, and
+  the assignment strategy with the four smart weights. An integration test adds a category
+  through the API and the classifier suggests it on the very next request.
+- **P3.5 Admin operations.** Dashboard with Recharts (overview cards, MTTA, MTTR, compliance,
+  CSAT, reopen rate, trend, services, workload, CSV exports), the nine-filter search with
+  paging and CSV, SLA violations with "run the monitor now", the audit log with its integrity
+  check (a test tampers with a row in SQL and the check reports where the chain breaks), and
+  users with technician profiles.
+- **P3.6 First deployment — configuration only.** `render.yaml` describes the API (Docker) and
+  the web app (static site), redeployed on every push to main; `docs/DEPLOY.md` has the ten
+  minutes of clicking. The image now honours `PORT` and seeds a never-seeded database once
+  (D-026). **Nothing is deployed yet**: that needs the Render and Neon accounts.
+- **P3.7 Phase close.** Playwright WF1 (report → suggestion with confidence → priority → SLA →
+  assignment → the assignee's notification and queue → the admin's audit trail, plus BR-01
+  for another employee) and WF2 (acknowledge → request info with the clock paused → reply →
+  resolve → reject → resolve → verify and rate → close, an illegal transition refused by the
+  API, the audit chain verified) both pass.
+  A fresh-context subagent then reviewed the whole phase diff and reported 16 findings, 9 of
+  them confirmed by running the API. All but the two listed under "Known gaps" are fixed, each
+  with a test that fails without the fix. The four that mattered most:
+  - retiring a service made every further step on its open incidents a 404;
+  - a technician holding open incidents, or a team's lead, could be deactivated, and an
+    escalation owner demoted, leaving incidents with someone who could not open them;
+  - an Administrator could demote, deactivate or create an IT Manager (D-029);
+  - incidents "queued for a Team Lead" were invisible to every lead (D-028).
+
+  Also fixed: `PATCH /users/{id}` was two transactions; the audit sequence was wrong under the
+  incident filter; SLA target validation ran when stored rows were loaded; a retired category
+  could still be chosen; retired services showed as "—" on older incidents; one failed
+  10-second refresh replaced the page with an error and lost typed text; a category applied by
+  the classifier was not announced to the reporter; a stale suggestion could be shown for new
+  text; technicians had no list of what they reported; the incident page offered actions the
+  API refuses; "SLA met" was shown for cancelled and late-response incidents; an API outage
+  signed people out; the CSV download bypassed the generated client.
+- **Known gaps, not fixed in P3.** (1) The timeline is built from what the incident itself
+  returns, so it shows reports, notes, questions, answers, resolution, feedback and closure but
+  not assignments, escalations or overrides; those are on the audit trail, which only admins
+  see. (2) An administrator cancelling someone else's incident is recorded with the reason
+  "withdrawn", because the domain has only "withdrawn" and "duplicate" until P4.1 confirms
+  duplicates. Both are small and both belong with P4 work that touches the same code.
+- Smaller things that came with it: SLA countdowns run on the application's clock rather than
+  the browser's (D-023), the token is per tab so three people can be signed in side by side
+  (D-022), and screens poll every 10 s until WebSockets arrive in P4.8 (D-024).
+
+### Next
+- **P4**, in the plan's order: P4.1 embeddings and duplicates first (never cut), then P4.2
+  correlation, P4.3 WF3 end to end, P4.4 the Gemini advisor, P4.5 predictive SLA risk.
+- Carried from P2, for **P5.5** (`make demo-reset`): the seeded history was never watched by
+  the monitor, so the first tick after a seed records about 170 breaches, 60 escalations and
+  30 auto-closes at once. `demo-reset` should record those as it seeds, or stage a smaller
+  backlog. Until then the e2e run and a fresh deployment keep the scheduler from surprising
+  anyone: e2e sets `SLA_TICK_SECONDS=0`; on a deployment the first tick is simply large.
+- For **P5.6** (UX pass): the sidebar portals are not yet comfortable below about 900 px wide,
+  and the frontend bundle is one chunk (Recharts is most of it) that could be split by portal.
+
+### Needs a human
+1. **P4 cuts are decided (D-027):** the Telegram /report chatbot, voice input, the health map
+   and the Locust run are out for now; Telegram alerts and Google Sign-In stay. Two things
+   follow for people rather than code: reword Workflow 1a in the demo script (no voice
+   report), and P4.9 and P4.10 need a Telegram bot token, a Google OAuth client ID and the
+   campus domain before those sessions start.
+2. **Review this phase and merge the PR.** Add the `e2e` label so Playwright runs in CI: this
+   phase is all UI.
+3. **Create the Render and Neon accounts and deploy**, following docs/DEPLOY.md (about ten
+   minutes, no card). Then do Workflow 1 by hand on the deployed URL — that is P3.6's
+   acceptance test and the one thing in this phase nobody has been able to check.
+4. **Dry run 1** was planned for 10 Nov: `make seed && make dev`, then walk Workflows 1 and 2
+   with the demo accounts in the README, three tabs side by side.
+5. Before P4.4: a Gemini API key and the model names from Google AI Studio.
+6. Confirm the video file-name year with the IC.
+
+## Previous: P2 Persistence, services, API (merged 11 Nov, PR #3)
+
+All eleven P2 packages done; 789 backend tests at 97 % coverage, also green on PostgreSQL 16.
+The package-by-package record and the hosting proposal are kept below because P3.6 and the
+report's deployment section still lean on them.
+
+### Done in P2
 - **P2.1 ORM and migrations.** `app/domain/catalogue.py` adds the entities the schema needed:
   Skill, Category (keywords, optional priority floor), ITService (criticality, SLA tier,
   dependencies) and Team, plus `required_skills_for` for D-002. `SLAClock.restore`,
@@ -150,7 +252,6 @@ next phase.
   string in Render as `DATABASE_URL` plus a strong `JWT_SECRET`. The API image already runs
   `alembic upgrade head` before serving, so the schema builds itself on first deploy.
 
-### Done, continued
 - **P2.11 Phase close.** A fresh-context subagent reviewed the whole phase diff against
   AGENTS.md, the blueprint and DECISIONS.md. It found three bugs that would have shipped and
   several smaller ones; all are fixed, each with a test that fails without the fix. The three
@@ -167,27 +268,6 @@ next phase.
   documented fallback was not implemented, a duplicate could be linked to an unseen incident,
   and a CSV cell could be a live formula.
 
-### Next
-- P3: the frontend. The backend is ready for it — 45 endpoints and a regenerated typed client.
-- One thing for **P5.5** (`make demo-reset`), noticed while smoke-testing a real deployment:
-  the seeded history was never watched by the monitor, so the first tick after a seed catches up
-  on the whole backlog at once (173 breaches recorded, 62 escalations, 30 auto-closes). That is
-  the monitor behaving correctly on three months of unmonitored history, but it is not what we
-  want on camera. `demo-reset` should either record the violations the history implies as it
-  seeds, or stage a smaller backlog, and should keep the resolved-awaiting-verification
-  incidents inside the 72-hour window so the first tick does not close them.
-
-### Needs a human
-1. **Review this phase and merge the PR.** Add the `e2e` label only at a phase end that touches
-   the UI; this one does not, so Playwright can stay off.
-2. **Create the hosting accounts before P3.6** — Render and Neon, per the P2.10 proposal above.
-   Neither needs a credit card. One person doing both takes about ten minutes.
-3. Before P4: a Gemini API key and the model names from Google AI Studio.
-4. Confirm the video file-name year with the IC.
-5. A note for the report's deployment section: on Render's free tier the service sleeps after 15
-   minutes, so the SLA monitor is not ticking while nobody is using the app, and outbound SMTP
-   is blocked so deployed email falls back to the console. Both are consequences of the free
-   tier rather than of our design, and both are covered in the P2.10 proposal.
 
 ## Previous: P1 Domain core (merged 4 Nov, PR #2)
 

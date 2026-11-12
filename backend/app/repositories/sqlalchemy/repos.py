@@ -63,11 +63,12 @@ from app.domain.repositories import (
     CredentialsRepository,
     IncidentRepository,
     NotificationRepository,
+    SettingsRepository,
     SLAViolationRepository,
     UnitOfWork,
     UserRepository,
 )
-from app.domain.search import IncidentQuery, Page, SortField
+from app.domain.search import AWAITING_ASSIGNMENT, IncidentQuery, Page, SortField
 from app.domain.sla import (
     SLAPolicyBook,
     SLAStatus,
@@ -334,7 +335,11 @@ def _conditions(query: IncidentQuery, now: datetime) -> list[ColumnElement[bool]
     if query.service_ids:
         where.append(IncidentRow.service_id.in_(query.service_ids))
     if query.assignee_ids:
-        where.append(IncidentRow.assignee_id.in_(query.assignee_ids))
+        held = IncidentRow.assignee_id.in_(query.assignee_ids)
+        waiting = and_(
+            IncidentRow.assignee_id.is_(None), IncidentRow.status.in_(AWAITING_ASSIGNMENT)
+        )
+        where.append(or_(held, waiting) if query.include_unassigned else held)
     if query.reporter_ids:
         where.append(IncidentRow.reporter_id.in_(query.reporter_ids))
     if query.sla_statuses:
@@ -451,6 +456,10 @@ class SqlAlchemyUserRepository(UserRepository):
         ).one_or_none()
         return self.__load(row) if row is not None else None
 
+    def all(self) -> tuple[User, ...]:
+        rows = self.__session.scalars(select(UserRow).order_by(UserRow.id)).all()
+        return tuple(self.__load(row) for row in rows)
+
     def technicians(self) -> tuple[Technician, ...]:
         rows = self.__session.scalars(
             select(UserRow)
@@ -487,6 +496,15 @@ class SqlAlchemyUserRepository(UserRepository):
     def __write_profile(self, user: User) -> None:
         """Keep ``technician_profiles`` and ``technician_skills`` in step with the user."""
         if not isinstance(user, Technician):
+            # A technician moved to another role keeps no profile, or every query that joins
+            # the profile table would still count them as support staff.
+            self.__session.execute(
+                delete(TechnicianSkillRow).where(TechnicianSkillRow.user_id == user.id)
+            )
+            self.__session.execute(
+                delete(TechnicianProfileRow).where(TechnicianProfileRow.user_id == user.id)
+            )
+            self.__session.flush()
             return
         profile = self.__session.get(TechnicianProfileRow, user.id)
         if profile is None:
@@ -624,6 +642,23 @@ class SqlAlchemyAuditRepository(AuditRepository):
             statement.order_by(AuditRecordRow.id).limit(limit).offset(offset)
         ).all()
         return tuple(mappers.row_to_audit(row) for row in rows)
+
+    def numbered(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[tuple[int, AuditRecord], ...]:
+        # Number the whole chain first, then filter: the position survives the filter.
+        chain = select(
+            AuditRecordRow.id.label("id"),
+            func.row_number().over(order_by=AuditRecordRow.id).label("position"),
+        ).subquery()
+        statement = self.__filtered(
+            select(AuditRecordRow, chain.c.position).join(chain, chain.c.id == AuditRecordRow.id),
+            incident_id,
+        )
+        rows = self.__session.execute(
+            statement.order_by(AuditRecordRow.id).limit(limit).offset(offset)
+        ).all()
+        return tuple((int(position), mappers.row_to_audit(row)) for row, position in rows)
 
     def count(self, *, incident_id: str | None = None) -> int:
         statement = self.__filtered(select(func.count()).select_from(AuditRecordRow), incident_id)
@@ -1208,6 +1243,28 @@ def _flag(condition: ColumnElement[bool]) -> ColumnElement[int]:
     return case((condition, 1), else_=0)
 
 
+class SqlAlchemySettingsRepository(SettingsRepository):
+    """Settings in ``system_config``, beside the counters the other repositories keep there."""
+
+    def __init__(self, session: Session, clock: Clock) -> None:
+        self.__session = session
+        self.__clock = clock
+
+    def get(self, key: str) -> Mapping[str, object] | None:
+        row = self.__session.get(SystemConfigRow, key)
+        return dict(row.value) if row is not None else None
+
+    def put(self, key: str, value: Mapping[str, object], *, updated_by: int | None) -> None:
+        row = self.__session.get(SystemConfigRow, key)
+        if row is None:
+            row = SystemConfigRow(key=key)
+            self.__session.add(row)
+        row.value = dict(value)
+        row.updated_at = self.__clock.now()
+        row.updated_by = updated_by
+        self.__session.flush()
+
+
 class SqlAlchemyUnitOfWork(UnitOfWork):
     """One session, one transaction, three repositories."""
 
@@ -1223,6 +1280,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.notifications = SqlAlchemyNotificationRepository(self.__session)
         self.analytics = SqlAlchemyAnalyticsRepository(self.__session)
         self.violations = SqlAlchemySLAViolationRepository(self.__session)
+        self.settings = SqlAlchemySettingsRepository(self.__session, self.__clock)
 
     @property
     def session(self) -> Session:

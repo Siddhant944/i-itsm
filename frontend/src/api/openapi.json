@@ -22,6 +22,212 @@
         "title": "AssignmentAdviceResponse",
         "type": "object"
       },
+      "AssignmentSettingsRequest": {
+        "properties": {
+          "strategy": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Strategy",
+            "type": "string"
+          },
+          "weights": {
+            "$ref": "#/components/schemas/AssignmentWeights"
+          }
+        },
+        "required": [
+          "strategy",
+          "weights"
+        ],
+        "title": "AssignmentSettingsRequest",
+        "type": "object"
+      },
+      "AssignmentSettingsResponse": {
+        "properties": {
+          "available": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Available",
+            "type": "array"
+          },
+          "strategy": {
+            "title": "Strategy",
+            "type": "string"
+          },
+          "weights": {
+            "$ref": "#/components/schemas/AssignmentWeights"
+          }
+        },
+        "required": [
+          "strategy",
+          "weights",
+          "available"
+        ],
+        "title": "AssignmentSettingsResponse",
+        "type": "object"
+      },
+      "AssignmentWeights": {
+        "description": "The four weights of \u00a75.3: skill coverage, spare capacity, experience, past fixes.",
+        "properties": {
+          "capacity": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Capacity",
+            "type": "number"
+          },
+          "experience": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Experience",
+            "type": "number"
+          },
+          "history": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "History",
+            "type": "number"
+          },
+          "skills": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Skills",
+            "type": "number"
+          }
+        },
+        "required": [
+          "skills",
+          "capacity",
+          "experience",
+          "history"
+        ],
+        "title": "AssignmentWeights",
+        "type": "object"
+      },
+      "AuditPageResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditRecordResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AuditPageResponse",
+        "type": "object"
+      },
+      "AuditRecordResponse": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sequence",
+          "occurred_at",
+          "action",
+          "actor_id",
+          "incident_id",
+          "details",
+          "hash"
+        ],
+        "title": "AuditRecordResponse",
+        "type": "object"
+      },
+      "AuditVerificationResponse": {
+        "properties": {
+          "broken_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Broken At"
+          },
+          "checked": {
+            "title": "Checked",
+            "type": "integer"
+          },
+          "intact": {
+            "title": "Intact",
+            "type": "boolean"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "intact",
+          "checked",
+          "broken_at",
+          "summary"
+        ],
+        "title": "AuditVerificationResponse",
+        "type": "object"
+      },
       "CancelReason": {
         "enum": [
           "withdrawn",
@@ -91,6 +297,55 @@
           "category_id"
         ],
         "title": "CategoryOverrideRequest",
+        "type": "object"
+      },
+      "CategoryRequest": {
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Keywords",
+            "type": "array"
+          },
+          "minimum_priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "required_skill_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Skill Id"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CategoryRequest",
         "type": "object"
       },
       "CategoryResponse": {
@@ -172,6 +427,48 @@
         "title": "ClassifyRequest",
         "type": "object"
       },
+      "CreateUserRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "technician": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TechnicianFieldsRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "email",
+          "full_name",
+          "password",
+          "role"
+        ],
+        "title": "CreateUserRequest",
+        "type": "object"
+      },
       "DashboardResponse": {
         "description": "Everything an admin dashboard shows, in one call.",
         "properties": {
@@ -226,6 +523,29 @@
         ],
         "title": "DeliveryStatus",
         "type": "string"
+      },
+      "DirectoryEntryResponse": {
+        "description": "Just enough to show a name beside an id.",
+        "properties": {
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "role"
+        ],
+        "title": "DirectoryEntryResponse",
+        "type": "object"
       },
       "FeedbackResponse": {
         "properties": {
@@ -1317,6 +1637,54 @@
         "title": "Role",
         "type": "string"
       },
+      "SLAPolicyRequest": {
+        "properties": {
+          "resolution_minutes": {
+            "maximum": 43200.0,
+            "minimum": 1.0,
+            "title": "Resolution Minutes",
+            "type": "integer"
+          },
+          "response_minutes": {
+            "maximum": 43200.0,
+            "minimum": 1.0,
+            "title": "Response Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "response_minutes",
+          "resolution_minutes"
+        ],
+        "title": "SLAPolicyRequest",
+        "type": "object"
+      },
+      "SLAPolicyResponse": {
+        "properties": {
+          "priority": {
+            "$ref": "#/components/schemas/Priority"
+          },
+          "resolution_minutes": {
+            "title": "Resolution Minutes",
+            "type": "integer"
+          },
+          "response_minutes": {
+            "title": "Response Minutes",
+            "type": "integer"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/SLATier"
+          }
+        },
+        "required": [
+          "tier",
+          "priority",
+          "response_minutes",
+          "resolution_minutes"
+        ],
+        "title": "SLAPolicyResponse",
+        "type": "object"
+      },
       "SLAResponse": {
         "description": "The live SLA picture the chips and countdowns need (\u00a75.2).",
         "properties": {
@@ -1508,6 +1876,62 @@
         "title": "SearchFilters",
         "type": "object"
       },
+      "ServiceRequest": {
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "criticality": {
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Criticality",
+            "type": "integer"
+          },
+          "depends_on": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Depends On",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "required_skill_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Skill Id"
+          },
+          "sla_tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SLATier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "criticality"
+        ],
+        "title": "ServiceRequest",
+        "type": "object"
+      },
       "ServiceResponse": {
         "properties": {
           "active": {
@@ -1546,6 +1970,11 @@
           },
           "sla_tier": {
             "$ref": "#/components/schemas/SLATier"
+          },
+          "tier_overridden": {
+            "default": false,
+            "title": "Tier Overridden",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1705,6 +2134,43 @@
         "title": "TeamResponse",
         "type": "object"
       },
+      "TechnicianFieldsRequest": {
+        "properties": {
+          "available": {
+            "default": true,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "experience_level": {
+            "default": 1,
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Experience Level",
+            "type": "integer"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Skills",
+            "type": "array"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "title": "TechnicianFieldsRequest",
+        "type": "object"
+      },
       "TechnicianProfileResponse": {
         "description": "The technician-only part of ``/me``.",
         "properties": {
@@ -1846,6 +2312,123 @@
           "resolved"
         ],
         "title": "TrendPointResponse",
+        "type": "object"
+      },
+      "UpdateUserRequest": {
+        "description": "Any combination; a field left out is left alone. Applied together or not at all.",
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "technician": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TechnicianFieldsRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "UpdateUserRequest",
+        "type": "object"
+      },
+      "UserResponse": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "available": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "experience_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experience Level"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "skills": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skills"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "role",
+          "active"
+        ],
+        "title": "UserResponse",
         "type": "object"
       },
       "ViolationKind": {
@@ -2005,6 +2588,108 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/audit": {
+      "get": {
+        "description": "The newest records first. ``sequence`` is the record's position in the whole chain,\nfiltered or not, so it matches what \"verify integrity\" reports.",
+        "operationId": "log_audit_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "incident_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Incident Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Log",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/audit/verify": {
+      "post": {
+        "description": "Recompute the whole hash chain and report the first break, if there is one.",
+        "operationId": "verify_audit_verify_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditVerificationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Verify",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "description": "Sign in. Five failures lock the account for fifteen minutes (blueprint \u00a78).",
@@ -2109,6 +2794,18 @@
       "get": {
         "description": "The categories, with the keywords the rule-based classifier uses (\u00a76.1).",
         "operationId": "categories_catalogue_categories_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2137,12 +2834,112 @@
         "tags": [
           "catalogue"
         ]
+      },
+      "post": {
+        "description": "A new category is live at once: the classifier reads its keywords on the next report.",
+        "operationId": "create_category_catalogue_categories_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Create Category",
+        "tags": [
+          "catalogue"
+        ]
+      }
+    },
+    "/catalogue/categories/{category_id}": {
+      "put": {
+        "operationId": "update_category_catalogue_categories__category_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "title": "Category Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Update Category",
+        "tags": [
+          "catalogue"
+        ]
       }
     },
     "/catalogue/services": {
       "get": {
-        "description": "The services someone can report an incident against.",
+        "description": "The services someone can report an incident against.\n\n``include_inactive`` adds the retired ones, flagged ``active: false``. Every screen needs\nthem to name the service of an incident reported before it was retired; the report form\noffers only the active ones.",
         "operationId": "services_catalogue_services_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2168,6 +2965,93 @@
           }
         ],
         "summary": "Services",
+        "tags": [
+          "catalogue"
+        ]
+      },
+      "post": {
+        "operationId": "create_service_catalogue_services_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Create Service",
+        "tags": [
+          "catalogue"
+        ]
+      }
+    },
+    "/catalogue/services/{service_id}": {
+      "put": {
+        "operationId": "update_service_catalogue_services__service_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service_id",
+            "required": true,
+            "schema": {
+              "title": "Service Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Update Service",
         "tags": [
           "catalogue"
         ]
@@ -2236,6 +3120,74 @@
         "summary": "Teams",
         "tags": [
           "catalogue"
+        ]
+      }
+    },
+    "/config/assignment": {
+      "get": {
+        "description": "The active assignment strategy and the smart strategy's weights (\u00a75.3).",
+        "operationId": "assignment_config_assignment_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentSettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Assignment",
+        "tags": [
+          "configuration"
+        ]
+      },
+      "put": {
+        "description": "Switch strategy at runtime; the next assignment uses it.",
+        "operationId": "set_assignment_config_assignment_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentSettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Set Assignment",
+        "tags": [
+          "configuration"
         ]
       }
     },
@@ -3697,6 +4649,97 @@
         ]
       }
     },
+    "/sla/policies": {
+      "get": {
+        "description": "The \u00a75.2 grid: one response and one resolution target per tier and priority.",
+        "operationId": "policies_sla_policies_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SLAPolicyResponse"
+                  },
+                  "title": "Response Policies Sla Policies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Policies",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/sla/policies/{tier}/{priority}": {
+      "put": {
+        "operationId": "set_policy_sla_policies__tier___priority__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tier",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SLATier"
+            }
+          },
+          {
+            "in": "path",
+            "name": "priority",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Priority"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SLAPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SLAPolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Set Policy",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
     "/sla/tick": {
       "post": {
         "description": "Run the monitor now and report what it did (the scheduler does this on a timer).",
@@ -3817,6 +4860,213 @@
         "summary": "For Incident",
         "tags": [
           "sla"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "everyone_users_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserResponse"
+                  },
+                  "title": "Response Everyone Users Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Everyone",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "description": "Create an account with any role; self-registration only makes Employees (D-008).",
+        "operationId": "create_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Create",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/directory": {
+      "get": {
+        "description": "Names for the ids on a screen; an employee is shown support staff only (BR-01).",
+        "operationId": "directory_users_directory_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DirectoryEntryResponse"
+                  },
+                  "title": "Response Directory Users Directory Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Directory",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{user_id}": {
+      "patch": {
+        "description": "Switch an account on or off, give it another role, edit its technician profile.\n\nAll of it is one change: either everything asked for is applied, or nothing is.",
+        "operationId": "update_users__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Update",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{user_id}/technician": {
+      "put": {
+        "description": "A technician's skills, experience, availability and team (\u00a75.3 reads all four).",
+        "operationId": "update_technician_users__user_id__technician_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TechnicianFieldsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Update Technician",
+        "tags": [
+          "users"
         ]
       }
     }

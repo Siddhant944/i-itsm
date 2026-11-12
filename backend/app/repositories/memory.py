@@ -39,11 +39,12 @@ from app.domain.repositories import (
     CredentialsRepository,
     IncidentRepository,
     NotificationRepository,
+    SettingsRepository,
     SLAViolationRepository,
     UnitOfWork,
     UserRepository,
 )
-from app.domain.search import IncidentQuery, Page, SortField
+from app.domain.search import AWAITING_ASSIGNMENT, IncidentQuery, Page, SortField
 from app.domain.sla import (
     SLAPolicyBook,
     SLAStatus,
@@ -163,7 +164,13 @@ def _matches(incident: Incident, query: IncidentQuery, now: datetime) -> bool:
         not query.priorities or incident.priority in query.priorities,
         not query.category_ids or incident.category_id in query.category_ids,
         not query.service_ids or incident.service_id in query.service_ids,
-        not query.assignee_ids or incident.assignee_id in query.assignee_ids,
+        not query.assignee_ids
+        or incident.assignee_id in query.assignee_ids
+        or (
+            query.include_unassigned
+            and incident.assignee_id is None
+            and incident.status in AWAITING_ASSIGNMENT
+        ),
         not query.reporter_ids or incident.reporter_id in query.reporter_ids,
         query.created_from is None or incident.created_at >= query.created_from,
         query.created_to is None or incident.created_at <= query.created_to,
@@ -212,6 +219,9 @@ class InMemoryUserRepository(UserRepository):
     def find_by_email(self, email: EmailAddress) -> User | None:
         return next((u for u in self.__items.values() if u.email == email), None)
 
+    def all(self) -> tuple[User, ...]:
+        return tuple(self.__items[key] for key in sorted(self.__items))
+
     def technicians(self) -> tuple[Technician, ...]:
         return tuple(u for u in self.__items.values() if isinstance(u, Technician))
 
@@ -241,6 +251,16 @@ class InMemoryAuditRepository(AuditRepository):
         self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
     ) -> tuple[AuditRecord, ...]:
         found = self.__selected(incident_id)
+        return tuple(found[offset : offset + limit])
+
+    def numbered(
+        self, *, incident_id: str | None = None, limit: int = 100, offset: int = 0
+    ) -> tuple[tuple[int, AuditRecord], ...]:
+        found = [
+            (position, record)
+            for position, record in enumerate(self.__records, start=1)
+            if incident_id is None or record.incident_id == incident_id
+        ]
         return tuple(found[offset : offset + limit])
 
     def count(self, *, incident_id: str | None = None) -> int:
@@ -561,6 +581,18 @@ class InMemoryAnalyticsRepository(AnalyticsRepository):
         return tuple(i for i in found if i.created_at >= since)
 
 
+class InMemorySettingsRepository(SettingsRepository):
+    def __init__(self) -> None:
+        self.__values: dict[str, dict[str, object]] = {}
+
+    def get(self, key: str) -> Mapping[str, object] | None:
+        stored = self.__values.get(key)
+        return dict(stored) if stored is not None else None
+
+    def put(self, key: str, value: Mapping[str, object], *, updated_by: int | None) -> None:
+        self.__values[key] = dict(value)
+
+
 class InMemoryUnitOfWork(UnitOfWork):
     def __init__(self) -> None:
         self.incidents = InMemoryIncidentRepository()
@@ -571,6 +603,7 @@ class InMemoryUnitOfWork(UnitOfWork):
         self.notifications = InMemoryNotificationRepository()
         self.analytics = InMemoryAnalyticsRepository(self.incidents, self.users, self.catalogue)
         self.violations = InMemorySLAViolationRepository()
+        self.settings = InMemorySettingsRepository()
         self.committed = 0
 
     def commit(self) -> None:

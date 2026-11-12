@@ -71,7 +71,7 @@ Rubric keys: **FN** Functionality 60 · **TD** Technical depth 15 · **DA** Desi
 | P3.7 | Phase close | all | – | – | Playwright WF1 and WF2 green; review; PR. Tue 10: dry run 1 | – |
 
 ## P4 Intelligence and integrations — Wed 11 – Sat 14 Nov
-Never-cut work and WF3 come first; the cuttable extras follow in reverse cut order.
+Never-cut work and WF3 come first, then WebSockets, then the two kept integrations (P4.9, P4.10). P4.11–P4.13 are cut for now (D-027).
 | ID | Package | Owner | Deps | Files | Acceptance | Rubric |
 |---|---|---|---|---|---|---|
 | P4.1 | Embeddings and duplicates | M2 | P3 | `domain/similarity.py` (TF-IDF, hybrid score); `adapters/gemini_embeddings.py` (provider-tagged vectors); `scripts/tune_duplicates.py`; `tests/fixtures/duplicate_pairs.json` (~50 labelled pairs); while-typing endpoint and UI hint; confirm-duplicate flow; 409 with link | `test_BR09_*`; INC101–103 linked; precision, recall and F1 in `docs/testing/duplicates.md` | IN, TST |
@@ -82,16 +82,16 @@ Never-cut work and WF3 come first; the cuttable extras follow in reverse cut ord
 | P4.6 | SmartStrategy reasons in the UI | M4 | P3 | Assignment panel showing the top 3 with reasons | Playwright asserts the reason text | IN, UX |
 | P4.7 | Suggested resolution | M2 | P4.1, P4.4 | `services/resolution_advisor.py` (top 3 similar resolved incidents; summary may cite only those IDs) | Citations ⊆ retrieved IDs; without Gemini, the list shows with no summary | IN |
 | P4.8 | WebSockets | M3, M4 | P3 | `api/ws.py` (JWT; post-commit push); `hooks/useLive.ts` (reconnect; offline banner) | Live bell and dashboard update | IN, TD |
-| P4.9 | Telegram alerts *(cut 6th)* | M1 | P2.5 | `adapters/telegram.py`; chat-ID linking in the profile; P1 and P2 routing | Fake Bot API; a send failure doesn't block | TD, IN |
-| P4.10 | Google Sign-In *(cut 5th)* | M3 | P2.3 | GIS button; `adapters/google_identity.py` (`hd` check; first sign-in creates an Employee) | Wrong `hd` → 401 (faked verifier) | TD |
-| P4.11 | Health map *(cut 4th)* | M4 | P4.2 | `pages/admin/HealthMap.tsx` (React Flow, coloured by open P1 and P2) | Vitest renders the nodes and edges | IN, UX |
-| P4.12 | Voice input *(cut 2nd)* | M4 | P3.2 | Mic button using the Web Speech API, hidden when unsupported | Vitest with mocked SpeechRecognition | IN |
-| P4.13 | Stretch: Telegram /report chatbot *(cut 1st)* | M1 | P4.9 | – | Only if ahead | IN |
+| P4.9 | Telegram alerts *(kept, D-027)* | M1 | P2.5 | `adapters/telegram.py`; chat-ID linking in the profile; P1 and P2 routing | Fake Bot API; a send failure doesn't block | TD, IN |
+| P4.10 | Google Sign-In *(kept, D-027)* | M3 | P2.3 | GIS button; `adapters/google_identity.py` (`hd` check; first sign-in creates an Employee) | Wrong `hd` → 401 (faked verifier) | TD |
+| P4.11 | Health map *(CUT for now, D-027)* | M4 | P4.2 | `pages/admin/HealthMap.tsx` (React Flow, coloured by open P1 and P2) | Vitest renders the nodes and edges | IN, UX |
+| P4.12 | Voice input *(CUT for now, D-027)* | M4 | P3.2 | Mic button using the Web Speech API, hidden when unsupported | Vitest with mocked SpeechRecognition | IN |
+| P4.13 | Stretch: Telegram /report chatbot *(CUT for now, D-027)* | M1 | P4.9 | – | Only if ahead | IN |
 | P4.14 | Phase close | all | – | – | Every feature degrades with its service off; review; PR. Sun 15: dry run 2 | – |
 
 ## P5 Hardening — Sun 15 – Mon 16 Nov (feature freeze at end of Mon 16)
 - **P5.1 (M3)** Production settings and secrets on the host; HTTPS; CORS locked to the frontend's origin. Acceptance: deployed health check and a WF1 smoke test pass.
-- **P5.2 (M3, cut 3rd)** Locust: 10k incidents, search p95 ≤ 300 ms; results in `docs/testing/performance.md`.
+- **P5.2 (M3, CUT for now, D-027)** Locust: 10k incidents, search p95 ≤ 300 ms; results in `docs/testing/performance.md`.
 - **P5.3 (M1, M2)** Coverage ≥ 80 % on domain and services, enforced with `--cov-fail-under`.
 - **P5.4 (M4)** All three workflows in Playwright, run by `e2e.yml` on PRs labelled `e2e`.
 - **P5.5 (M2, M3)** `make demo-reset`, locally and on the deployment: reseed, ×10 clock, staged incidents per workflow.
@@ -108,7 +108,7 @@ Never-cut work and WF3 come first; the cuttable extras follow in reverse cut ord
 ## Usage rules
 - Narrow tests while iterating, and `make verify` before each commit, as the gate between PRs.
 - Playwright only at phase ends. Short command output.
-- If usage runs short, cut in this order and log each cut: Telegram /report chatbot → voice input → Locust run → health map → Google Sign-In → Telegram alerts.
+- Cut on 11 Nov (D-027): Telegram /report chatbot, voice input, Locust run, health map. Restore in that reverse order only if time remains. If usage still runs short, the next cuts are Google Sign-In, then Telegram alerts; log each.
 - Never cut: the MVP, core-rule tests, AI classification with its fallback, duplicates, smart assignment, escalation or predictive SLA.
 
 ## Needs a human (seeded into PROGRESS.md)

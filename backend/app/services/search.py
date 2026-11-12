@@ -83,7 +83,10 @@ class SearchService:
         wanted = tuple(query.assignee_ids) or members
         allowed = tuple(user_id for user_id in wanted if user_id in members)
         # Asking only about technicians outside the team leaves the lead their own queue.
-        return query.restricted_to_assignees(allowed or (actor.id,))
+        # A lead who asked about nobody in particular also sees what is queued for a lead.
+        return query.restricted_to_assignees(
+            allowed or (actor.id,), include_unassigned=not query.assignee_ids
+        )
 
     def __names(self, incidents: Sequence[Incident]) -> dict[int, str]:
         wanted = {i.reporter_id for i in incidents} | {
