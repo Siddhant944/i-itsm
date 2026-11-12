@@ -181,6 +181,16 @@ class AuthService:
             self.__uow.commit()
             raise InvalidLoginError()
 
+        if credentials.google_subject is None and credentials.has_password:
+            # Registering a password never proved the email belonged to whoever chose it;
+            # Google has just proved it does belong to this person. A password set by someone
+            # else would otherwise keep working alongside theirs (P4 review), so it goes.
+            credentials.drop_password()
+            self.__audit.record(
+                AuditAction.PASSWORD_CHANGED,
+                actor_id=user.id,
+                details={"reason": "dropped when the account was linked to Google"},
+            )
         credentials.link_google(identity.subject)
         credentials.record_success(self.__clock.now())
         self.__uow.credentials.save(credentials)

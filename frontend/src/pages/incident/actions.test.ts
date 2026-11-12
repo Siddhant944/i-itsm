@@ -130,4 +130,11 @@ describe("timeline", () => {
     expect(pendingQuestion(incident({ ...asked, status: "IN_PROGRESS" }))).toBeNull();
     expect(pendingQuestion(incident({ status: "ON_HOLD" }))).toBeNull();
   });
+
+  it("does not offer to cancel an incident other reports follow (D-031)", () => {
+    const followed = incident({ status: "ASSIGNED", duplicate_count: 2 });
+    expect(availableActions(followed, me("employee", 1)).cancel).toBe(false);
+    expect(availableActions(followed, me("administrator", 5)).cancel).toBe(false);
+    expect(availableActions(incident({ status: "ASSIGNED" }), me("employee", 1)).cancel).toBe(true);
+  });
 });

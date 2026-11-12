@@ -508,7 +508,14 @@ def test_cancelling_and_duplicates(
     assert linked.json()["status"] == S.CANCELLED.value
     assert linked.json()["parent_id"] == first
 
-    withdrawn = api.post(f"/incidents/{first}/cancel", json={}, headers=reporter)
+    # Another report now follows the first, so it cannot simply be withdrawn (P4 review).
+    refused = api.post(f"/incidents/{first}/cancel", json={}, headers=reporter)
+    assert refused.status_code == 422
+
+    third = report(api, reporter, title="Printer out of toner", description="Admin office printer")[
+        "incident"
+    ]["id"]
+    withdrawn = api.post(f"/incidents/{third}/cancel", json={}, headers=reporter)
     assert withdrawn.json()["cancel_reason"] == "withdrawn"
 
 
@@ -852,3 +859,17 @@ def test_google_sign_in_signs_a_campus_account_in_and_refuses_others(api: TestCl
     refused = api.post("/auth/google", json=body)
     assert refused.status_code == 401
     assert "campus.edu" in refused.json()["error"]["message"]
+
+
+def test_a_socket_closes_with_4401_once_its_token_has_expired(
+    api: TestClient, reporter: dict[str, str], clock: FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P4 review: a socket must not keep receiving pushes after the sign-in lapses."""
+    monkeypatch.setattr("app.api.routers.ws.RECHECK_SECONDS", 0.05)
+    with api.websocket_connect("/ws") as socket:
+        socket.send_json({"token": reporter["Authorization"].removeprefix("Bearer ")})
+        assert socket.receive_json() == {"type": "ready"}
+        clock.advance(timedelta(minutes=31))  # the test tokens last 30 minutes
+        with pytest.raises(WebSocketDisconnect) as closed:
+            socket.receive_json()
+        assert closed.value.code == 4401

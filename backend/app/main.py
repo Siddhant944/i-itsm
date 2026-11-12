@@ -93,10 +93,14 @@ def classifier(settings: Settings) -> AIAdvisor:
     return RuleBasedAdvisor()
 
 
-def google_verifier(settings: Settings, clock: Clock) -> IdentityVerifier | None:
-    """P4.10: Google Sign-In needs both the client id and the campus domain (D-008)."""
+def google_verifier(settings: Settings) -> IdentityVerifier | None:
+    """P4.10: Google Sign-In needs both the client id and the campus domain (D-008).
+
+    Google's tokens expire in real time, so they are judged by the system clock even when the
+    application runs ×10 or stands still for the demo (P4 review).
+    """
     if settings.google_client_id and settings.google_hd_domain:
-        return GoogleIdTokenVerifier(settings.google_client_id, clock)
+        return GoogleIdTokenVerifier(settings.google_client_id, SystemClock())
     return None
 
 
@@ -192,7 +196,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         embeddings=embedding_provider(settings),
         summarizer=summarizer(settings),
         telegram=chat_sender(settings),
-        google=google_verifier(settings, clock),
+        google=google_verifier(settings),
     )
     app.state.db_probe = lambda: ping(engine)
     app.state.settings = settings

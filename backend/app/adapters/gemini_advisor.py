@@ -141,8 +141,9 @@ def build_summary_prompt(ticket: str, fixes: Sequence[PastFix]) -> str:
     def clean(text: str) -> str:
         return text.replace(OPEN_TICKET, "").replace(CLOSE_TICKET, "")[:MAX_TICKET_CHARS]
 
+    # The title is written by a reporter too, so it goes inside the delimiters (P4 review).
     past = "\n\n".join(
-        f"{fix.incident_id}: {clean(fix.title)}\n{OPEN_TICKET}\n{clean(fix.resolution)}\n"
+        f"{fix.incident_id}:\n{OPEN_TICKET}\n{clean(fix.title)}\n{clean(fix.resolution)}\n"
         f"{CLOSE_TICKET}"
         for fix in fixes
     )

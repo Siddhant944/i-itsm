@@ -18,6 +18,7 @@ from dataclasses import dataclass
 
 from app.core.clock import Clock
 from app.domain.access import (
+    can_view,
     ensure_can_cancel,
     ensure_can_view,
     ensure_can_work,
@@ -35,6 +36,7 @@ from app.domain.audit import AuditAction
 from app.domain.catalogue import Category, ITService, required_skills_for
 from app.domain.dependency_graph import (
     LIVE_STATUSES,
+    ROOT_CAUSE_PRIORITIES,
     CorrelationReport,
     DependencyGraph,
     correlate,
@@ -61,7 +63,6 @@ from app.domain.priority import Priority, PriorityStrategy, WeightedProductPrior
 from app.domain.repositories import UnitOfWork
 from app.domain.risk import HistoricalRiskEstimator, RiskEstimate
 from app.domain.search import MAX_PAGE_SIZE, IncidentQuery
-from app.domain.states import IncidentStatus
 from app.domain.users import Technician, User
 from app.services.audit import AuditService
 from app.services.dispatcher import PostCommitDispatcher
@@ -199,7 +200,7 @@ class IncidentService:
             description=description,
             service_id=service_id,
             reported_at=self.__clock.now(),
-        )
+        ).top()
 
     def possible_duplicates(self, actor: User, incident_id: str) -> DuplicateCheck:
         """What an open incident may be a duplicate of, for the technician to confirm (§6.2)."""
@@ -213,7 +214,7 @@ class IncidentService:
             service_id=incident.service_id,
             reported_at=incident.created_at,
             exclude_id=incident.id,
-        )
+        ).top()
 
     def correlation(self, actor: User, incident_id: str) -> CorrelationReport:
         """§6.2: open incidents related to this one through the service dependency graph.
@@ -233,15 +234,25 @@ class IncidentService:
         }
         if not related:
             return CorrelationReport((), ())
-        page = self.__uow.incidents.search(
-            IncidentQuery(
-                statuses=tuple(LIVE_STATUSES),
-                service_ids=tuple(sorted(related)),
-                limit=MAX_PAGE_SIZE,
-            ),
-            self.__clock.now(),
-        )
-        return correlate(incident, graph, page.items)
+        upstream = tuple(sorted(r.service_id for r in graph.upstream(incident.service_id)))
+        downstream = tuple(sorted(r.service_id for r in graph.downstream(incident.service_id)))
+        now = self.__clock.now()
+        # Two queries, so a flood of fresh incidents on dependent services during an outage
+        # can never push the older root cause off the page (P4 review).
+        found: list[Incident] = []
+        for service_ids, priorities in (
+            (upstream, tuple(sorted(ROOT_CAUSE_PRIORITIES))),
+            (downstream, ()),
+        ):
+            if service_ids:
+                query = IncidentQuery(
+                    statuses=tuple(LIVE_STATUSES),
+                    service_ids=service_ids,
+                    priorities=priorities,
+                    limit=MAX_PAGE_SIZE,
+                )
+                found.extend(self.__uow.incidents.search(query, now).items)
+        return correlate(incident, graph, found)
 
     def risk(self, actor: User, incident_id: str) -> RiskEstimate | None:
         """§6.3: how likely this incident is to breach its resolution target, and why.
@@ -283,13 +294,26 @@ class IncidentService:
         """BR-09: cancel ``incident_id`` as a duplicate of ``parent_id``.
 
         Its reporter is from then on told about the parent (D-005). Whoever may work the
-        incident may confirm it; the parent only has to exist and still be open, because the
-        "possible duplicate" panel has already shown its id and title.
+        incident may confirm it, linking it to an open incident they may see or that was shown
+        to them as a possible duplicate of this one: the response names the parent, so a
+        guessed id must not become a way to read one (BR-01).
         """
         self.__require(actor, Permission.INCIDENT_CONFIRM_DUPLICATE)
 
         def change(incident: Incident) -> None:
             parent = self.__duplicate_parent(incident, parent_id)
+            if not can_view(actor, parent, self.__team_of(actor)):
+                # The panel shows a colleague's look-alikes by id and title, so those may be
+                # confirmed; any other id would turn a guess into a read (BR-01).
+                shown = self.__duplicates.check(
+                    title=incident.title,
+                    description=incident.description,
+                    service_id=incident.service_id,
+                    reported_at=incident.created_at,
+                    exclude_id=incident.id,
+                ).top()
+                if parent.id not in {c.incident.id for c in shown.candidates}:
+                    raise UnauthorizedOperationError(f"You may not view {parent.id}.")
             incident.cancel(actor.id, self.__clock, CancelReason.DUPLICATE, parent.id)
 
         return self.__work(actor, incident_id, change)
@@ -332,6 +356,9 @@ class IncidentService:
                 candidate.score, candidate.gap
             ):
                 raise DuplicateIncidentError(candidate.incident.id)
+        # The repeat check above sees every candidate; the reporter is shown, and may
+        # follow, only the best few (BR-01, P4 review).
+        check = check.top()
         followed = None if follow is None else self.__followed(check, follow)
 
         incident = IncidentFactory.create(
@@ -511,6 +538,16 @@ class IncidentService:
     ) -> Incident:
         incident = self.__uow.incidents.get(incident_id)
         ensure_can_cancel(actor, incident)
+        followers = self.__uow.incidents.duplicates_of(incident.id)
+        if followers:
+            # Its followers were told they would hear when this is fixed (D-005); cancelling
+            # it would drop their problem silently (P4 review). Staff resolve it instead.
+            raise InvalidUserInputError(
+                {
+                    "incident": f"{len(followers)} other report(s) follow {incident.id}, so it "
+                    "cannot be withdrawn; the help desk will resolve it."
+                }
+            )
         if duplicate_of is not None:
             # 404 rather than a dangling link, and BR-01 rather than a link into someone
             # else's incident: D-005 makes parent_id the subscription, so a link the caller
@@ -635,8 +672,11 @@ class IncidentService:
             problem = "An incident cannot be a duplicate of itself."
         elif parent.parent_id is not None and parent.cancel_reason is CancelReason.DUPLICATE:
             problem = f"{parent.id} is itself a duplicate of {parent.parent_id}; link to that."
-        elif parent.status is IncidentStatus.CANCELLED:
-            problem = f"{parent.id} was cancelled, so nothing can be linked to it."
+        elif parent.status not in COMPARABLE_STATUSES:
+            # Its followers would wait for a resolution that has already happened (D-031).
+            problem = (
+                f"{parent.id} is {parent.status.value.lower()}, so nothing can be linked to it."
+            )
         elif self.__uow.incidents.duplicates_of(incident.id):
             problem = (
                 f"Other reports are already linked to {incident.id}; link {parent.id} to it "

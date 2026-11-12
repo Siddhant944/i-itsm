@@ -55,8 +55,6 @@ router = APIRouter(prefix="/incidents", tags=["incidents"])
 Reporter = Annotated[User, Depends(requires(Permission.INCIDENT_CREATE))]
 Worker = Annotated[User, Depends(requires(Permission.INCIDENT_WORK))]
 MAX_PAGE = 200
-#: How many possible duplicates one answer shows (§6.2: a hint, not a search).
-MAX_HINTS = 3
 #: How many related incidents one correlation answer lists on each side.
 MAX_RELATED = 10
 
@@ -115,7 +113,7 @@ def similar(
         service_id=payload.service_id,
     )
     return DuplicateCheckResponse(
-        provider=check.provider, candidates=[similar_of(c) for c in check.candidates[:MAX_HINTS]]
+        provider=check.provider, candidates=[similar_of(c) for c in check.candidates]
     )
 
 
@@ -156,7 +154,7 @@ def possible_duplicates(
     """What this incident may be a duplicate of, for the technician to confirm (§6.2)."""
     check = incidents.possible_duplicates(user, incident_id)
     return DuplicateCheckResponse(
-        provider=check.provider, candidates=[similar_of(c) for c in check.candidates[:MAX_HINTS]]
+        provider=check.provider, candidates=[similar_of(c) for c in check.candidates]
     )
 
 

@@ -12,7 +12,7 @@ recomputed over the recent incidents each time, because their weights depend on 
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from app.core.clock import Clock
@@ -39,6 +39,9 @@ logger = logging.getLogger(__name__)
 CANDIDATE_WINDOW = timedelta(days=14)
 #: The most recent incidents read as the TF-IDF corpus; also bounds the work per request.
 CORPUS_LIMIT = 300
+#: How many possible duplicates anyone is shown, and so may follow (§6.2: a hint, not a
+#: search; BR-01 keeps the rest of other people's incidents out of sight).
+MAX_SUGGESTIONS = 3
 #: Only an incident somebody is still dealing with can be "followed instead" (§6.2).
 COMPARABLE_STATUSES = frozenset(
     {
@@ -75,6 +78,10 @@ class DuplicateCheck:
     #: The report's own vector when the provider's vectors are worth storing, else None.
     vector: tuple[float, ...] | None = None
     model: str = ""
+
+    def top(self, count: int = MAX_SUGGESTIONS) -> "DuplicateCheck":
+        """The same check, keeping only the ``count`` best candidates."""
+        return replace(self, candidates=self.candidates[:count])
 
     @property
     def best(self) -> DuplicateCandidate | None:

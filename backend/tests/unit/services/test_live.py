@@ -65,3 +65,47 @@ def test_closing_a_socket_the_browser_already_left_is_not_an_error() -> None:
             raise WebSocketDisconnect(1006)
 
     asyncio.run(_close(Gone()))  # type: ignore[arg-type]
+
+
+def test_followers_of_a_duplicate_hear_when_the_incident_they_follow_changes() -> None:
+    """D-005: the follower's page shows the parent's status; it is refreshed by their own id."""
+    from datetime import UTC, datetime
+
+    from app.core.clock import FakeClock
+    from app.domain.incident import CancelReason, IncidentFactory
+    from app.repositories.memory import InMemoryUnitOfWork
+    from app.services.live import LivePublisher
+
+    clock = FakeClock(datetime(2026, 11, 12, 9, 0, tzinfo=UTC))
+    uow = InMemoryUnitOfWork()
+
+    def made(sequence: int, reporter: int) -> str:
+        incident = IncidentFactory.create(
+            sequence=sequence,
+            clock=clock,
+            reporter_id=reporter,
+            title="Fee portal down",
+            description="Down",
+            service_id=1,
+            impact=2,
+            urgency=2,
+        )
+        uow.incidents.add(incident)
+        return incident.id
+
+    parent, child = made(1, 1), made(2, 2)
+    linked = uow.incidents.get(child)
+    linked.cancel(2, clock, CancelReason.DUPLICATE, parent)
+    uow.incidents.save(linked)
+
+    async def scenario() -> list[dict[str, str]]:
+        hub = LiveHub()
+        follower = hub.subscribe(2, watches_all=False)
+        LivePublisher(uow, hub).incident_changed(parent)
+        await asyncio.sleep(0)
+        got = []
+        while not follower.queue.empty():
+            got.append(follower.queue.get_nowait())
+        return got
+
+    assert [m["incident_id"] for m in asyncio.run(scenario())] == [child]

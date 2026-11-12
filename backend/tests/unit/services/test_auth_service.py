@@ -382,7 +382,6 @@ def test_an_existing_password_account_is_linked_but_never_to_a_second_google_acc
     register(auth, "asha@campus.edu")
     linked = google_auth(uow, clock, FakeGoogle(campus(sub="g-1"))).google_sign_in("token")
     assert uow.credentials.get(linked.user_id).google_subject == "g-1"
-    assert auth.login("asha@campus.edu", GOOD_PASSWORD).user_id == linked.user_id  # still works
 
     impostor = google_auth(uow, clock, FakeGoogle(campus(sub="g-2")))
     with pytest.raises(InvalidLoginError):
@@ -410,3 +409,16 @@ def test_google_sign_in_is_unavailable_until_both_settings_exist(
         google_auth(uow, clock, FakeGoogle(campus()), domain="").google_sign_in("token")
     with pytest.raises(InvalidLoginError):
         google_auth(uow, clock, FakeGoogle(None)).google_sign_in("token")  # a bad token
+
+
+def test_BR01_a_password_someone_else_registered_stops_working_once_google_proves_the_owner(
+    auth: AuthService, uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    """P4 review: registering asha@ with a password proves nothing about owning the address.
+    When the real Asha signs in with Google, the squatter's password must not keep working."""
+    register(auth, "asha@campus.edu")  # anyone could have done this
+    linked = google_auth(uow, clock, FakeGoogle(campus())).google_sign_in("token")
+    with pytest.raises(InvalidLoginError):
+        auth.login("asha@campus.edu", GOOD_PASSWORD)
+    assert uow.credentials.get(linked.user_id).has_password is False
+    assert AuditAction.PASSWORD_CHANGED in actions(uow)

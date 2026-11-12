@@ -8,7 +8,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.adapters.google_identity import LEEWAY_SECONDS, GoogleIdTokenVerifier
-from app.core.clock import FakeClock
+from app.core.clock import FakeClock, SystemClock
 from app.core.config import Settings
 from app.domain.errors import InvalidLoginError, NetworkFailureError
 from app.main import google_verifier
@@ -91,11 +91,16 @@ def test_googles_keys_being_unreachable_is_a_network_failure_not_a_bad_token() -
 
 
 def test_the_verifier_is_wired_only_with_a_client_id_and_a_campus_domain(
-    settings: Settings,
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    clock = FakeClock(NOW)
-    assert google_verifier(settings, clock) is None
+    assert google_verifier(settings) is None
     only_id = settings.model_copy(update={"google_client_id": CLIENT})
-    assert google_verifier(only_id, clock) is None
+    assert google_verifier(only_id) is None
     both = only_id.model_copy(update={"google_hd_domain": "campus.edu"})
-    assert isinstance(google_verifier(both, clock), GoogleIdTokenVerifier)
+    assert isinstance(google_verifier(both), GoogleIdTokenVerifier)
+
+    # P4 review: Google's expiry is real time, never the x10 or frozen demo clock.
+    built: list[object] = []
+    monkeypatch.setattr("app.main.GoogleIdTokenVerifier", lambda client, clock: built.append(clock))
+    google_verifier(both)
+    assert isinstance(built[0], SystemClock)

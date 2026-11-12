@@ -454,3 +454,102 @@ def test_the_offline_provider_failing_is_not_swallowed(
     report(service, uow, ASHA, "Fee portal down")
     with pytest.raises(NetworkFailureError):
         detector.check(title="Fee portal", description="", service_id=FEES, reported_at=clock.now())
+
+
+# ------------------------------------------------------------------ phase review fixes
+def test_BR01_a_reporter_is_shown_and_may_follow_only_the_best_three(
+    service: IncidentService, uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    texts = (
+        "Fee portal down",
+        "Fee portal is down",
+        "Fee payment portal down",
+        "The fee portal is down",
+        "Fee portal down again",
+    )
+    for reporter, title in zip((ASHA, BILAL, TECH, TECH2, LEAD), texts, strict=True):
+        report(service, uow, reporter, title, "The fee payment portal will not load")
+        clock.advance(MIN)
+    everything = DuplicateDetector(uow, clock).check(
+        title="Fee portal not loading",
+        description="The fee payment portal will not load",
+        service_id=FEES,
+        reported_at=clock.now(),
+    )
+    assert len(everything.candidates) > 3  # the premise: more than three look alike
+
+    shown = service.similar_incidents(
+        who(uow, CHITRA),
+        title="Fee portal not loading",
+        description="The fee payment portal will not load",
+        service_id=FEES,
+    )
+    assert len(shown.candidates) == 3
+    hidden = everything.candidates[3].incident.id
+    with pytest.raises(InvalidUserInputError):
+        report(
+            service,
+            uow,
+            CHITRA,
+            "Fee portal not loading",
+            "The fee payment portal will not load",
+            follow=hidden,
+        )
+    reported = report(
+        service, uow, CHITRA, "Fee portal not loading", "The fee payment portal will not load"
+    )
+    assert len(reported.possible_duplicates) == 3
+
+
+def test_BR09_an_incident_others_follow_cannot_be_withdrawn(
+    service: IncidentService, uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    parent = report(service, uow, ASHA, "Fee portal down", "The fee payment portal will not load")
+    clock.advance(5 * MIN)
+    report(
+        service,
+        uow,
+        BILAL,
+        "Fee payment portal not loading",
+        "Cannot load the fee portal",
+        follow=parent.incident.id,
+    )
+    for actor in (ASHA, ADMIN):
+        with pytest.raises(InvalidUserInputError):
+            service.cancel(who(uow, actor), parent.incident.id)
+    assert uow.incidents.get(parent.incident.id).status is S.ASSIGNED
+
+
+def test_BR09_a_resolved_or_closed_incident_cannot_become_a_parent(
+    service: IncidentService, uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    parent, child = _two_alike(service, uow, clock)
+    worker = who(uow, parent.incident.assignee_id or 0)
+    service.acknowledge(worker, parent.incident.id)
+    service.start(worker, parent.incident.id)
+    service.resolve(worker, parent.incident.id, "Restarted the gateway")
+    with pytest.raises(InvalidUserInputError) as refused:
+        service.confirm_duplicate(who(uow, ADMIN), child.incident.id, parent.incident.id)
+    assert "resolved" in str(refused.value.details)
+
+
+def test_BR01_a_technician_links_only_to_what_they_may_see_or_were_shown(
+    service: IncidentService, uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    parent, child = _two_alike(service, uow, clock)
+    admin = who(uow, ADMIN)
+    # TECH holds the duplicate; the parent belongs to someone outside TECH's view.
+    service.reassign(admin, child.incident.id, TECH)
+    service.reassign(admin, parent.incident.id, LEAD)
+    clock.advance(MIN)
+    unrelated = report(service, uow, CHITRA, "Printer out of toner", "Lab printer", service_id=WIFI)
+    service.reassign(admin, unrelated.incident.id, LEAD)
+    tech = who(uow, TECH)
+    # A guessed id that was never suggested: refused, and nothing changes.
+    with pytest.raises(UnauthorizedOperationError):
+        service.confirm_duplicate(tech, child.incident.id, unrelated.incident.id)
+    assert uow.incidents.get(child.incident.id).status is S.ASSIGNED
+    # The look-alike the panel showed may be confirmed, though TECH cannot open it.
+    assert (
+        service.confirm_duplicate(tech, child.incident.id, parent.incident.id).status is S.CANCELLED
+    )

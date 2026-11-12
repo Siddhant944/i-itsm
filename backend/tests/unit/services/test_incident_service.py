@@ -848,3 +848,54 @@ def test_suggested_resolution_is_for_staff_and_empty_without_history(
     with pytest.raises(UnauthorizedOperationError):
         service.suggested_resolution(who(uow, REPORTER), incident_id)
     assert service.suggested_resolution(who(uow, ADMIN), incident_id).fixes == ()
+
+
+def test_a_flood_of_dependent_incidents_cannot_hide_the_root_cause(
+    service: IncidentService,
+    uow: InMemoryUnitOfWork,
+    clock: FakeClock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P4 review: one newest-first page over both directions lost the older upstream P1.
+
+    Database Cluster <- Fee Payment Portal <- Hostel Payments. The portal incident's root
+    cause is upstream; a flood of newer incidents arrives on the service built on the portal.
+    """
+    uow.catalogue.save_service(ITService(3, "Database Cluster", criticality=3))
+    portal = uow.catalogue.get_service(DATABASE)  # the Fee Payment Portal
+    portal.add_dependency(3)
+    uow.catalogue.save_service(portal)
+    uow.catalogue.save_service(
+        ITService(4, "Hostel Payments", criticality=1, depends_on=(DATABASE,))
+    )
+    cause = report(
+        service,
+        uow,
+        title="Database down",
+        description="Every query times out",
+        service_id=3,
+        impact=3,
+        urgency=3,
+    )
+    clock.advance(timedelta(minutes=1))
+    target = service.report(
+        who(uow, OTHER),
+        title="Fee page blank",
+        description="The fee page is blank",
+        service_id=DATABASE,
+        impact=2,
+        urgency=2,
+    ).incident.id
+    for reporter, text in (
+        (REPORTER, "Hostel rent page fails"),
+        (OTHER, "Mess bill unpaid"),
+        (ADMIN, "Hostel payment receipt missing"),
+    ):
+        clock.advance(timedelta(minutes=1))
+        service.report(
+            who(uow, reporter), title=text, description=text, service_id=4, impact=1, urgency=1
+        )
+    monkeypatch.setattr("app.services.incident_service.MAX_PAGE_SIZE", 2)
+    found = service.correlation(who(uow, ADMIN), target)
+    assert found.likely_root_cause is not None
+    assert found.likely_root_cause.incident.id == cause

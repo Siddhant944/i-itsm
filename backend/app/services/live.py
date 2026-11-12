@@ -109,10 +109,22 @@ class LivePublisher:
             people = {incident.reporter_id}
             if incident.assignee_id is not None:
                 people.add(incident.assignee_id)
+            followers = self.__uow.incidents.duplicates_of(incident.id)
             self.__hub.publish(
                 people,
                 {"type": "incident", "incident_id": incident.id, "status": incident.status.value},
             )
+            for duplicate in followers:
+                # A follower's own page shows the parent's status (D-005): refresh it, named
+                # by their own incident's id, which is the one they may open (BR-01).
+                self.__hub.publish(
+                    {duplicate.reporter_id},
+                    {
+                        "type": "incident",
+                        "incident_id": duplicate.id,
+                        "status": duplicate.status.value,
+                    },
+                )
         except ITSMError:
             logger.exception("could not push a live update for %s", incident_id)
 

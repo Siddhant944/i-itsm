@@ -71,7 +71,11 @@ export function availableActions(
     overrideCategory: can("incident:override_category") && works && open,
     provideInformation: isReporter && can("incident:add_info") && open,
     verify: isReporter && can("incident:verify") && status === "RESOLVED",
-    cancel: open && ((isReporter && can("incident:cancel_own")) || can("incident:cancel_any")),
+    // An incident others follow as a duplicate is resolved, never cancelled (D-031).
+    cancel:
+      open &&
+      incident.duplicate_count === 0 &&
+      ((isReporter && can("incident:cancel_own")) || can("incident:cancel_any")),
     // BR-09: whoever may work it confirms; a duplicate only of something still open.
     confirmDuplicate: can("incident:confirm_duplicate") && works && open,
   };

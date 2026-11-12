@@ -9,6 +9,7 @@ something the user may care about changes. The browser refetches through the API
 
 import asyncio
 import contextlib
+from collections.abc import Callable
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -23,6 +24,9 @@ from app.services.live import Subscription
 router = APIRouter(tags=["live"])
 
 AUTH_TIMEOUT_SECONDS = 10.0
+#: How often an open socket's token is checked again, in real seconds (P4 review): a socket
+#: must not outlive the token's expiry, a deactivation or a change of role.
+RECHECK_SECONDS = 30.0
 #: Application close code: "sign in again" (4000-4999 are ours to define).
 UNAUTHORISED = 4401
 
@@ -42,20 +46,32 @@ async def live(socket: WebSocket) -> None:
         await _close(socket)
         return
 
-    subscription = services.live.subscribe(
-        user.id,
-        watches_all=user.can(Permission.INCIDENT_VIEW_ALL)
-        or user.can(Permission.INCIDENT_VIEW_TEAM),
-    )
+    subscription = services.live.subscribe(user.id, watches_all=_watches_all(user))
     try:
         await socket.send_json({"type": "ready"})
-        await _serve(socket, subscription)
+        await _serve(socket, subscription, lambda: _still_valid(services, token, subscription))
     finally:
         services.live.unsubscribe(subscription)
 
 
-async def _serve(socket: WebSocket, subscription: Subscription) -> None:
-    """Forward queued messages until the browser goes away."""
+def _watches_all(user: User) -> bool:
+    return user.can(Permission.INCIDENT_VIEW_ALL) or user.can(Permission.INCIDENT_VIEW_TEAM)
+
+
+def _still_valid(services: Services, token: object, subscription: Subscription) -> bool:
+    """The token still signs in the same person, with the same view of incidents."""
+    user = _authenticate(services, token)
+    return (
+        user is not None
+        and user.id == subscription.user_id
+        and _watches_all(user) == subscription.watches_all
+    )
+
+
+async def _serve(
+    socket: WebSocket, subscription: Subscription, still_valid: Callable[[], bool]
+) -> None:
+    """Forward queued messages until the browser goes away or the sign-in lapses."""
 
     async def send() -> None:
         while True:
@@ -66,9 +82,20 @@ async def _serve(socket: WebSocket, subscription: Subscription) -> None:
             while True:
                 await socket.receive_text()  # pings, or the close frame
 
-    sender, listener = asyncio.create_task(send()), asyncio.create_task(listen())
-    await asyncio.wait({sender, listener}, return_when=asyncio.FIRST_COMPLETED)
-    for task in (sender, listener):
+    async def watch() -> None:
+        while True:
+            await asyncio.sleep(RECHECK_SECONDS)
+            if not await asyncio.to_thread(still_valid):
+                await _close(socket)
+                return
+
+    tasks = (
+        asyncio.create_task(send()),
+        asyncio.create_task(listen()),
+        asyncio.create_task(watch()),
+    )
+    await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    for task in tasks:
         task.cancel()
         # A browser that vanished mid-send is the normal way for this to end.
         with contextlib.suppress(asyncio.CancelledError, WebSocketDisconnect, RuntimeError):

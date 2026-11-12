@@ -110,5 +110,11 @@ class Credentials:
         self.__failed_attempts = 0
         self.__locked_until = None
 
+    def drop_password(self) -> None:
+        """Forget the password, so only another way in (Google) works until one is set again."""
+        self.__password_hash = None
+        self.__failed_attempts = 0
+        self.__locked_until = None
+
     def __repr__(self) -> str:
         return f"Credentials(user_id={self.__user_id}, failures={self.__failed_attempts})"
