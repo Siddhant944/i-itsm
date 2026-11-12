@@ -10,6 +10,16 @@ from app.core.config import AppEnv, Settings
 from app.main import create_app
 
 
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """``live`` tests call real external APIs; they run only with RUN_LIVE_TESTS=1 (AGENTS.md)."""
+    if os.environ.get("RUN_LIVE_TESTS") == "1":
+        return
+    skip = pytest.mark.skip(reason="calls a real external API; set RUN_LIVE_TESTS=1")
+    for item in items:
+        if "live" in item.keywords:
+            item.add_marker(skip)
+
+
 @pytest.fixture
 def database_url(tmp_path_factory: pytest.TempPathFactory) -> str:
     default = f"sqlite:///{tmp_path_factory.mktemp('db') / 'test.db'}"

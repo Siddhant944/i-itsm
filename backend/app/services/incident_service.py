@@ -337,6 +337,17 @@ class IncidentService:
         suggestion = None
         if category is None:
             suggestion = self.classify_text(f"{title}\n{description}")
+            if suggestion is not None:
+                # §6.1: every AI decision is audited — which advisor, what it chose, how sure.
+                self.__audit.record(
+                    AuditAction.AI_CLASSIFIED,
+                    incident_id=incident.id,
+                    details={
+                        "source": suggestion.source,
+                        "category_id": suggestion.category_id,
+                        "confidence": round(suggestion.confidence, 3),
+                    },
+                )
             if suggestion is not None and suggestion.category_id is not None:
                 category = self.__category(suggestion.category_id)
 

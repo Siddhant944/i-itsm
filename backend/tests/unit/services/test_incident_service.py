@@ -664,3 +664,23 @@ def test_reporting_without_an_advisor_still_works(
     assert result.incident.category_id is None
     assert result.needs_triage is True
     assert result.incident.status is S.NEW
+
+
+def test_every_ai_classification_is_audited_with_its_source_and_confidence(
+    service: IncidentService, uow: InMemoryUnitOfWork
+) -> None:
+    """§6.1: the advisor's decision is on the trail, not only the category it led to."""
+    incident_id = report(service, uow)
+    (record,) = [
+        r
+        for r in uow.audit.records(incident_id=incident_id)
+        if r.action is AuditAction.AI_CLASSIFIED
+    ]
+    assert dict(record.details) == {"source": "rules", "category_id": NETWORK, "confidence": 0.333}
+
+    chosen = report(
+        service, uow, title="Projector dim", description="Hall F-105", category_id=NETWORK
+    )
+    assert not any(
+        r.action is AuditAction.AI_CLASSIFIED for r in uow.audit.records(incident_id=chosen)
+    )

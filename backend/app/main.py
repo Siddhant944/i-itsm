@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import __version__
+from app.adapters.gemini_advisor import gemini_advisor
 from app.adapters.gemini_embeddings import gemini_embeddings
 from app.adapters.smtp_email import EmailSettings, email_sender_for
 from app.api import health
@@ -35,9 +36,9 @@ from app.core.config import ClockMode, Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.security import Argon2PasswordHasher, JwtTokenService
 from app.domain.errors import ITSMError
-from app.domain.ports import EmbeddingProvider
+from app.domain.ports import AIAdvisor, EmbeddingProvider
 from app.domain.repositories import UnitOfWork
-from app.domain.rule_advisor import RuleBasedAdvisor
+from app.domain.rule_advisor import FallbackAdvisor, RuleBasedAdvisor
 from app.domain.similarity import TfIdfEmbeddings
 from app.repositories.database import make_engine, ping
 from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session_factory
@@ -71,6 +72,14 @@ def email_settings(settings: Settings) -> EmailSettings:
         sender=settings.smtp_from,
         starttls=settings.smtp_starttls,
     )
+
+
+def classifier(settings: Settings) -> AIAdvisor:
+    """§6.1: Gemini behind the keyword rules when a key and a model are set, else the rules."""
+    key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else ""
+    if key and settings.gemini_model:
+        return FallbackAdvisor(gemini_advisor(key, settings.gemini_model), RuleBasedAdvisor())
+    return RuleBasedAdvisor()
 
 
 def embedding_provider(settings: Settings) -> EmbeddingProvider:
@@ -144,8 +153,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ),
         policy=AuthPolicy(allowed_email_domains=tuple(settings.allowed_email_domains)),
         email=email_sender_for(email_settings(settings)),
-        # §6.1: Gemini arrives in P4.4 with this rule-based advisor as its fallback.
-        advisor=RuleBasedAdvisor(),
+        advisor=classifier(settings),
         embeddings=embedding_provider(settings),
     )
     app.state.db_probe = lambda: ping(engine)
