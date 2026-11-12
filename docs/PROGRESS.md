@@ -2,11 +2,11 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P4 Intelligence and integrations — packages done, phase review in progress (12 Nov)
+## Status: P4 Intelligence and integrations — done, PR open (12 Nov)
 
 On `claude/awesome-brahmagupta-65bn2j`, cut from main after the P3 PR merged. Every P4 package
-still in scope after D-027 is done. `make verify` passes: 1048 backend tests and 103 frontend
-tests. Playwright passes WF1, WF2, the new WF3 and a live-update spec (`make e2e`, 5 specs).
+still in scope after D-027 is done, and the phase review's findings are fixed. `make verify`
+passes: 1058 backend tests and 104 frontend tests. Playwright passes WF1, WF2, the new WF3 and a live-update spec (`make e2e`, 5 specs).
 
 **Back on plan, a day ahead of the freeze.** P4 was planned for 11-14 Nov and finished on the
 12th. The feature freeze is on the 16th.
@@ -61,7 +61,24 @@ tests. Playwright passes WF1, WF2, the new WF3 and a live-update spec (`make e2e
   links; `live` tests are actually skipped unless `RUN_LIVE_TESTS=1`.
 
 ### Phase review
-A fresh-context review of the whole phase diff is under way; its findings and fixes are recorded here before the PR opens.
+A fresh-context subagent reviewed the whole phase diff and reported 11 findings, 7 of them
+confirmed by running code. All are fixed, each with a test that fails without the fix:
+- **The Telegram bot token reached the logs.** The adapter kept it out of its own errors, but
+  httpx logs every request URL at INFO. httpx and httpcore now log warnings only.
+- **Account squatting.** Anyone could self-register `victim@campus.edu` with a password; when
+  the real owner later used Google, the accounts were linked and the squatter's password kept
+  working. Linking to Google now drops the password (audited; D-035 amended).
+- **Duplicates (D-031 amended):** a reporter was shown, and could follow, every match rather than
+  three; a duplicate could be linked to an already resolved or closed parent; withdrawing a
+  followed incident stranded its followers; a technician could link to, and so read the title
+  of, any incident by guessing its id.
+- **Google Sign-In under the ×10 demo clock** would have rejected fresh tokens after about seven
+  real minutes; token expiry is now judged on the system clock.
+- **WebSockets** outlived token expiry and deactivation; a socket now re-checks every 30 s.
+- **Correlation** could lose the root cause under a flood of newer dependent incidents; the
+  upstream P1/P2 query is now separate.
+- Smaller: the summary prompt now delimits titles too; DECISIONS.md's table was broken by a
+  blank line, so D-020 onwards rendered as plain text.
 
 ### Next
 - **P5 Hardening** (15-16 Nov): production settings and CORS on the host (P5.1), coverage
