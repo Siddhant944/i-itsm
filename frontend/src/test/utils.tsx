@@ -129,6 +129,8 @@ export function me(role: Schemas["Role"], id = 1): Schemas["MeResponse"] {
       role === "technician" || role === "team_lead"
         ? { skills: ["networking"], experience_level: 2, available: true, team_id: 1 }
         : null,
+    telegram_chat_id: null,
+    telegram_available: false,
   };
 }
 
