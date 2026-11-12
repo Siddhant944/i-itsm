@@ -268,12 +268,12 @@ class AuthService:
         """Raise UnauthorizedOperationError (HTTP 403) unless the role grants ``permission``."""
         if user.can(permission):
             return
-        self.__audit.record(
-            AuditAction.UNAUTHORIZED_ATTEMPT,
+        # The API records the refusal after rolling the request back (api/deps.py, issue #8).
+        raise UnauthorizedOperationError(
+            f"Your role may not {permission.value}.",
             actor_id=user.id,
-            details={"permission": permission.value, "role": user.role.value},
+            audit_details={"permission": permission.value, "role": user.role.value},
         )
-        raise UnauthorizedOperationError(f"Your role may not {permission.value}.")
 
     @staticmethod
     def permissions(user: User) -> Sequence[str]:

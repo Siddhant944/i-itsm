@@ -282,14 +282,16 @@ def test_a_token_whose_role_has_changed_is_refused(
         auth.authenticate(token)
 
 
-def test_permission_checks_refuse_and_audit(auth: AuthService, uow: InMemoryUnitOfWork) -> None:
+def test_permission_checks_refuse_with_what_the_audit_needs(auth: AuthService) -> None:
+    """The API audits the refusal after rolling the request back (issue #8)."""
     user = auth.register("devika@campus.edu", "Devika Rao", GOOD_PASSWORD)
-    auth.require(user, Permission.INCIDENT_CREATE)  # allowed: no exception, no audit record
-    assert AuditAction.UNAUTHORIZED_ATTEMPT not in actions(uow)
+    auth.require(user, Permission.INCIDENT_CREATE)  # allowed: no exception
 
-    with pytest.raises(UnauthorizedOperationError):
+    with pytest.raises(UnauthorizedOperationError) as refused:
         auth.require(user, Permission.AUDIT_VERIFY)
-    assert AuditAction.UNAUTHORIZED_ATTEMPT in actions(uow)
+    assert refused.value.actor_id == user.id
+    assert refused.value.audit_details["permission"] == Permission.AUDIT_VERIFY.value
+    assert "permission" not in refused.value.details  # never sent to the caller
 
 
 def test_the_permission_list_matches_the_role(auth: AuthService) -> None:

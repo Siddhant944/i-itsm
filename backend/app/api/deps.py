@@ -7,6 +7,7 @@ Unit of Work per request and one authenticated user per protected route.
 Authorisation is a dependency, never a check inside a handler, so a route cannot forget it.
 """
 
+import logging
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Annotated
@@ -16,7 +17,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.clock import Clock
 from app.core.security import PasswordHasher, TokenService
-from app.domain.errors import InvalidLoginError, ITSMError
+from app.domain.audit import AuditAction
+from app.domain.errors import InvalidLoginError, ITSMError, UnauthorizedOperationError
 from app.domain.permissions import Permission
 from app.domain.ports import (
     AIAdvisor,
@@ -78,16 +80,42 @@ def get_services(request: Request) -> Services:
 
 
 ServicesDep = Annotated[Services, Depends(get_services)]
+logger = logging.getLogger(__name__)
 
 
 def get_uow(services: ServicesDep) -> Iterator[UnitOfWork]:
-    """One Unit of Work per request, rolled back and closed however the request ends."""
+    """One Unit of Work per request, rolled back and closed however the request ends.
+
+    A refusal (403) is the one failure that still leaves a trace: blueprint §8 audits it, so
+    once the request's own changes are rolled back the refusal is recorded and committed on
+    its own (issue #8).
+    """
     uow = services.unit_of_work()
     try:
         yield uow
+    except UnauthorizedOperationError as refused:
+        uow.rollback()
+        _audit_refusal(uow, services.clock, refused)
+        raise
     finally:
         uow.rollback()
         uow.close()
+
+
+def _audit_refusal(uow: UnitOfWork, clock: Clock, refused: UnauthorizedOperationError) -> None:
+    if refused.actor_id is None:
+        return
+    try:
+        AuditService(uow.audit, clock).record(
+            AuditAction.UNAUTHORIZED_ATTEMPT,
+            actor_id=refused.actor_id,
+            incident_id=refused.incident_id,
+            details={**refused.audit_details, "reason": refused.message},
+        )
+        uow.commit()
+    except Exception:
+        # The caller still gets their 403; a failed audit write must not turn it into a 500.
+        logger.exception("could not audit a refused operation")
 
 
 UowDep = Annotated[UnitOfWork, Depends(get_uow)]
