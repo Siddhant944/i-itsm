@@ -103,6 +103,20 @@ class Settings(BaseSettings):
             raise ValueError(msg)
         return self
 
+    @model_validator(mode="after")
+    def _lock_cors_in_prod(self) -> Self:
+        """P5.1: in prod the browser may call the API only from the deployed web app's origin."""
+        if self.app_env is not AppEnv.PROD:
+            return self
+        loose = [o for o in self.cors_origins if o == "*" or not o.startswith("https://")]
+        if not self.cors_origins or loose:
+            msg = (
+                "CORS_ORIGINS must list the web app's https:// origin(s) in prod"
+                f" (refused: {loose or 'an empty list'})"
+            )
+            raise ValueError(msg)
+        return self
+
 
 @lru_cache
 def get_settings() -> Settings:

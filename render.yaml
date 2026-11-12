@@ -13,15 +13,18 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      # P5.1: production settings. prod refuses a weak JWT_SECRET, a fake clock and any
+      # CORS_ORIGINS that is not the web app's https:// origin, and has no /dev routes.
+      # For a demo instance on the x10 clock instead, see docs/DEPLOY.md ("A demo instance").
       - key: APP_ENV
-        value: demo
+        value: prod
       - key: SEED_ON_START
         value: "true"
       - key: DATABASE_URL # Neon, as postgresql+psycopg://...?sslmode=require
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: CORS_ORIGINS # the static site's URL, as a JSON list: ["https://....onrender.com"]
+      - key: CORS_ORIGINS # the static site's URL, as a JSON list: ["https://....onrender.com"]; required
         sync: false
       - key: FRONTEND_URL
         sync: false

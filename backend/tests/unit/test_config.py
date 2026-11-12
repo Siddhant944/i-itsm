@@ -42,13 +42,36 @@ def test_copied_env_example_cannot_run_in_production(monkeypatch: pytest.MonkeyP
         Settings(_env_file=ENV_EXAMPLE)
 
 
+WEB = ["https://i-itsm-web.onrender.com"]
+
+
 def test_production_accepts_a_real_secret() -> None:
     settings = Settings(
         app_env=AppEnv.PROD,
         jwt_secret=SecretStr("x" * 48),
+        cors_origins=WEB,
         _env_file=None,
     )
     assert settings.app_env is AppEnv.PROD
+
+
+@pytest.mark.parametrize(
+    "origins",
+    [["*"], ["http://localhost:5173"], [], ["https://i-itsm-web.onrender.com", "*"]],
+)
+def test_production_locks_cors_to_https_origins(origins: list[str]) -> None:
+    """P5.1: no wildcard, no plain http, and not the localhost default."""
+    with pytest.raises(ValidationError, match="CORS_ORIGINS"):
+        Settings(
+            app_env=AppEnv.PROD,
+            jwt_secret=SecretStr("x" * 48),
+            cors_origins=origins,
+            _env_file=None,
+        )
+
+
+def test_other_environments_keep_the_local_cors_default() -> None:
+    assert Settings(app_env=AppEnv.DEMO, _env_file=None).cors_origins == ["http://localhost:5173"]
 
 
 def test_http_client_loggers_never_print_request_urls_which_carry_the_bot_token(
