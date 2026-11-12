@@ -646,6 +646,22 @@
         "title": "FeedbackResponse",
         "type": "object"
       },
+      "GoogleSignInRequest": {
+        "description": "The ID token Google Identity Services hands the browser (P4.10).",
+        "properties": {
+          "credential": {
+            "maxLength": 4096,
+            "minLength": 20,
+            "title": "Credential",
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential"
+        ],
+        "title": "GoogleSignInRequest",
+        "type": "object"
+      },
       "HealthResponse": {
         "description": "Health status of the API and its database.",
         "properties": {
@@ -3126,6 +3142,41 @@
         "summary": "Verify",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/auth/google": {
+      "post": {
+        "description": "Sign in with Google (campus domain only); the first sign-in creates an Employee.",
+        "operationId": "google_auth_google_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleSignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "summary": "Google",
+        "tags": [
+          "auth"
         ]
       }
     },

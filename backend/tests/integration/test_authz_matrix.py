@@ -81,7 +81,7 @@ class Operation:
     body: dict[str, Any] | None = None
     #: True when the path contains {incident_id} and needs a fresh incident per call.
     needs_incident: bool = False
-    #: True when nobody needs to be signed in (blueprint §8: only these three).
+    #: True when nobody needs to be signed in (blueprint §8, plus Google Sign-In in P4.10).
     public: bool = False
     notes: str = ""
 
@@ -107,6 +107,14 @@ MATRIX: tuple[Operation, ...] = (
         EVERYONE,
         body={"email": "employee@campus.edu", "password": PASSWORD},
         public=True,
+    ),
+    Operation(
+        "POST",
+        "/auth/google",
+        EVERYONE,
+        body={"credential": "x" * 40},
+        public=True,
+        notes="P4.10: Google Sign-In; 503 here, where it is not set up",
     ),
     # --- everyone signed in
     Operation("GET", "/auth/me", EVERYONE),
@@ -529,7 +537,7 @@ def test_every_role_gets_the_answer_the_matrix_promises(world: World, operation:
     [op for op in MATRIX if not op.public],
     ids=[f"{op.method} {op.path}" for op in MATRIX if not op.public],
 )
-def test_everything_but_the_three_public_endpoints_needs_a_token(
+def test_everything_but_the_public_endpoints_needs_a_token(
     world: World, operation: Operation
 ) -> None:
     assert call(world, operation, None) == 401

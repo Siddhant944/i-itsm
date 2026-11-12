@@ -6,6 +6,7 @@ SLA deadlines and emails are all exact.
 """
 
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -21,6 +22,7 @@ from app.core.clock import FakeClock
 from app.core.security import FakePasswordHasher, JwtTokenService
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.permissions import Role
+from app.domain.ports import IdentityVerifier, VerifiedIdentity
 from app.domain.priority import Priority
 from app.domain.rule_advisor import RuleBasedAdvisor
 from app.domain.sla import default_policies
@@ -820,3 +822,33 @@ def test_a_user_links_and_unlinks_telegram_and_without_a_bot_a_test_is_503(
     assert refused.json()["error"]["code"] == "network_failure"
 
     assert api.delete("/auth/me/telegram", headers=reporter).json()["telegram_chat_id"] is None
+
+
+# ---------------------------------------------------------------- Google Sign-In (P4.10)
+def test_google_sign_in_signs_a_campus_account_in_and_refuses_others(api: TestClient) -> None:
+    class Google(IdentityVerifier):
+        def __init__(self) -> None:
+            self.hd: str | None = "campus.edu"
+
+        def verify(self, token: str) -> VerifiedIdentity:
+            return VerifiedIdentity("meera@campus.edu", "Meera Iyer", self.hd, "g-77")
+
+    google = Google()
+    app_services: Services = api.app.state.services  # type: ignore[attr-defined]
+    api.app.state.services = replace(  # type: ignore[attr-defined]
+        app_services, google=google, policy=AuthPolicy(google_hosted_domain="campus.edu")
+    )
+    body = {"credential": "a-google-id-token-of-some-length"}
+
+    signed_in = api.post("/auth/google", json=body)
+    assert signed_in.status_code == 200, signed_in.text
+    assert signed_in.json()["role"] == "employee"
+    me = api.get(
+        "/auth/me", headers={"Authorization": f"Bearer {signed_in.json()['access_token']}"}
+    ).json()
+    assert (me["email"], me["full_name"]) == ("meera@campus.edu", "Meera Iyer")
+
+    google.hd = "gmail.com"
+    refused = api.post("/auth/google", json=body)
+    assert refused.status_code == 401
+    assert "campus.edu" in refused.json()["error"]["message"]

@@ -21,9 +21,11 @@ from app.domain.credentials import MAX_FAILED_ATTEMPTS, Credentials
 from app.domain.errors import (
     InvalidLoginError,
     InvalidUserInputError,
+    NetworkFailureError,
     UnauthorizedOperationError,
 )
 from app.domain.permissions import Permission, Role, permissions_for, portal_for
+from app.domain.ports import IdentityVerifier
 from app.domain.repositories import UnitOfWork
 from app.domain.users import User, UserFactory
 from app.domain.value_objects import EmailAddress
@@ -50,6 +52,8 @@ class AuthPolicy:
     """Settings the service needs, passed in so it never reads configuration itself."""
 
     allowed_email_domains: tuple[str, ...] = ()
+    #: D-008: Google Sign-In is accepted only for this Workspace domain (the ``hd`` claim).
+    google_hosted_domain: str = ""
 
     def permits(self, email: EmailAddress) -> bool:
         """D-008: any email, unless the deployment limits the domains."""
@@ -68,8 +72,10 @@ class AuthService:
         tokens: TokenService,
         clock: Clock,
         policy: AuthPolicy | None = None,
+        identity: IdentityVerifier | None = None,
     ) -> None:
         self.__uow = uow
+        self.__identity = identity
         self.__hasher = hasher
         self.__tokens = tokens
         self.__clock = clock
@@ -121,6 +127,68 @@ class AuthService:
         )
         self.__uow.commit()
         return user
+
+    # ------------------------------------------------------------ Google Sign-In (P4.10)
+    def google_sign_in(self, credential: str) -> AccessToken:
+        """Sign in with a Google ID token; the first sign-in creates an Employee (D-008).
+
+        The token's signature, audience, issuer, expiry and verified email are checked by the
+        verifier; here the ``hd`` claim must be the campus domain, and an account already
+        linked to another Google account is refused.
+        """
+        domain = self.__policy.google_hosted_domain.strip().lower()
+        if self.__identity is None or not domain:
+            raise NetworkFailureError("Google Sign-In is not set up on this deployment.")
+        identity = self.__identity.verify(credential)
+        if (identity.hosted_domain or "").lower() != domain:
+            self.__audit.record(
+                AuditAction.LOGIN_FAILED,
+                details={
+                    "method": "google",
+                    "reason": "hosted domain",
+                    "hosted_domain": identity.hosted_domain,
+                },
+            )
+            self.__uow.commit()
+            raise InvalidLoginError(f"Sign in with your {domain} Google account.")
+
+        address = EmailAddress(identity.email)
+        credentials = self.__uow.credentials.find_by_email(address)
+        if credentials is None:
+            user = UserFactory.create(
+                SELF_REGISTRATION_ROLE,
+                user_id=self.__next_user_id(),
+                email=str(address),
+                full_name=identity.full_name.strip() or str(address).split("@", 1)[0],
+            )
+            self.__uow.users.add(user)
+            credentials = self.__uow.credentials.get(user.id)
+            self.__audit.record(
+                AuditAction.USER_REGISTERED,
+                actor_id=user.id,
+                details={"email": str(address), "role": user.role.value, "method": "google"},
+            )
+        else:
+            user = self.__uow.users.get(credentials.user_id)
+
+        if not credentials.accepts_google(identity.subject) or not user.active:
+            reason = "inactive" if user.active is False else "another Google account"
+            self.__audit.record(
+                AuditAction.LOGIN_FAILED,
+                actor_id=user.id,
+                details={"method": "google", "reason": reason},
+            )
+            self.__uow.commit()
+            raise InvalidLoginError()
+
+        credentials.link_google(identity.subject)
+        credentials.record_success(self.__clock.now())
+        self.__uow.credentials.save(credentials)
+        self.__audit.record(
+            AuditAction.LOGIN_SUCCEEDED, actor_id=user.id, details={"method": "google"}
+        )
+        self.__uow.commit()
+        return self.__token_for(user)
 
     # ------------------------------------------------------------ sign-in
     def login(self, email: str, password: str) -> AccessToken:

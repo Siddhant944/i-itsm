@@ -23,6 +23,7 @@ from app.domain.ports import (
     ChatSender,
     EmailSender,
     EmbeddingProvider,
+    IdentityVerifier,
     ResolutionSummarizer,
 )
 from app.domain.repositories import UnitOfWork
@@ -67,6 +68,8 @@ class Services:
     live: LiveHub = field(default_factory=LiveHub)
     #: P4.9: the Telegram Bot API when TELEGRAM_BOT_TOKEN is set; otherwise no Telegram channel.
     telegram: ChatSender | None = None
+    #: P4.10: Google ID-token checks when GOOGLE_CLIENT_ID and GOOGLE_HD_DOMAIN are set.
+    google: IdentityVerifier | None = None
 
 
 def get_services(request: Request) -> Services:
@@ -91,7 +94,14 @@ UowDep = Annotated[UnitOfWork, Depends(get_uow)]
 
 
 def get_auth_service(services: ServicesDep, uow: UowDep) -> AuthService:
-    return AuthService(uow, services.hasher, services.tokens, services.clock, services.policy)
+    return AuthService(
+        uow,
+        services.hasher,
+        services.tokens,
+        services.clock,
+        services.policy,
+        identity=services.google,
+    )
 
 
 AuthDep = Annotated[AuthService, Depends(get_auth_service)]

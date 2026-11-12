@@ -841,3 +841,15 @@ def test_a_linked_telegram_chat_round_trips(backend: Backend, uow: UnitOfWork) -
     uow.users.save(again)
     uow.commit()
     assert uow.users.get(1).telegram_chat_id is None
+
+
+def test_a_linked_google_account_round_trips_with_the_credentials(uow: UnitOfWork) -> None:
+    reporter(uow)
+    credentials = uow.credentials.get(1)
+    credentials.link_google("google-sub-1")
+    uow.credentials.save(credentials)
+    uow.commit()
+    stored = uow.credentials.get(1)
+    assert stored.google_subject == "google-sub-1"
+    assert stored.accepts_google("google-sub-1")
+    assert not stored.accepts_google("google-sub-2")

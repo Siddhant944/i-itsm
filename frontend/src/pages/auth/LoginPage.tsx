@@ -1,4 +1,4 @@
-import { useState, type SyntheticEvent } from "react";
+import { type SyntheticEvent, useCallback, useState } from "react";
 import { Link, Navigate } from "react-router";
 
 import { ApiError, errorMessage } from "../../api/client";
@@ -7,6 +7,7 @@ import { portalOf } from "../../auth/portal";
 import { Button } from "../../components/Button";
 import { TextField } from "../../components/Field";
 import { PORTAL_HOME } from "../../shell/nav";
+import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 
 export function AuthFrame({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -23,11 +24,24 @@ export function AuthFrame({ title, children }: { title: string; children: React.
 }
 
 export function LoginPage() {
-  const { status, user, signIn } = useAuth();
+  const { status, user, signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+  const onGoogle = useCallback(
+    (credential: string) => {
+      setProblem(null);
+      signInWithGoogle(credential).catch((error: unknown) => {
+        setProblem(errorMessage(error));
+      });
+    },
+    [signInWithGoogle],
+  );
+  const onGoogleUnavailable = useCallback((message: string) => {
+    setProblem(message);
+  }, []);
 
   if (status === "signed-in" && user !== null) {
     return <Navigate to={PORTAL_HOME[portalOf(user)]} replace />;
@@ -89,6 +103,16 @@ export function LoginPage() {
           Sign in
         </Button>
       </form>
+      {googleClientId !== "" && (
+        <div className="mt-4 space-y-3">
+          <p className="text-center text-xs text-muted">or, with your campus Google account</p>
+          <GoogleSignInButton
+            clientId={googleClientId}
+            onCredential={onGoogle}
+            onUnavailable={onGoogleUnavailable}
+          />
+        </div>
+      )}
       <p className="mt-4 text-center text-sm text-muted">
         New here?{" "}
         <Link to="/register" className="font-medium text-accent underline">

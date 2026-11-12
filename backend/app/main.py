@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app import __version__
 from app.adapters.gemini_advisor import gemini_advisor, gemini_summarizer
 from app.adapters.gemini_embeddings import gemini_embeddings
+from app.adapters.google_identity import GoogleIdTokenVerifier
 from app.adapters.smtp_email import EmailSettings, email_sender_for
 from app.adapters.telegram import telegram_sender
 from app.api import health
@@ -38,7 +39,13 @@ from app.core.config import ClockMode, Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.security import Argon2PasswordHasher, JwtTokenService
 from app.domain.errors import ITSMError
-from app.domain.ports import AIAdvisor, ChatSender, EmbeddingProvider, ResolutionSummarizer
+from app.domain.ports import (
+    AIAdvisor,
+    ChatSender,
+    EmbeddingProvider,
+    IdentityVerifier,
+    ResolutionSummarizer,
+)
 from app.domain.repositories import UnitOfWork
 from app.domain.rule_advisor import FallbackAdvisor, RuleBasedAdvisor
 from app.domain.similarity import TfIdfEmbeddings
@@ -84,6 +91,13 @@ def classifier(settings: Settings) -> AIAdvisor:
     if key and settings.gemini_model:
         return FallbackAdvisor(gemini_advisor(key, settings.gemini_model), RuleBasedAdvisor())
     return RuleBasedAdvisor()
+
+
+def google_verifier(settings: Settings, clock: Clock) -> IdentityVerifier | None:
+    """P4.10: Google Sign-In needs both the client id and the campus domain (D-008)."""
+    if settings.google_client_id and settings.google_hd_domain:
+        return GoogleIdTokenVerifier(settings.google_client_id, clock)
+    return None
 
 
 def chat_sender(settings: Settings) -> ChatSender | None:
@@ -169,12 +183,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             settings.jwt_secret.get_secret_value(),
             timedelta(minutes=settings.jwt_access_ttl_minutes),
         ),
-        policy=AuthPolicy(allowed_email_domains=tuple(settings.allowed_email_domains)),
+        policy=AuthPolicy(
+            allowed_email_domains=tuple(settings.allowed_email_domains),
+            google_hosted_domain=settings.google_hd_domain,
+        ),
         email=email_sender_for(email_settings(settings)),
         advisor=classifier(settings),
         embeddings=embedding_provider(settings),
         summarizer=summarizer(settings),
         telegram=chat_sender(settings),
+        google=google_verifier(settings, clock),
     )
     app.state.db_probe = lambda: ping(engine)
     app.state.settings = settings

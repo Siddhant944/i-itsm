@@ -111,6 +111,7 @@ def credentials_to_row(credentials: Credentials, row: UserRow) -> UserRow:
     row.failed_login_count = credentials.failed_attempts
     row.locked_until = credentials.locked_until
     row.last_login_at = credentials.last_login_at
+    row.google_subject = credentials.google_subject
     return row
 
 
@@ -121,6 +122,7 @@ def row_to_credentials(row: UserRow) -> Credentials:
         failed_attempts=row.failed_login_count,
         locked_until=row.locked_until,
         last_login_at=row.last_login_at,
+        google_subject=row.google_subject,
     )
 
 

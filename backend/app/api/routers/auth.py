@@ -9,6 +9,7 @@ from fastapi import APIRouter, status
 
 from app.api.deps import AuthDep, CurrentUser, NotificationsDep, ServicesDep
 from app.api.schemas.auth import (
+    GoogleSignInRequest,
     LoginRequest,
     MeResponse,
     RegisterRequest,
@@ -35,6 +36,12 @@ def register(payload: RegisterRequest, auth: AuthDep) -> TokenResponse:
 def login(payload: LoginRequest, auth: AuthDep) -> TokenResponse:
     """Sign in. Five failures lock the account for fifteen minutes (blueprint §8)."""
     return _token(auth.login(payload.email, payload.password))
+
+
+@router.post("/google", response_model=TokenResponse)
+def google(payload: GoogleSignInRequest, auth: AuthDep) -> TokenResponse:
+    """Sign in with Google (campus domain only); the first sign-in creates an Employee."""
+    return _token(auth.google_sign_in(payload.credential))
 
 
 @router.get("/me", response_model=MeResponse)

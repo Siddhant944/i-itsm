@@ -45,6 +45,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/auth/google": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Google
+     * @description Sign in with Google (campus domain only); the first sign-in creates an Employee.
+     */
+    post: operations["google_auth_google_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/auth/login": {
     parameters: {
       query?: never;
@@ -1469,6 +1489,14 @@ export interface components {
       rating: number;
     };
     /**
+     * GoogleSignInRequest
+     * @description The ID token Google Identity Services hands the browser (P4.10).
+     */
+    GoogleSignInRequest: {
+      /** Credential */
+      credential: string;
+    };
+    /**
      * HealthResponse
      * @description Health status of the API and its database.
      */
@@ -2446,6 +2474,37 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AuditVerificationResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  google_auth_google_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["GoogleSignInRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TokenResponse"];
         };
       };
       /** @description Validation error */

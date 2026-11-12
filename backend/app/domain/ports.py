@@ -104,9 +104,13 @@ class NotificationChannel(ABC):
 
 @dataclass(frozen=True, slots=True)
 class VerifiedIdentity:
+    """Who Google says signed in. Only built from a token whose signature checked out."""
+
     email: str
     full_name: str
     hosted_domain: str | None
+    #: Google's stable id for the account (the ``sub`` claim).
+    subject: str
 
 
 class IdentityVerifier(ABC):

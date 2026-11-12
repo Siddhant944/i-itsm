@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { apiError, incident, me, renderPage, renderRoutes } from "../test/utils";
 import { AuditPage } from "./admin/AuditPage";
@@ -941,5 +941,71 @@ describe("Telegram alerts (P4.9)", () => {
     });
     expect(await screen.findByText(/no Telegram bot set up yet/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send a test" })).toBeDisabled();
+  });
+});
+
+describe("Google Sign-In (P4.10)", () => {
+  function fakeGoogle() {
+    const google = {
+      callback: (() => undefined) as (response: { credential: string }) => void,
+      rendered: 0,
+      accounts: {
+        id: {
+          initialize: (options: { callback: (response: { credential: string }) => void }) => {
+            google.callback = options.callback;
+          },
+          renderButton: () => {
+            google.rendered += 1;
+          },
+        },
+      },
+    };
+    vi.stubGlobal("google", google);
+    return google;
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("is not offered when no client id is configured", () => {
+    vi.stubEnv("VITE_GOOGLE_CLIENT_ID", "");
+    renderPage(<LoginPage />, {});
+    expect(screen.queryByTestId("google-sign-in")).not.toBeInTheDocument();
+  });
+
+  it("signs in with the credential Google hands back", async () => {
+    vi.stubEnv("VITE_GOOGLE_CLIENT_ID", "client-123");
+    const google = fakeGoogle();
+    const { calls } = renderPage(<LoginPage />, {
+      routes: { "POST /auth/google": TOKEN, "GET /auth/me": me("employee") },
+    });
+    await waitFor(() => {
+      expect(google.rendered).toBe(1);
+    });
+    google.callback({ credential: "header.payload.signature" });
+    await waitFor(() => {
+      expect(calls.find((c) => c.path === "/auth/google")?.body).toEqual({
+        credential: "header.payload.signature",
+      });
+    });
+  });
+
+  it("shows why a Google account was refused", async () => {
+    vi.stubEnv("VITE_GOOGLE_CLIENT_ID", "client-123");
+    const google = fakeGoogle();
+    renderPage(<LoginPage />, {
+      routes: {
+        "POST /auth/google": apiError(401, "Sign in with your campus.edu Google account."),
+      },
+    });
+    await waitFor(() => {
+      expect(google.rendered).toBe(1);
+    });
+    google.callback({ credential: "header.payload.signature" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Sign in with your campus.edu Google account.",
+    );
   });
 });

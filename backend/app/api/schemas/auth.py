@@ -60,6 +60,12 @@ class MeResponse(BaseModel):
     telegram_available: bool = False
 
 
+class GoogleSignInRequest(BaseModel):
+    """The ID token Google Identity Services hands the browser (P4.10)."""
+
+    credential: str = Field(min_length=20, max_length=4096)
+
+
 class TelegramLinkRequest(BaseModel):
     """The chat to send P1/P2 alerts to; the user finds it by messaging the bot (§5.4)."""
 

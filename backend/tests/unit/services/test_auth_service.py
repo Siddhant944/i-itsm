@@ -15,10 +15,13 @@ from app.domain.credentials import LOCKOUT_DURATION, MAX_FAILED_ATTEMPTS
 from app.domain.errors import (
     InvalidLoginError,
     InvalidUserInputError,
+    NetworkFailureError,
     UnauthorizedOperationError,
 )
 from app.domain.permissions import Permission, Role
+from app.domain.ports import IdentityVerifier, VerifiedIdentity
 from app.domain.users import UserFactory
+from app.domain.value_objects import EmailAddress
 from app.repositories.memory import InMemoryUnitOfWork
 from app.services.auth_service import AuthPolicy, AuthService
 
@@ -309,3 +312,101 @@ def test_every_audited_sign_in_keeps_the_chain_intact(
     records = uow.audit.records(limit=100)
     assert len(records) >= 5
     assert verify_chain(records).intact is True
+
+
+# ---------------------------------------------------------------- Google Sign-In (P4.10)
+class FakeGoogle(IdentityVerifier):
+    """Says whatever the test tells it; the real token checks are the adapter's own tests."""
+
+    def __init__(self, identity: VerifiedIdentity | None = None) -> None:
+        self.identity = identity
+
+    def verify(self, token: str) -> VerifiedIdentity:
+        if self.identity is None:
+            raise InvalidLoginError("bad token")
+        return self.identity
+
+
+def campus(
+    email: str = "asha@campus.edu", sub: str = "g-1", hd: str | None = "campus.edu"
+) -> VerifiedIdentity:
+    return VerifiedIdentity(email=email, full_name="Asha Rao", hosted_domain=hd, subject=sub)
+
+
+def google_auth(
+    uow: InMemoryUnitOfWork, clock: FakeClock, google: FakeGoogle, domain: str = "campus.edu"
+) -> AuthService:
+    return AuthService(
+        uow,
+        FakePasswordHasher(),
+        JwtTokenService(SECRET, timedelta(minutes=30)),
+        clock,
+        AuthPolicy(google_hosted_domain=domain),
+        identity=google,
+    )
+
+
+def test_the_first_google_sign_in_creates_an_employee_and_the_next_finds_it(
+    uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    auth = google_auth(uow, clock, FakeGoogle(campus()))
+    first = auth.google_sign_in("token")
+    user = uow.users.get(first.user_id)
+    assert (user.role, user.full_name, str(user.email)) == (
+        Role.EMPLOYEE,
+        "Asha Rao",
+        "asha@campus.edu",
+    )
+    assert uow.credentials.get(user.id).google_subject == "g-1"
+    assert uow.credentials.get(user.id).has_password is False  # Google only, no password
+    assert auth.google_sign_in("token").user_id == first.user_id
+    assert actions(uow).count(AuditAction.USER_REGISTERED) == 1
+    assert actions(uow).count(AuditAction.LOGIN_SUCCEEDED) == 2
+
+
+def test_D008_a_google_account_outside_the_campus_domain_is_refused_and_audited(
+    uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    for hd in ("gmail.com", None, "campus.edu.evil.com"):
+        auth = google_auth(uow, clock, FakeGoogle(campus(email="x@gmail.com", hd=hd)))
+        with pytest.raises(InvalidLoginError) as refused:
+            auth.google_sign_in("token")
+        assert "campus.edu" in refused.value.message
+    assert uow.users.find_by_email(EmailAddress("x@gmail.com")) is None
+    assert actions(uow).count(AuditAction.LOGIN_FAILED) == 3
+
+
+def test_an_existing_password_account_is_linked_but_never_to_a_second_google_account(
+    auth: AuthService, uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    register(auth, "asha@campus.edu")
+    linked = google_auth(uow, clock, FakeGoogle(campus(sub="g-1"))).google_sign_in("token")
+    assert uow.credentials.get(linked.user_id).google_subject == "g-1"
+    assert auth.login("asha@campus.edu", GOOD_PASSWORD).user_id == linked.user_id  # still works
+
+    impostor = google_auth(uow, clock, FakeGoogle(campus(sub="g-2")))
+    with pytest.raises(InvalidLoginError):
+        impostor.google_sign_in("token")
+    assert uow.credentials.get(linked.user_id).google_subject == "g-1"
+
+
+def test_a_deactivated_account_cannot_sign_in_with_google(
+    uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    auth = google_auth(uow, clock, FakeGoogle(campus()))
+    user = uow.users.get(auth.google_sign_in("token").user_id)
+    user.deactivate()
+    uow.users.save(user)
+    with pytest.raises(InvalidLoginError):
+        auth.google_sign_in("token")
+
+
+def test_google_sign_in_is_unavailable_until_both_settings_exist(
+    uow: InMemoryUnitOfWork, clock: FakeClock, auth: AuthService
+) -> None:
+    with pytest.raises(NetworkFailureError):
+        auth.google_sign_in("token")  # no verifier
+    with pytest.raises(NetworkFailureError):
+        google_auth(uow, clock, FakeGoogle(campus()), domain="").google_sign_in("token")
+    with pytest.raises(InvalidLoginError):
+        google_auth(uow, clock, FakeGoogle(None)).google_sign_in("token")  # a bad token
