@@ -546,6 +546,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents/{incident_id}/correlation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Correlation
+     * @description §6.2: the likely root cause upstream, and the open incidents it may be causing.
+     */
+    get: operations["correlation_incidents__incident_id__correlation_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/incidents/{incident_id}/information": {
     parameters: {
       query?: never;
@@ -1284,6 +1304,18 @@ export interface components {
       /** Parent Id */
       parent_id: string;
     };
+    /**
+     * CorrelationResponse
+     * @description §6.2: the possible root cause in plain words, and the evidence behind it.
+     */
+    CorrelationResponse: {
+      /** Hint */
+      hint: string | null;
+      /** Impacted */
+      impacted: components["schemas"]["RelatedIncidentResponse"][];
+      /** Root Causes */
+      root_causes: components["schemas"]["RelatedIncidentResponse"][];
+    };
     /** CreateUserRequest */
     CreateUserRequest: {
       /**
@@ -1723,6 +1755,32 @@ export interface components {
       full_name: string;
       /** Password */
       password: string;
+    };
+    /**
+     * RelatedIncidentResponse
+     * @description An open incident related through the dependency graph, and the way it is related.
+     */
+    RelatedIncidentResponse: {
+      /**
+       * Hops
+       * @description How many dependency edges apart the two services are
+       */
+      hops: number;
+      /** Id */
+      id: string;
+      /**
+       * Path
+       * @description Service names from this incident's service to its own
+       */
+      path: string[];
+      priority: components["schemas"]["Priority"] | null;
+      /** Service Id */
+      service_id: number;
+      /** Service Name */
+      service_name: string;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
     };
     /**
      * ReportIncidentRequest
@@ -3083,6 +3141,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  correlation_incidents__incident_id__correlation_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CorrelationResponse"];
         };
       };
       /** @description Validation error */

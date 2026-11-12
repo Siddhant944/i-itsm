@@ -708,3 +708,58 @@ def test_BR09_whoever_works_the_incident_confirms_a_possible_duplicate(
 
     bell = api.get("/notifications", headers=other).json()["latest"]
     assert any(f"handled as part of {parent}" in n["subject"] for n in bell)
+
+
+# ---------------------------------------------------------------- correlation (§6.2)
+def test_the_fee_portal_incident_names_the_database_outage_as_its_likely_root_cause(
+    api: TestClient, engine: Engine, reporter: dict[str, str], admin: dict[str, str]
+) -> None:
+    uow = SqlAlchemyUnitOfWork(make_session_factory(engine))
+    try:
+        uow.catalogue.save_service(ITService(4, "Database Cluster", criticality=3))
+        portal = uow.catalogue.get_service(PORTAL)
+        portal.add_dependency(4)
+        uow.catalogue.save_service(portal)
+        uow.commit()
+    finally:
+        uow.close()
+
+    database = report(
+        api,
+        reporter,
+        title="Database cluster unreachable",
+        description="Every network query times out",
+        service_id=4,
+        impact=3,
+        urgency=3,
+    )["incident"]
+    assert database["priority"] in ("P1", "P2")
+    fees = report(
+        api,
+        reporter,
+        title="Cannot pay hostel fees",
+        description="The payment page spins and then errors",
+        service_id=PORTAL,
+    )["incident"]
+
+    found = api.get(f"/incidents/{fees['id']}/correlation", headers=admin)
+    assert found.status_code == 200, found.text
+    body = found.json()
+    assert body["hint"] == (
+        f"Likely related to {database['id']} (Database Cluster): possible root cause."
+    )
+    (cause,) = body["root_causes"]
+    assert cause["path"] == ["Fee Payment Portal", "Database Cluster"]
+    assert cause["hops"] == 1
+
+    reverse = api.get(f"/incidents/{database['id']}/correlation", headers=admin).json()
+    assert reverse["hint"] is None
+    assert [i["id"] for i in reverse["impacted"]] == [fees["id"]]
+
+    # BR-01: the reporter of both still may not read the graph's view of other incidents.
+    assert api.get(f"/incidents/{fees['id']}/correlation", headers=reporter).status_code == 403
+
+    # Once the database incident is withdrawn, the hint goes with it.
+    api.post(f"/incidents/{database['id']}/cancel", json={}, headers=reporter)
+    after = api.get(f"/incidents/{fees['id']}/correlation", headers=admin).json()
+    assert after == {"hint": None, "root_causes": [], "impacted": []}

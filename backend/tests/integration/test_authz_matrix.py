@@ -211,6 +211,13 @@ MATRIX: tuple[Operation, ...] = (
     Operation("POST", "/incidents/{incident_id}/close", STAFF, needs_incident=True),
     Operation(
         "GET",
+        "/incidents/{incident_id}/correlation",
+        STAFF,
+        needs_incident=True,
+        notes="§6.2: names other people's incidents, so not for employees",
+    ),
+    Operation(
+        "GET",
         "/incidents/{incident_id}/possible-duplicates",
         STAFF,
         needs_incident=True,

@@ -186,6 +186,21 @@ export function usePossibleDuplicates(id: string, enabled: boolean) {
   });
 }
 
+/** §6.2: the likely root cause and what this incident may be causing (staff only). */
+export function useCorrelation(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["incident", id, "correlation"],
+    queryFn: () =>
+      unwrap(
+        api.GET("/incidents/{incident_id}/correlation", {
+          params: { path: { incident_id: id } },
+        }),
+      ),
+    enabled,
+    refetchInterval: LIVE_MS,
+  });
+}
+
 export function useClassify() {
   return useMutation({
     mutationFn: (text: string) => unwrap(api.POST("/incidents/classify", { body: { text } })),

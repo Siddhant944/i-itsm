@@ -18,6 +18,7 @@ from app.api.schemas.incidents import (
     CategoryOverrideRequest,
     ClassifyRequest,
     ConfirmDuplicateRequest,
+    CorrelationResponse,
     DuplicateCheckResponse,
     IncidentResponse,
     IncidentSummaryResponse,
@@ -26,6 +27,7 @@ from app.api.schemas.incidents import (
     RatingRequest,
     ReasonRequest,
     ReassignRequest,
+    RelatedIncidentResponse,
     ReportedIncidentResponse,
     ReportIncidentRequest,
     ResolveRequest,
@@ -37,6 +39,7 @@ from app.api.schemas.incidents import (
     summary_of,
 )
 from app.domain.assignment import CandidateScore
+from app.domain.dependency_graph import Correlation, hint
 from app.domain.permissions import Permission
 from app.domain.ports import Classification
 from app.domain.users import User
@@ -48,6 +51,8 @@ Worker = Annotated[User, Depends(requires(Permission.INCIDENT_WORK))]
 MAX_PAGE = 200
 #: How many possible duplicates one answer shows (§6.2: a hint, not a search).
 MAX_HINTS = 3
+#: How many related incidents one correlation answer lists on each side.
+MAX_RELATED = 10
 
 
 # ---------------------------------------------------------------- reporting
@@ -268,6 +273,36 @@ def override_category(
     """Correct the category, whether the AI or the reporter chose it (§6.1)."""
     return detail_of(
         incidents.override_category(user, incident_id, payload.category_id), services.clock
+    )
+
+
+@router.get("/{incident_id}/correlation", response_model=CorrelationResponse)
+def correlation(
+    incident_id: str,
+    user: Annotated[User, Depends(requires(Permission.INCIDENT_VIEW_ASSIGNED))],
+    incidents: IncidentsDep,
+) -> CorrelationResponse:
+    """§6.2: the likely root cause upstream, and the open incidents it may be causing."""
+    report = incidents.correlation(user, incident_id)
+    names = incidents.service_names()
+
+    def related(found: Correlation) -> RelatedIncidentResponse:
+        other = found.incident
+        return RelatedIncidentResponse(
+            id=other.id,
+            title=other.title,
+            status=other.status,
+            priority=other.priority,
+            service_id=other.service_id,
+            service_name=names.get(other.service_id, str(other.service_id)),
+            hops=found.reach.hops,
+            path=[names.get(s, str(s)) for s in found.reach.path],
+        )
+
+    return CorrelationResponse(
+        hint=hint(report, names),
+        root_causes=[related(c) for c in report.root_causes[:MAX_RELATED]],
+        impacted=[related(c) for c in report.impacted[:MAX_RELATED]],
     )
 
 

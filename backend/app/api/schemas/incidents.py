@@ -80,6 +80,24 @@ class SimilarIncidentResponse(LinkedIncidentResponse):
     reasons: list[str]
 
 
+class RelatedIncidentResponse(LinkedIncidentResponse):
+    """An open incident related through the dependency graph, and the way it is related."""
+
+    priority: Priority | None
+    service_id: int
+    service_name: str
+    hops: int = Field(ge=1, description="How many dependency edges apart the two services are")
+    path: list[str] = Field(description="Service names from this incident's service to its own")
+
+
+class CorrelationResponse(BaseModel):
+    """§6.2: the possible root cause in plain words, and the evidence behind it."""
+
+    hint: str | None
+    root_causes: list[RelatedIncidentResponse]
+    impacted: list[RelatedIncidentResponse]
+
+
 class DuplicateCheckResponse(BaseModel):
     """Possible duplicates, best first. Advice: nothing is linked until someone confirms."""
 

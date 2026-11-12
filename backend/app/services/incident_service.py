@@ -33,6 +33,12 @@ from app.domain.assignment import (
 )
 from app.domain.audit import AuditAction
 from app.domain.catalogue import Category, ITService, required_skills_for
+from app.domain.dependency_graph import (
+    LIVE_STATUSES,
+    CorrelationReport,
+    DependencyGraph,
+    correlate,
+)
 from app.domain.errors import (
     DuplicateIncidentError,
     InvalidUserInputError,
@@ -53,6 +59,7 @@ from app.domain.permissions import Permission
 from app.domain.ports import AIAdvisor, CategoryInfo, Classification
 from app.domain.priority import Priority, PriorityStrategy, WeightedProductPriorityStrategy
 from app.domain.repositories import UnitOfWork
+from app.domain.search import MAX_PAGE_SIZE, IncidentQuery
 from app.domain.states import IncidentStatus
 from app.domain.users import Technician, User
 from app.services.audit import AuditService
@@ -203,6 +210,38 @@ class IncidentService:
             reported_at=incident.created_at,
             exclude_id=incident.id,
         )
+
+    def correlation(self, actor: User, incident_id: str) -> CorrelationReport:
+        """§6.2: open incidents related to this one through the service dependency graph.
+
+        Staff only: the report names other people's incidents, which BR-01 keeps from
+        employees.
+        """
+        self.__require(actor, Permission.INCIDENT_VIEW_ASSIGNED)
+        incident = self.get(actor, incident_id)
+        graph = DependencyGraph(self.__uow.catalogue.services())
+        related = {
+            reach.service_id
+            for reach in (
+                *graph.upstream(incident.service_id),
+                *graph.downstream(incident.service_id),
+            )
+        }
+        if not related:
+            return CorrelationReport((), ())
+        page = self.__uow.incidents.search(
+            IncidentQuery(
+                statuses=tuple(LIVE_STATUSES),
+                service_ids=tuple(sorted(related)),
+                limit=MAX_PAGE_SIZE,
+            ),
+            self.__clock.now(),
+        )
+        return correlate(incident, graph, page.items)
+
+    def service_names(self) -> Mapping[int, str]:
+        """Every service's name, retired ones included, for the words of a hint."""
+        return {service.id: service.name for service in self.__uow.catalogue.services()}
 
     def confirm_duplicate(self, actor: User, incident_id: str, parent_id: str) -> Incident:
         """BR-09: cancel ``incident_id`` as a duplicate of ``parent_id``.

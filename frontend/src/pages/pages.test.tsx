@@ -751,3 +751,49 @@ describe("duplicates (§6.2, BR-09)", () => {
     expect(screen.queryByText("Possible duplicates")).not.toBeInTheDocument();
   });
 });
+
+describe("correlation (§6.2)", () => {
+  it("shows the technician the likely root cause and the way the services connect", async () => {
+    renderRoutes([{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }], {
+      path: "/technician/incidents/INC-2026-0001",
+      user: me("technician", 3),
+      routes: {
+        "GET /incidents/INC-2026-0001": incident(),
+        "GET /incidents/INC-2026-0001/correlation": {
+          hint: "Likely related to INC-2026-0040 (Database Cluster): possible root cause.",
+          root_causes: [
+            {
+              id: "INC-2026-0040",
+              title: "Database cluster unreachable",
+              status: "IN_PROGRESS",
+              priority: "P1",
+              service_id: 4,
+              service_name: "Database Cluster",
+              hops: 1,
+              path: ["Fee Payment Portal", "Database Cluster"],
+            },
+          ],
+          impacted: [],
+        },
+      },
+    });
+    expect(await screen.findByTestId("root-cause-hint")).toHaveTextContent(
+      "Likely related to INC-2026-0040 (Database Cluster): possible root cause.",
+    );
+    const related = screen.getByTestId("related-incident");
+    expect(related).toHaveTextContent("Fee Payment Portal → Database Cluster");
+    expect(within(related).getByRole("link", { name: "INC-2026-0040" })).toHaveAttribute(
+      "href",
+      "/technician/incidents/INC-2026-0040",
+    );
+  });
+
+  it("never asks for it in the employee portal (BR-01)", async () => {
+    const { calls } = detail({
+      user: me("employee", 1),
+      routes: { "GET /incidents/INC-2026-0001": incident() },
+    });
+    expect(await screen.findByText("Wi-Fi down")).toBeInTheDocument();
+    expect(calls.some((c) => c.path.endsWith("/correlation"))).toBe(false);
+  });
+});

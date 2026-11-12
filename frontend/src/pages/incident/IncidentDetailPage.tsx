@@ -6,6 +6,7 @@ import {
   useAssignmentAdvice,
   useAudit,
   useCategories,
+  useCorrelation,
   useIncident,
   useIncidentAction,
   useNames,
@@ -354,6 +355,74 @@ function AssignmentPanel({
               );
             })}
           </ol>
+        </>
+      )}
+    </Card>
+  );
+}
+
+type Related = Schemas["RelatedIncidentResponse"];
+
+function RelatedList({ items }: { items: readonly Related[] }) {
+  const portal = usePortal();
+  return (
+    <ul className="space-y-2">
+      {items.map((item) => (
+        <li
+          key={item.id}
+          data-testid="related-incident"
+          className="rounded-md border border-line px-3 py-2"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Link className="font-mono text-xs underline" to={incidentPath(portal, item.id)}>
+              {item.id}
+            </Link>
+            <PriorityBadge priority={item.priority} />
+            <StatusBadge status={item.status} />
+          </div>
+          <p className="mt-1 text-sm">{item.title}</p>
+          <p className="mt-1 text-xs text-muted">{item.path.join(" → ")}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * §6.2: the dependency graph's view of this incident. The hint is advice for the technician;
+ * nothing is linked or changed by it.
+ */
+function CorrelationPanel({ incident }: { incident: Incident }) {
+  const found = useCorrelation(incident.id, true);
+  if (found.isPending) return <Skeleton rows={2} label="Checking related services" />;
+  if (found.isError) return <ErrorState error={found.error} />;
+  const { hint, root_causes: causes, impacted } = found.data;
+  if (causes.length === 0 && impacted.length === 0) return null;
+  return (
+    <Card title="Related through services">
+      {hint !== null && (
+        <p
+          role="status"
+          data-testid="root-cause-hint"
+          className="mb-3 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm font-medium"
+        >
+          {hint}
+        </p>
+      )}
+      {causes.length > 0 && (
+        <>
+          <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+            Open P1/P2 incidents on services this depends on
+          </h3>
+          <RelatedList items={causes} />
+        </>
+      )}
+      {impacted.length > 0 && (
+        <>
+          <h3 className="mt-3 mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+            Open incidents this may be causing
+          </h3>
+          <RelatedList items={impacted} />
         </>
       )}
     </Card>
@@ -811,6 +880,8 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
               )}
             </dl>
           </Card>
+
+          {can("incident:view_assigned") && <CorrelationPanel incident={incident} />}
 
           {allowed.confirmDuplicate && (
             <DuplicatePanel

@@ -179,6 +179,7 @@ export const BASE_ROUTES: Record<string, Handler> = {
   // §6.2: nothing looks like a duplicate unless a test says otherwise.
   "POST /incidents/similar": { provider: "tfidf", candidates: [] },
   "GET /incidents/INC-2026-0001/possible-duplicates": { provider: "tfidf", candidates: [] },
+  "GET /incidents/INC-2026-0001/correlation": { hint: null, root_causes: [], impacted: [] },
   "GET /catalogue/services": [
     {
       id: 1,

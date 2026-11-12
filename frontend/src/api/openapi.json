@@ -443,6 +443,43 @@
         "title": "ConfirmDuplicateRequest",
         "type": "object"
       },
+      "CorrelationResponse": {
+        "description": "\u00a76.2: the possible root cause in plain words, and the evidence behind it.",
+        "properties": {
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "impacted": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedIncidentResponse"
+            },
+            "title": "Impacted",
+            "type": "array"
+          },
+          "root_causes": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedIncidentResponse"
+            },
+            "title": "Root Causes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hint",
+          "root_causes",
+          "impacted"
+        ],
+        "title": "CorrelationResponse",
+        "type": "object"
+      },
       "CreateUserRequest": {
         "properties": {
           "email": {
@@ -1557,6 +1594,66 @@
           "password"
         ],
         "title": "RegisterRequest",
+        "type": "object"
+      },
+      "RelatedIncidentResponse": {
+        "description": "An open incident related through the dependency graph, and the way it is related.",
+        "properties": {
+          "hops": {
+            "description": "How many dependency edges apart the two services are",
+            "minimum": 1.0,
+            "title": "Hops",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "path": {
+            "description": "Service names from this incident's service to its own",
+            "items": {
+              "type": "string"
+            },
+            "title": "Path",
+            "type": "array"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          },
+          "service_name": {
+            "title": "Service Name",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "priority",
+          "service_id",
+          "service_name",
+          "hops",
+          "path"
+        ],
+        "title": "RelatedIncidentResponse",
         "type": "object"
       },
       "ReportIncidentRequest": {
@@ -4002,6 +4099,47 @@
           }
         ],
         "summary": "Confirm Duplicate",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/correlation": {
+      "get": {
+        "description": "\u00a76.2: the likely root cause upstream, and the open incidents it may be causing.",
+        "operationId": "correlation_incidents__incident_id__correlation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrelationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Correlation",
         "tags": [
           "incidents"
         ]
