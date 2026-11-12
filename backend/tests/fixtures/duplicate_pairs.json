@@ -1,0 +1,421 @@
+{
+ "note": "Labelled by hand for blueprint \u00a76.2. duplicate = the same underlying problem; repeat = a near-identical resubmission that the same reporter should be stopped from filing (theta-high). minutes_apart is the gap between the two reports.",
+ "pairs": [
+  {
+   "a": "Payment application unavailable",
+   "b": "Payment transaction failing",
+   "same_service": true,
+   "minutes_apart": 6,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Payment application unavailable",
+   "b": "Unable to make payment",
+   "same_service": true,
+   "minutes_apart": 11,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Payment transaction failing",
+   "b": "Unable to make payment",
+   "same_service": true,
+   "minutes_apart": 5,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Fee portal down. The fee payment portal shows a 503 error when I open it.",
+   "b": "Fee portal down. The fee payment portal shows 503 error when I open it",
+   "same_service": true,
+   "minutes_apart": 3,
+   "duplicate": true,
+   "repeat": true
+  },
+  {
+   "a": "Wi-Fi not working in H-block hostel, cannot connect since morning",
+   "b": "WiFi not working in H-block hostel, cannot connect since morning.",
+   "same_service": true,
+   "minutes_apart": 8,
+   "duplicate": true,
+   "repeat": true
+  },
+  {
+   "a": "Cannot log in to ERP. It says invalid credentials although my password is right.",
+   "b": "Cannot log in to ERP. It says invalid credentials although my password is right!",
+   "same_service": true,
+   "minutes_apart": 1,
+   "duplicate": true,
+   "repeat": true
+  },
+  {
+   "a": "Library printer jammed on the second floor, paper stuck in tray 2",
+   "b": "Library printer jammed on second floor - paper stuck in tray 2",
+   "same_service": true,
+   "minutes_apart": 12,
+   "duplicate": true,
+   "repeat": true
+  },
+  {
+   "a": "Projector in F-105 not turning on before my 10 am lecture",
+   "b": "Projector in F-105 not turning on before my 10 am lecture. Urgent",
+   "same_service": true,
+   "minutes_apart": 4,
+   "duplicate": true,
+   "repeat": true
+  },
+  {
+   "a": "Email quota exceeded, I cannot receive new mail",
+   "b": "Email quota exceeded, cannot receive any new mail",
+   "same_service": true,
+   "minutes_apart": 20,
+   "duplicate": true,
+   "repeat": true
+  },
+  {
+   "a": "VPN disconnects every few minutes from off campus",
+   "b": "VPN disconnects every few minutes when off campus",
+   "same_service": true,
+   "minutes_apart": 15,
+   "duplicate": true,
+   "repeat": true
+  },
+  {
+   "a": "LMS quiz page gives error 500 when submitting answers",
+   "b": "LMS quiz page gives an error 500 when submitting my answers",
+   "same_service": true,
+   "minutes_apart": 2,
+   "duplicate": true,
+   "repeat": true
+  },
+  {
+   "a": "Fee payment portal is down, page does not load",
+   "b": "Cannot pay semester fees, payment page keeps loading forever",
+   "same_service": true,
+   "minutes_apart": 14,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Payment gateway timeout while paying hostel fees",
+   "b": "Fee portal payment failed with gateway timeout",
+   "same_service": true,
+   "minutes_apart": 25,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Campus Wi-Fi is very slow in the library",
+   "b": "Internet speed in library is extremely slow on wifi",
+   "same_service": true,
+   "minutes_apart": 30,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "No internet in D-block labs",
+   "b": "Lab computers in D block have no network connection",
+   "same_service": true,
+   "minutes_apart": 18,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "ERP login page not loading",
+   "b": "Unable to open ERP, login screen is blank",
+   "same_service": true,
+   "minutes_apart": 9,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "ERP attendance module shows server error",
+   "b": "Attendance page in ERP throws internal server error",
+   "same_service": true,
+   "minutes_apart": 40,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Outlook not receiving emails since last night",
+   "b": "Mailbox has not received any email since yesterday evening",
+   "same_service": true,
+   "minutes_apart": 55,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "LMS is not opening, shows bad gateway",
+   "b": "Learning portal gives 502 bad gateway",
+   "same_service": true,
+   "minutes_apart": 7,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Course registration page crashes when I add a course",
+   "b": "Registration portal crashes on adding courses to cart",
+   "same_service": true,
+   "minutes_apart": 22,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Hostel Wi-Fi authentication keeps failing",
+   "b": "Cannot authenticate to hostel wifi, login keeps failing",
+   "same_service": true,
+   "minutes_apart": 35,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Printer in admin office prints blank pages",
+   "b": "Admin office printer is printing blank sheets",
+   "same_service": true,
+   "minutes_apart": 90,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Lab PC 14 in C-309 will not boot, black screen",
+   "b": "Computer 14 in lab C-309 shows black screen and does not start",
+   "same_service": true,
+   "minutes_apart": 45,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Database connection errors on the library catalogue",
+   "b": "Library catalogue search fails with database error",
+   "same_service": true,
+   "minutes_apart": 16,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Shared drive not accessible from the accounts office",
+   "b": "Accounts office cannot open the shared network drive",
+   "same_service": true,
+   "minutes_apart": 28,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Website shows certificate expired warning",
+   "b": "Browser warns that the college website certificate has expired",
+   "same_service": true,
+   "minutes_apart": 65,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Fee portal down, page does not load",
+   "b": "Fee receipt shows wrong student name",
+   "same_service": true,
+   "minutes_apart": 20,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Fee portal charged me twice for the mess bill",
+   "b": "Need a fee receipt for last semester",
+   "same_service": true,
+   "minutes_apart": 45,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "ERP login page not loading",
+   "b": "ERP shows wrong grade for CS F213",
+   "same_service": true,
+   "minutes_apart": 30,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "ERP attendance not updated for yesterday",
+   "b": "Please reset my ERP password",
+   "same_service": true,
+   "minutes_apart": 10,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Wi-Fi slow in library",
+   "b": "Request Wi-Fi access for a visiting guest",
+   "same_service": true,
+   "minutes_apart": 60,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Hostel Wi-Fi authentication failing",
+   "b": "New Wi-Fi access point needed in the mess hall",
+   "same_service": true,
+   "minutes_apart": 120,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Email quota exceeded",
+   "b": "Phishing email received, asking for my password",
+   "same_service": true,
+   "minutes_apart": 15,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Outlook not receiving emails",
+   "b": "Create a mailing list for the robotics club",
+   "same_service": true,
+   "minutes_apart": 200,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "LMS quiz page error 500",
+   "b": "Cannot find lecture slides for week 3 on LMS",
+   "same_service": true,
+   "minutes_apart": 25,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "LMS not opening",
+   "b": "Assignment deadline shown wrongly on LMS",
+   "same_service": true,
+   "minutes_apart": 50,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Printer jammed on second floor of library",
+   "b": "Library printer needs a toner refill",
+   "same_service": true,
+   "minutes_apart": 240,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Projector in F-105 not turning on",
+   "b": "Projector in F-105 has a dim yellow tint",
+   "same_service": true,
+   "minutes_apart": 1440,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "VPN disconnects every few minutes",
+   "b": "Need VPN account for a new research scholar",
+   "same_service": true,
+   "minutes_apart": 35,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Lab PC will not boot",
+   "b": "Install MATLAB on lab PC 14",
+   "same_service": true,
+   "minutes_apart": 70,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Payment application unavailable",
+   "b": "Hostel Wi-Fi unavailable",
+   "same_service": false,
+   "minutes_apart": 5,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Fee portal payment failed",
+   "b": "Library book renewal failed",
+   "same_service": false,
+   "minutes_apart": 10,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Cannot log in to ERP",
+   "b": "Cannot log in to the VPN",
+   "same_service": false,
+   "minutes_apart": 8,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "ERP login page not loading",
+   "b": "LMS login page not loading",
+   "same_service": false,
+   "minutes_apart": 12,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Email not syncing on my phone",
+   "b": "Calendar invite shows wrong time zone",
+   "same_service": false,
+   "minutes_apart": 30,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Printer offline in the physics department",
+   "b": "Projector offline in the physics seminar hall",
+   "same_service": false,
+   "minutes_apart": 15,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Website is slow today",
+   "b": "Laptop is slow after the update",
+   "same_service": false,
+   "minutes_apart": 20,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Password reset link not arriving",
+   "b": "Parcel notification email not arriving from the mail room",
+   "same_service": false,
+   "minutes_apart": 25,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Lab PC keyboard not working",
+   "b": "CCTV camera near gate 2 not working",
+   "same_service": false,
+   "minutes_apart": 40,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Request software installation of AutoCAD",
+   "b": "Request a new monitor for my desk",
+   "same_service": false,
+   "minutes_apart": 90,
+   "duplicate": false,
+   "repeat": false
+  },
+  {
+   "a": "Fee payment portal is down",
+   "b": "Fee payment portal is down",
+   "same_service": true,
+   "minutes_apart": 28800,
+   "duplicate": true,
+   "repeat": false
+  },
+  {
+   "a": "Wi-Fi not working in H-block",
+   "b": "Wi-Fi not working in A-block",
+   "same_service": true,
+   "minutes_apart": 4320,
+   "duplicate": false,
+   "repeat": false
+  }
+ ]
+}

@@ -57,6 +57,7 @@ def user_to_row(user: User, row: UserRow) -> UserRow:
     row.full_name = user.full_name
     row.role = user.role
     row.active = user.active
+    row.telegram_chat_id = user.telegram_chat_id
     return row
 
 
@@ -74,6 +75,15 @@ def row_to_user(
     row: UserRow, profile: TechnicianProfileRow | None = None, skills: SkillSet | None = None
 ) -> User:
     """Rebuild the right User subclass for the stored role (blueprint §3)."""
+    user = _row_to_user(row, profile, skills)
+    if row.telegram_chat_id:
+        user.link_telegram(row.telegram_chat_id)
+    return user
+
+
+def _row_to_user(
+    row: UserRow, profile: TechnicianProfileRow | None, skills: SkillSet | None
+) -> User:
     if not UserFactory.is_support_role(row.role):
         return UserFactory.create(
             row.role,
@@ -101,6 +111,7 @@ def credentials_to_row(credentials: Credentials, row: UserRow) -> UserRow:
     row.failed_login_count = credentials.failed_attempts
     row.locked_until = credentials.locked_until
     row.last_login_at = credentials.last_login_at
+    row.google_subject = credentials.google_subject
     return row
 
 
@@ -111,6 +122,7 @@ def row_to_credentials(row: UserRow) -> Credentials:
         failed_attempts=row.failed_login_count,
         locked_until=row.locked_until,
         last_login_at=row.last_login_at,
+        google_subject=row.google_subject,
     )
 
 

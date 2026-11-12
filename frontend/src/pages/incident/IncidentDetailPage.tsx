@@ -6,9 +6,13 @@ import {
   useAssignmentAdvice,
   useAudit,
   useCategories,
+  useCorrelation,
   useIncident,
   useIncidentAction,
   useNames,
+  usePossibleDuplicates,
+  useRisk,
+  useSuggestedResolution,
   useTeams,
   type Incident,
   type IncidentAction,
@@ -19,6 +23,7 @@ import { Badge, PriorityBadge, StatusBadge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { SelectField, TextArea } from "../../components/Field";
 import { Modal } from "../../components/Modal";
+import { RiskChip } from "../../components/RiskChip";
 import { SLAChip } from "../../components/SLAChip";
 import { Card, ErrorState, QueryView, Skeleton } from "../../components/States";
 import { useToasts } from "../../components/Toasts";
@@ -88,6 +93,7 @@ function TextDialog({
   busy,
   onSubmit,
   onClose,
+  initial = "",
 }: {
   title: string;
   label: string;
@@ -96,8 +102,9 @@ function TextDialog({
   busy: boolean;
   onSubmit: (text: string) => void;
   onClose: () => void;
+  initial?: string;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initial);
   return (
     <Modal title={title} onClose={onClose}>
       <form
@@ -359,6 +366,239 @@ function AssignmentPanel({
   );
 }
 
+/**
+ * §6.1: how the most similar resolved incidents were fixed. The AI summary is labelled as such
+ * and may cite only the incidents listed; a fix is only ever copied into the resolve box,
+ * where the technician edits it before anything is saved.
+ */
+function SuggestedFixPanel({
+  incident,
+  onUse,
+}: {
+  incident: Incident;
+  onUse: ((text: string) => void) | null;
+}) {
+  const portal = usePortal();
+  const found = useSuggestedResolution(incident.id, true);
+  if (found.isPending) return <Skeleton rows={2} label="Looking for similar fixes" />;
+  if (found.isError) return <ErrorState error={found.error} />;
+  const { fixes, summary, source } = found.data;
+  return (
+    <Card title="Suggested fix">
+      {fixes.length === 0 ? (
+        <p className="text-sm text-muted">No resolved incident looks like this one yet.</p>
+      ) : (
+        <>
+          {summary !== null && (
+            <div
+              data-testid="fix-summary"
+              className="mb-3 rounded-md border border-line bg-raised px-3 py-2 text-sm"
+            >
+              <p>{summary}</p>
+              <p className="mt-1 text-xs text-muted">
+                AI summary ({source ?? "AI"}), citing only the incidents below. Check before using
+                it.
+              </p>
+            </div>
+          )}
+          <ul className="space-y-2">
+            {fixes.map((fix) => (
+              <li
+                key={fix.id}
+                data-testid="past-fix"
+                className="rounded-md border border-line px-3 py-2"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Link className="font-mono text-xs underline" to={incidentPath(portal, fix.id)}>
+                    {fix.id}
+                  </Link>
+                  <span className="text-xs text-muted">
+                    {String(Math.round(fix.score * 100))}% similar
+                  </span>
+                </div>
+                <p className="mt-1 text-sm font-medium">{fix.title}</p>
+                <p className="mt-1 text-sm whitespace-pre-wrap">{fix.resolution}</p>
+                {onUse !== null && (
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      small
+                      onClick={() => {
+                        onUse(`${fix.resolution} (as in ${fix.id})`);
+                      }}
+                    >
+                      Use this fix…
+                    </Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
+  );
+}
+
+type Related = Schemas["RelatedIncidentResponse"];
+
+function RelatedList({ items }: { items: readonly Related[] }) {
+  const portal = usePortal();
+  return (
+    <ul className="space-y-2">
+      {items.map((item) => (
+        <li
+          key={item.id}
+          data-testid="related-incident"
+          className="rounded-md border border-line px-3 py-2"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Link className="font-mono text-xs underline" to={incidentPath(portal, item.id)}>
+              {item.id}
+            </Link>
+            <PriorityBadge priority={item.priority} />
+            <StatusBadge status={item.status} />
+          </div>
+          <p className="mt-1 text-sm">{item.title}</p>
+          <p className="mt-1 text-xs text-muted">{item.path.join(" → ")}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * §6.2: the dependency graph's view of this incident. The hint is advice for the technician;
+ * nothing is linked or changed by it.
+ */
+function CorrelationPanel({ incident }: { incident: Incident }) {
+  const found = useCorrelation(incident.id, true);
+  if (found.isPending) return <Skeleton rows={2} label="Checking related services" />;
+  if (found.isError) return <ErrorState error={found.error} />;
+  const { hint, root_causes: causes, impacted } = found.data;
+  if (causes.length === 0 && impacted.length === 0) return null;
+  return (
+    <Card title="Related through services">
+      {hint !== null && (
+        <p
+          role="status"
+          data-testid="root-cause-hint"
+          className="mb-3 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm font-medium"
+        >
+          {hint}
+        </p>
+      )}
+      {causes.length > 0 && (
+        <>
+          <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+            Open P1/P2 incidents on services this depends on
+          </h3>
+          <RelatedList items={causes} />
+        </>
+      )}
+      {impacted.length > 0 && (
+        <>
+          <h3 className="mt-3 mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+            Open incidents this may be causing
+          </h3>
+          <RelatedList items={impacted} />
+        </>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * §6.2, BR-09: open incidents this one resembles. Confirming one cancels this incident as its
+ * duplicate and its reporter then follows the other (D-005). Nothing happens without a click.
+ */
+function DuplicatePanel({
+  incident,
+  busy,
+  onConfirm,
+}: {
+  incident: Incident;
+  busy: boolean;
+  onConfirm: (parentId: string) => void;
+}) {
+  const portal = usePortal();
+  const found = usePossibleDuplicates(incident.id, true);
+  const [chosen, setChosen] = useState<string | null>(null);
+  return (
+    <Card title="Possible duplicates">
+      {found.isPending && <Skeleton rows={2} label="Comparing with open incidents" />}
+      {found.isError && <ErrorState error={found.error} />}
+      {found.data !== undefined && found.data.candidates.length === 0 && (
+        <p className="text-sm text-muted">No open incident looks like this one.</p>
+      )}
+      {found.data !== undefined && found.data.candidates.length > 0 && (
+        <>
+          <p className="mb-3 text-xs text-muted">
+            Compared by text, service and time (
+            {found.data.provider === "tfidf" ? "offline TF-IDF" : found.data.provider}).
+          </p>
+          <ul className="space-y-2">
+            {found.data.candidates.map((candidate) => (
+              <li
+                key={candidate.id}
+                data-testid="possible-duplicate"
+                className="rounded-md border border-line px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <Link
+                    className="text-sm font-medium underline"
+                    to={incidentPath(portal, candidate.id)}
+                  >
+                    {candidate.id}
+                  </Link>
+                  <StatusBadge status={candidate.status} />
+                </div>
+                <p className="mt-1 text-sm">{candidate.title}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {String(Math.round(candidate.score * 100))}% match ·{" "}
+                  {candidate.reasons.join(" · ")}
+                </p>
+                <div className="mt-2 flex justify-end">
+                  {chosen === candidate.id ? (
+                    <span className="flex gap-2">
+                      <Button
+                        small
+                        onClick={() => {
+                          setChosen(null);
+                        }}
+                      >
+                        Not this one
+                      </Button>
+                      <Button
+                        small
+                        variant="danger"
+                        busy={busy}
+                        onClick={() => {
+                          onConfirm(candidate.id);
+                        }}
+                      >
+                        Cancel {incident.id} as its duplicate
+                      </Button>
+                    </span>
+                  ) : (
+                    <Button
+                      small
+                      onClick={() => {
+                        setChosen(candidate.id);
+                      }}
+                    >
+                      Confirm duplicate…
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
+  );
+}
+
 /** The incident's hash-chained audit records (BR-10), for roles that may read the log. */
 function AuditTrail({ incidentId }: { incidentId: string }) {
   const audit = useAudit(0, 50, incidentId);
@@ -399,9 +639,12 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [note, setNote] = useState("");
   const [reply, setReply] = useState("");
+  const [draftFix, setDraftFix] = useState("");
   const teams = useTeams();
   const myTeam = teams.data?.find((team) => team.id === me.technician?.team_id);
   const allowed = availableActions(incident, me, myTeam?.member_ids ?? []);
+  // §6.3 is for the people working the incident; the reporter sees the SLA chip only.
+  const risk = useRisk(incident.id, can("incident:view_assigned"));
   const question = pendingQuestion(incident);
 
   const run = (next: IncidentAction, done: string, after?: () => void) => {
@@ -427,11 +670,12 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
         <Link to={PORTAL_HOME[portal]} className="text-sm text-muted underline">
           ← Back to the list
         </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div data-testid="incident-status-bar" className="mt-2 flex flex-wrap items-center gap-2">
           <span className="font-mono text-sm text-muted">{incident.id}</span>
           <StatusBadge status={incident.status} />
           <PriorityBadge priority={incident.priority} />
           <SLAChip sla={incident.sla} status={incident.status} />
+          {risk.data !== undefined && risk.data !== null && <RiskChip risk={risk.data} />}
           {incident.escalation_level > 0 && (
             <Badge tone="bad">Escalated · level {String(incident.escalation_level)}</Badge>
           )}
@@ -441,6 +685,11 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
           )}
         </div>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{incident.title}</h1>
+        {risk.data !== undefined && risk.data !== null && (
+          <p data-testid="risk-reason" className="mt-1 text-xs text-muted">
+            {risk.data.reason}
+          </p>
+        )}
       </div>
 
       {question !== null && allowed.provideInformation && (
@@ -480,6 +729,29 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
             </Button>
           </div>
         </div>
+      )}
+
+      {incident.duplicate_of !== null && incident.duplicate_of !== undefined && (
+        <div
+          role="status"
+          data-testid="linked-duplicate"
+          className="rounded-lg border border-line bg-raised px-4 py-3 text-sm"
+        >
+          <p className="font-medium">
+            This is the same problem as {incident.duplicate_of.id} ({incident.duplicate_of.title}).
+          </p>
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+            That incident is <StatusBadge status={incident.duplicate_of.status} /> and we will tell
+            you when it is fixed.
+          </p>
+        </div>
+      )}
+      {incident.duplicate_count > 0 && (
+        <p className="text-sm text-muted" data-testid="duplicate-count">
+          {incident.duplicate_count === 1
+            ? "1 other report is linked to this incident as a duplicate."
+            : `${String(incident.duplicate_count)} other reports are linked to this incident as duplicates.`}
+        </p>
       )}
 
       <div className="grid gap-5 lg:grid-cols-3">
@@ -683,13 +955,47 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
               )}
               {incident.parent_id !== null && (
                 <Fact label="Duplicate of">
-                  <Link className="underline" to={incidentPath(portal, incident.parent_id)}>
-                    {incident.parent_id}
-                  </Link>
+                  {/* BR-01: a reporter may not open someone else's incident, so no link. */}
+                  {portal === "employee" ? (
+                    incident.parent_id
+                  ) : (
+                    <Link className="underline" to={incidentPath(portal, incident.parent_id)}>
+                      {incident.parent_id}
+                    </Link>
+                  )}
                 </Fact>
               )}
             </dl>
           </Card>
+
+          {allowed.note && (
+            <SuggestedFixPanel
+              incident={incident}
+              onUse={
+                allowed.resolve
+                  ? (text) => {
+                      setDraftFix(text);
+                      setDialog("resolve");
+                    }
+                  : null
+              }
+            />
+          )}
+
+          {can("incident:view_assigned") && <CorrelationPanel incident={incident} />}
+
+          {allowed.confirmDuplicate && (
+            <DuplicatePanel
+              incident={incident}
+              busy={busy}
+              onConfirm={(parentId) => {
+                run(
+                  { kind: "confirm-duplicate", parentId },
+                  `${incident.id} cancelled as a duplicate of ${parentId}; its reporter now follows ${parentId}.`,
+                );
+              }}
+            />
+          )}
 
           {allowed.reassign && (
             <AssignmentPanel
@@ -713,7 +1019,11 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
           hint="The reporter sees this and is asked to confirm the fix."
           submitLabel="Mark as resolved"
           busy={busy}
-          onClose={close}
+          initial={draftFix}
+          onClose={() => {
+            setDraftFix("");
+            close();
+          }}
           onSubmit={(summary) => {
             run({ kind: "resolve", summary }, "Resolved. The reporter has been asked to confirm.");
           }}

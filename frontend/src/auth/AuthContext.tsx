@@ -21,6 +21,8 @@ interface AuthState {
   retry: () => void;
   user: Me | null;
   signIn: (email: string, password: string) => Promise<void>;
+  /** P4.10: sign in with the ID token Google Identity Services gave the browser. */
+  signInWithGoogle: (credential: string) => Promise<void>;
   register: (fullName: string, email: string, password: string) => Promise<void>;
   signOut: () => void;
   can: (permission: Schemas["Permission"]) => boolean;
@@ -51,6 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (email: string, password: string) => {
       const issued = await unwrap(api.POST("/auth/login", { body: { email, password } }));
+      client.clear();
+      setToken(issued.access_token);
+    },
+    [client],
+  );
+
+  const signInWithGoogle = useCallback(
+    async (credential: string) => {
+      const issued = await unwrap(api.POST("/auth/google", { body: { credential } }));
       client.clear();
       setToken(issued.access_token);
     },
@@ -88,11 +99,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       user,
       signIn,
+      signInWithGoogle,
       register,
       signOut,
       can: (permission) => user?.permissions.includes(permission) ?? false,
     };
-  }, [token, me.data, me.isError, me.error, refetch, signIn, register, signOut]);
+  }, [token, me.data, me.isError, me.error, refetch, signIn, signInWithGoogle, register, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

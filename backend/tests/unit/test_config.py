@@ -1,3 +1,4 @@
+import logging
 import re
 from pathlib import Path
 
@@ -48,3 +49,19 @@ def test_production_accepts_a_real_secret() -> None:
         _env_file=None,
     )
     assert settings.app_env is AppEnv.PROD
+
+
+def test_http_client_loggers_never_print_request_urls_which_carry_the_bot_token(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """P4 review: httpx logs every request URL at INFO; Telegram's URL contains the token."""
+    import httpx
+
+    from app.core.logging import configure_logging
+
+    configure_logging("INFO")
+    secret = "123456:SECRET-TOKEN"
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200)))
+    with caplog.at_level(logging.INFO):
+        client.post(f"https://api.telegram.org/bot{secret}/sendMessage", json={})
+    assert secret not in caplog.text

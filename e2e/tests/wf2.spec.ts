@@ -36,7 +36,9 @@ test("WF2: an incident is worked from acknowledgement to closure", async ({
   await expect(actions.getByRole("button", { name: "Resolve" })).toHaveCount(0);
   await actions.getByRole("button", { name: "Acknowledge" }).click();
   await expect(
-    tech.getByText("Acknowledged", { exact: true }).first(),
+    tech
+      .getByTestId("incident-status-bar")
+      .getByText("Acknowledged", { exact: true }),
   ).toBeVisible();
   await expect(tech.getByTestId("sla-chip")).toContainText("Resolution due in");
 
@@ -56,7 +58,11 @@ test("WF2: an incident is worked from acknowledgement to closure", async ({
   expect(refused).toEqual({ status: 409, code: "invalid_state_transition" });
 
   await actions.getByRole("button", { name: "Start work" }).click();
-  await expect(tech.getByText("In progress", { exact: true })).toBeVisible();
+  await expect(
+    tech
+      .getByTestId("incident-status-bar")
+      .getByText("In progress", { exact: true }),
+  ).toBeVisible();
 
   // Asking the reporter pauses the SLA clock.
   await actions.getByRole("button", { name: "Request information" }).click();
@@ -64,7 +70,11 @@ test("WF2: an incident is worked from acknowledgement to closure", async ({
     .getByLabel("What do you need to know?")
     .fill("Which browser are you using?");
   await tech.getByRole("button", { name: "Send request" }).click();
-  await expect(tech.getByText("On hold", { exact: true })).toBeVisible();
+  await expect(
+    tech
+      .getByTestId("incident-status-bar")
+      .getByText("On hold", { exact: true }),
+  ).toBeVisible();
   await expect(tech.getByTestId("sla-chip")).toHaveText("SLA paused");
 
   // The reporter sees the question, replies, and the incident resumes (D-006).
@@ -78,7 +88,9 @@ test("WF2: an incident is worked from acknowledgement to closure", async ({
   await reporter.getByLabel("Your message").fill("Firefox on the lab PCs.");
   await reporter.getByRole("button", { name: "Send" }).click();
   await expect(
-    reporter.getByText("In progress", { exact: true }),
+    reporter
+      .getByTestId("incident-status-bar")
+      .getByText("In progress", { exact: true }),
   ).toBeVisible();
 
   // First fix, which the reporter rejects.
@@ -91,7 +103,9 @@ test("WF2: an incident is worked from acknowledgement to closure", async ({
   await tech.getByLabel("What fixed it?").fill("Unlocked the account.");
   await tech.getByRole("button", { name: "Mark as resolved" }).click();
   await expect(
-    tech.getByText("Resolved", { exact: true }).first(),
+    tech
+      .getByTestId("incident-status-bar")
+      .getByText("Resolved", { exact: true }),
   ).toBeVisible();
 
   await reporter.reload();
@@ -99,7 +113,9 @@ test("WF2: an incident is worked from acknowledgement to closure", async ({
   await reporter.getByLabel("What is still wrong?").fill("Still locked out.");
   await reporter.getByRole("button", { name: "Reopen the incident" }).click();
   await expect(
-    reporter.getByText("In progress", { exact: true }),
+    reporter
+      .getByTestId("incident-status-bar")
+      .getByText("In progress", { exact: true }),
   ).toBeVisible();
   await expect(reporter.getByText("Reopened ×1")).toBeVisible();
 
@@ -114,7 +130,9 @@ test("WF2: an incident is worked from acknowledgement to closure", async ({
     .fill("Reset the password and cleared the lockout.");
   await tech.getByRole("button", { name: "Mark as resolved" }).click();
   await expect(
-    tech.getByText("Resolved", { exact: true }).first(),
+    tech
+      .getByTestId("incident-status-bar")
+      .getByText("Resolved", { exact: true }),
   ).toBeVisible();
 
   await reporter.reload();
@@ -128,7 +146,11 @@ test("WF2: an incident is worked from acknowledgement to closure", async ({
     .getByTestId("actions")
     .getByRole("button", { name: "Close incident" })
     .click();
-  await expect(tech.getByText("Closed", { exact: true }).first()).toBeVisible();
+  await expect(
+    tech
+      .getByTestId("incident-status-bar")
+      .getByText("Closed", { exact: true }),
+  ).toBeVisible();
   await expect(
     tech.getByText("Nothing to do on this incident right now."),
   ).toBeVisible();

@@ -11,9 +11,8 @@ from collections.abc import Callable, Mapping
 from datetime import datetime
 
 from app.core.clock import in_ist
-from app.domain.errors import NetworkFailureError
 from app.domain.notifications import ChannelName
-from app.domain.ports import EmailSender, NotificationChannel, OutgoingMessage
+from app.domain.ports import ChatSender, EmailSender, NotificationChannel, OutgoingMessage
 
 logger = logging.getLogger(__name__)
 #: How the campus reads a timestamp (blueprint §9: stored UTC, shown IST).
@@ -57,13 +56,20 @@ class EmailChannel(NotificationChannel):
 
 
 class TelegramChannel(NotificationChannel):
-    """Placeholder until P4.9: it refuses to send so the retry and fallback paths are real."""
+    """P1/P2 alerts on Telegram (§5.4) for users who linked a chat; others are skipped."""
 
     name = ChannelName.TELEGRAM.value
 
+    def __init__(self, sender: ChatSender, chat_of: Callable[[int], str | None]) -> None:
+        self.__sender = sender
+        self.__chat_of = chat_of
+
     def send(self, message: OutgoingMessage) -> None:
-        msg = "Telegram is not configured (P4.9)."
-        raise NetworkFailureError(msg)
+        chat_id = self.__chat_of(message.recipient_id)
+        if chat_id is None:
+            logger.info("user %s has not linked Telegram; skipping", message.recipient_id)
+            return
+        self.__sender.send(chat_id, f"{message.subject}\n\n{message.body}")
 
 
 class ChannelFactory:

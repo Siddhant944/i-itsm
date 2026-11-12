@@ -22,8 +22,12 @@ from app.domain.incident import (
     NoteKind,
 )
 from app.domain.priority import Priority
+from app.domain.risk import RiskMethod
 from app.domain.sla import SLAStatus
 from app.domain.states import IncidentStatus
+from app.services.duplicates import DuplicateCandidate
+
+INCIDENT_ID_MAX = 20
 
 Factor = Annotated[int, Field(ge=MIN_FACTOR, le=MAX_FACTOR)]
 Reason = Annotated[str, Field(min_length=1, max_length=1000)]
@@ -40,6 +44,91 @@ class ReportIncidentRequest(BaseModel):
     category_id: int | None = Field(
         default=None, ge=1, description="The confirmed category; omitted lets the AI suggest one"
     )
+    follow: str | None = Field(
+        default=None,
+        max_length=INCIDENT_ID_MAX,
+        description="A suggested open incident to follow instead; this report is linked to it",
+    )
+
+
+class SimilarRequest(BaseModel):
+    """What the reporter has typed so far, for the while-typing duplicate hint (§6.2)."""
+
+    title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
+    description: str = Field(default="", max_length=5000)
+    service_id: int | None = Field(default=None, ge=1)
+
+
+class ConfirmDuplicateRequest(BaseModel):
+    """BR-09: the open incident this one duplicates."""
+
+    parent_id: str = Field(min_length=1, max_length=INCIDENT_ID_MAX)
+
+
+class LinkedIncidentResponse(BaseModel):
+    """Just enough of another incident to name it: its id, title and status (D-005)."""
+
+    id: str
+    title: str
+    status: IncidentStatus
+
+
+class SimilarIncidentResponse(LinkedIncidentResponse):
+    """An open incident that resembles a report, with the score and the reasons (§6.2)."""
+
+    created_at: datetime
+    score: float = Field(ge=0.0, le=1.0)
+    reasons: list[str]
+
+
+class RelatedIncidentResponse(LinkedIncidentResponse):
+    """An open incident related through the dependency graph, and the way it is related."""
+
+    priority: Priority | None
+    service_id: int
+    service_name: str
+    hops: int = Field(ge=1, description="How many dependency edges apart the two services are")
+    path: list[str] = Field(description="Service names from this incident's service to its own")
+
+
+class PastFixResponse(LinkedIncidentResponse):
+    """A resolved incident like this one, and what fixed it."""
+
+    resolution: str
+    score: float = Field(ge=0.0, le=1.0)
+
+
+class SuggestedResolutionResponse(BaseModel):
+    """§6.1: past fixes, and an AI summary that cites only them (null without one)."""
+
+    fixes: list[PastFixResponse]
+    summary: str | None
+    source: str | None
+
+
+class RiskResponse(BaseModel):
+    """§6.3: the predicted chance of a resolution breach, and the evidence in plain words."""
+
+    at_risk: bool
+    method: RiskMethod
+    reason: str
+    probability: float | None = Field(ge=0.0, le=1.0)
+    samples: int
+
+
+class CorrelationResponse(BaseModel):
+    """§6.2: the possible root cause in plain words, and the evidence behind it."""
+
+    hint: str | None
+    root_causes: list[RelatedIncidentResponse]
+    impacted: list[RelatedIncidentResponse]
+
+
+class DuplicateCheckResponse(BaseModel):
+    """Possible duplicates, best first. Advice: nothing is linked until someone confirms."""
+
+    provider: str
+    candidates: list[SimilarIncidentResponse]
 
 
 class ClassifyRequest(BaseModel):
@@ -92,7 +181,7 @@ class CategoryOverrideRequest(BaseModel):
 
 class CancelRequest(BaseModel):
     reason: CancelReason = CancelReason.WITHDRAWN
-    duplicate_of: str | None = Field(default=None, max_length=20)
+    duplicate_of: str | None = Field(default=None, max_length=INCIDENT_ID_MAX)
 
     @model_validator(mode="after")
     def _duplicates_name_their_parent(self) -> Self:
@@ -167,6 +256,10 @@ class IncidentResponse(IncidentSummaryResponse):
     notes: list[WorkNoteResponse]
     resolution: ResolutionResponse | None
     feedback: FeedbackResponse | None
+    #: The incident this one was linked to as a duplicate (only on the detail read).
+    duplicate_of: LinkedIncidentResponse | None = None
+    #: How many reports are linked to this one as duplicates (only on the detail read).
+    duplicate_count: int = 0
 
 
 class CandidateScoreResponse(BaseModel):
@@ -190,6 +283,8 @@ class ReportedIncidentResponse(BaseModel):
     assignment: CandidateScoreResponse | None
     queued_for_team_lead: bool
     needs_triage: bool
+    possible_duplicates: list[SimilarIncidentResponse] = Field(default_factory=list)
+    followed: LinkedIncidentResponse | None = None
 
 
 def sla_of(incident: Incident, clock: Clock) -> SLAResponse | None:
@@ -224,8 +319,32 @@ def summary_of(incident: Incident, clock: Clock) -> IncidentSummaryResponse:
     )
 
 
-def detail_of(incident: Incident, clock: Clock) -> IncidentResponse:
+def linked(incident: Incident) -> LinkedIncidentResponse:
+    return LinkedIncidentResponse(id=incident.id, title=incident.title, status=incident.status)
+
+
+def similar_of(candidate: DuplicateCandidate) -> SimilarIncidentResponse:
+    incident = candidate.incident
+    return SimilarIncidentResponse(
+        id=incident.id,
+        title=incident.title,
+        status=incident.status,
+        created_at=incident.created_at,
+        score=min(1.0, candidate.score.total),
+        reasons=list(candidate.score.reasons),
+    )
+
+
+def detail_of(
+    incident: Incident,
+    clock: Clock,
+    *,
+    duplicate_of: Incident | None = None,
+    duplicate_count: int = 0,
+) -> IncidentResponse:
     return IncidentResponse(
+        duplicate_of=None if duplicate_of is None else linked(duplicate_of),
+        duplicate_count=duplicate_count,
         **summary_of(incident, clock).model_dump(),
         description=incident.description,
         impact=incident.impact,

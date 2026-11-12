@@ -13,7 +13,12 @@ from collections.abc import Iterable, Sequence
 
 from app.core.clock import Clock
 from app.domain.catalogue import fallback_lead
-from app.domain.errors import ITSMError, UnauthorizedOperationError
+from app.domain.errors import (
+    InvalidUserInputError,
+    ITSMError,
+    NetworkFailureError,
+    UnauthorizedOperationError,
+)
 from app.domain.events import (
     CategoryChanged,
     DomainEvent,
@@ -22,7 +27,7 @@ from app.domain.events import (
     PriorityChanged,
     WorkNoteAdded,
 )
-from app.domain.incident import Incident, NoteKind
+from app.domain.incident import CancelReason, Incident, NoteKind
 from app.domain.notifications import (
     Audience,
     ChannelName,
@@ -37,7 +42,12 @@ from app.domain.repositories import UnitOfWork
 from app.domain.states import IncidentStatus
 from app.domain.users import Technician, User
 from app.services.notifications.channels import ChannelFactory, default_factory
-from app.services.notifications.messages import Message, compose
+from app.services.notifications.messages import (
+    Message,
+    compose,
+    compose_for_follower,
+    compose_linked,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +173,24 @@ class NotificationService:
         self.__uow.commit()
         return notification
 
+    def send_test(self, user: User, channel_name: ChannelName) -> None:
+        """Send ``user`` a test message now, so they can see a linked channel works (P4.9).
+
+        Unlike an alert this does raise: the person pressing "send a test" wants to know.
+        """
+        channel = self.__channels.get(channel_name)
+        if channel is None:
+            raise NetworkFailureError(f"{channel_name.value} is not set up on this deployment.")
+        if channel_name is ChannelName.TELEGRAM and user.telegram_chat_id is None:
+            raise InvalidUserInputError({"chat_id": "Link a Telegram chat first."})
+        channel.send(
+            OutgoingMessage(
+                recipient_id=user.id,
+                subject="I-ITSM test message",
+                body="Your alerts for critical and high-priority incidents will arrive here.",
+            )
+        )
+
     # ------------------------------------------------------------ internals
     def __handle(self, event: DomainEvent) -> None:
         incident = self.__uow.incidents.get(event.incident_id)
@@ -182,11 +210,65 @@ class NotificationService:
         if event.to_status is IncidentStatus.ASSIGNED and "Escalated" in event.description:
             self.notify(NotificationEvent.ESCALATED, incident, event.description)
             return
+        if event.to_status is IncidentStatus.CANCELLED:
+            self.__linked_as_duplicate(event, incident)
+            return
         notification_event = _EVENT_FOR_STATUS.get(event.to_status)
         if notification_event is None:
             return
         detail = self.__detail_for(notification_event, incident)
         self.notify(notification_event, incident, detail)
+        if notification_event is NotificationEvent.RESOLVED:
+            self.__tell_followers(incident, detail)
+
+    def __linked_as_duplicate(self, event: IncidentStateChanged, incident: Incident) -> None:
+        """Tell a reporter whose incident someone else linked to another one (§6.2)."""
+        if (
+            incident.cancel_reason is not CancelReason.DUPLICATE
+            or incident.parent_id is None
+            or event.actor_id == incident.reporter_id  # they chose to follow it themselves
+        ):
+            return
+        parent = self.__uow.incidents.get(incident.parent_id)
+        self.__send(
+            NotificationEvent.CLOSED,
+            (incident.reporter_id,),
+            incident,
+            compose_linked(incident, parent),
+        )
+
+    def __tell_followers(self, parent: Incident, detail: str) -> None:
+        """D-005: the reporters of confirmed duplicates hear when the parent is fixed.
+
+        The notification is filed under their own incident, which is the one they may open.
+        """
+        told = {parent.reporter_id}
+        for duplicate in self.__uow.incidents.duplicates_of(parent.id):
+            if duplicate.cancel_reason is not CancelReason.DUPLICATE:
+                continue
+            if duplicate.reporter_id in told:
+                continue
+            told.add(duplicate.reporter_id)
+            self.__send(
+                NotificationEvent.RESOLVED,
+                (duplicate.reporter_id,),
+                duplicate,
+                compose_for_follower(duplicate, parent, detail),
+            )
+
+    def __send(
+        self,
+        event: NotificationEvent,
+        recipients: Iterable[int],
+        incident: Incident,
+        message: Message,
+    ) -> None:
+        """Store and deliver one composed message on the channels the event's row names."""
+        for user_id in recipients:
+            for channel_name in route_for(event).channels_for(incident.priority):
+                notification = self.__store(event, channel_name, user_id, incident, message)
+                self.__deliver(notification, incident)
+        self.__uow.commit()
 
     def __detail_for(self, event: NotificationEvent, incident: Incident) -> str:
         if event is NotificationEvent.INFO_REQUESTED:

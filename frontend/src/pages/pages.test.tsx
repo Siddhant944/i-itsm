@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { apiError, incident, me, renderPage, renderRoutes } from "../test/utils";
 import { AuditPage } from "./admin/AuditPage";
@@ -14,6 +14,7 @@ import { RegisterPage } from "./auth/RegisterPage";
 import { MyIncidentsPage } from "./employee/MyIncidentsPage";
 import { ReportPage } from "./employee/ReportPage";
 import { IncidentDetailPage } from "./incident/IncidentDetailPage";
+import { TelegramSettings } from "../components/TelegramSettings";
 import { QueuePage } from "./technician/QueuePage";
 
 const TOKEN = {
@@ -155,6 +156,7 @@ describe("the employee portal", () => {
         impact: 1,
         urgency: 3,
         category_id: null,
+        follow: null,
       });
     });
     expect(await screen.findByText(/INC-2026-0001 reported as P2/)).toBeInTheDocument();
@@ -613,5 +615,397 @@ describe("the admin portal", () => {
       },
     });
     expect(await screen.findByText("No incidents match these filters")).toBeInTheDocument();
+  });
+});
+
+describe("duplicates (§6.2, BR-09)", () => {
+  const lookalike = {
+    id: "INC-2026-0040",
+    title: "Fee portal down",
+    status: "ASSIGNED",
+    created_at: "2026-11-06T08:50:00Z",
+    score: 0.81,
+    reasons: ["text 64 % alike", "same service", "reported close together"],
+  };
+
+  it("offers a similar open incident while typing, and follows it only when asked", async () => {
+    const { calls } = renderPage(<ReportPage />, {
+      user: me("employee"),
+      routes: {
+        "POST /incidents/classify": apiError(503, "Classifier unavailable."),
+        "POST /incidents/similar": { provider: "tfidf", candidates: [lookalike] },
+        "POST /incidents": {
+          incident: incident({ status: "CANCELLED", cancel_reason: "duplicate" }),
+          suggestion: null,
+          assignment: null,
+          needs_triage: false,
+          queued_for_team_lead: false,
+          possible_duplicates: [lookalike],
+          followed: { id: "INC-2026-0040", title: "Fee portal down", status: "ASSIGNED" },
+        },
+      },
+    });
+    await userEvent.type(await screen.findByLabelText(/one line/), "Fee payment portal error");
+    const hint = await screen.findByTestId("similar-incidents", {}, { timeout: 3000 });
+    expect(hint).toHaveTextContent("INC-2026-0040");
+    expect(hint).toHaveTextContent("81% match");
+    expect(hint).toHaveTextContent("same service");
+
+    await userEvent.type(screen.getByLabelText("What happened?"), "Cannot pay");
+    await userEvent.selectOptions(screen.getByLabelText(/Which service/), "1");
+    await userEvent.click(screen.getByLabelText("Just me"));
+    await userEvent.click(screen.getByLabelText("I am blocked"));
+    // Typing changed the text, so the hint is recomputed for it before it can be followed.
+    const fresh = await screen.findByTestId("similar-incidents", {}, { timeout: 3000 });
+    await userEvent.click(within(fresh).getByRole("button", { name: "Follow this instead" }));
+    await userEvent.click(screen.getByRole("button", { name: "Follow INC-2026-0040" }));
+
+    await waitFor(() => {
+      const sent = calls.find((c) => c.method === "POST" && c.path === "/incidents")?.body;
+      expect(sent).toMatchObject({ follow: "INC-2026-0040" });
+    });
+    expect(await screen.findByText(/You are following INC-2026-0040/)).toBeInTheDocument();
+  });
+
+  it("explains a refused repeat and links to the first report", async () => {
+    renderPage(<ReportPage />, {
+      user: me("employee"),
+      routes: {
+        "POST /incidents/classify": apiError(503, "Classifier unavailable."),
+        "POST /incidents": () =>
+          new Response(
+            JSON.stringify({
+              error: {
+                code: "duplicate_incident",
+                message: "This looks like INC-2026-0040, which you reported recently.",
+                details: { existing_incident_id: "INC-2026-0040" },
+              },
+            }),
+            { status: 409, headers: { "Content-Type": "application/json" } },
+          ),
+      },
+    });
+    await userEvent.type(await screen.findByLabelText(/one line/), "Fee portal down");
+    await userEvent.type(screen.getByLabelText("What happened?"), "Error 503");
+    await userEvent.selectOptions(screen.getByLabelText(/Which service/), "1");
+    await userEvent.click(screen.getByLabelText("Just me"));
+    await userEvent.click(screen.getByLabelText("I am blocked"));
+    await userEvent.click(screen.getByRole("button", { name: "Submit incident" }));
+    const refused = await screen.findByTestId("repeat-report");
+    expect(refused).toHaveTextContent("You reported this a few minutes ago.");
+    expect(within(refused).getByRole("link", { name: "INC-2026-0040" })).toHaveAttribute(
+      "href",
+      "/employee/incidents/INC-2026-0040",
+    );
+  });
+
+  it("lets the technician confirm a possible duplicate, in two clicks", async () => {
+    const { calls } = renderRoutes(
+      [{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }],
+      {
+        path: "/technician/incidents/INC-2026-0001",
+        user: me("technician", 3),
+        routes: {
+          "GET /incidents/INC-2026-0001": incident(),
+          "GET /incidents/INC-2026-0001/possible-duplicates": {
+            provider: "tfidf",
+            candidates: [lookalike],
+          },
+          "POST /incidents/INC-2026-0001/confirm-duplicate": incident({
+            status: "CANCELLED",
+            cancel_reason: "duplicate",
+            parent_id: "INC-2026-0040",
+          }),
+        },
+      },
+    );
+    const found = await screen.findByTestId("possible-duplicate");
+    expect(found).toHaveTextContent("Fee portal down");
+    expect(found).toHaveTextContent("81% match");
+    await userEvent.click(within(found).getByRole("button", { name: "Confirm duplicate…" }));
+    await userEvent.click(
+      within(found).getByRole("button", { name: "Cancel INC-2026-0001 as its duplicate" }),
+    );
+    await waitFor(() => {
+      expect(calls.find((c) => c.path.endsWith("/confirm-duplicate"))?.body).toEqual({
+        parent_id: "INC-2026-0040",
+      });
+    });
+  });
+
+  it("tells a follower what their report is linked to, without a link they cannot open", async () => {
+    detail({
+      user: me("employee", 1),
+      routes: {
+        "GET /incidents/INC-2026-0001": incident({
+          status: "CANCELLED",
+          cancel_reason: "duplicate",
+          parent_id: "INC-2026-0040",
+          duplicate_of: { id: "INC-2026-0040", title: "Fee portal down", status: "IN_PROGRESS" },
+        }),
+      },
+    });
+    const banner = await screen.findByTestId("linked-duplicate");
+    expect(banner).toHaveTextContent("same problem as INC-2026-0040 (Fee portal down)");
+    expect(banner).toHaveTextContent("we will tell you when it is fixed");
+    expect(screen.queryByRole("link", { name: "INC-2026-0040" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Possible duplicates")).not.toBeInTheDocument();
+  });
+});
+
+describe("correlation (§6.2)", () => {
+  it("shows the technician the likely root cause and the way the services connect", async () => {
+    renderRoutes([{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }], {
+      path: "/technician/incidents/INC-2026-0001",
+      user: me("technician", 3),
+      routes: {
+        "GET /incidents/INC-2026-0001": incident(),
+        "GET /incidents/INC-2026-0001/correlation": {
+          hint: "Likely related to INC-2026-0040 (Database Cluster): possible root cause.",
+          root_causes: [
+            {
+              id: "INC-2026-0040",
+              title: "Database cluster unreachable",
+              status: "IN_PROGRESS",
+              priority: "P1",
+              service_id: 4,
+              service_name: "Database Cluster",
+              hops: 1,
+              path: ["Fee Payment Portal", "Database Cluster"],
+            },
+          ],
+          impacted: [],
+        },
+      },
+    });
+    expect(await screen.findByTestId("root-cause-hint")).toHaveTextContent(
+      "Likely related to INC-2026-0040 (Database Cluster): possible root cause.",
+    );
+    const related = screen.getByTestId("related-incident");
+    expect(related).toHaveTextContent("Fee Payment Portal → Database Cluster");
+    expect(within(related).getByRole("link", { name: "INC-2026-0040" })).toHaveAttribute(
+      "href",
+      "/technician/incidents/INC-2026-0040",
+    );
+  });
+
+  it("never asks for it in the employee portal (BR-01)", async () => {
+    const { calls } = detail({
+      user: me("employee", 1),
+      routes: { "GET /incidents/INC-2026-0001": incident() },
+    });
+    expect(await screen.findByText("Wi-Fi down")).toBeInTheDocument();
+    expect(calls.some((c) => c.path.endsWith("/correlation"))).toBe(false);
+  });
+});
+
+describe("predictive SLA risk (§6.3)", () => {
+  it("shows the technician the predicted breach risk and the evidence behind it", async () => {
+    renderRoutes([{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }], {
+      path: "/technician/incidents/INC-2026-0001",
+      user: me("technician", 3),
+      routes: {
+        "GET /incidents/INC-2026-0001": incident(),
+        "GET /incidents/INC-2026-0001/risk": {
+          at_risk: true,
+          method: "history",
+          probability: 0.62,
+          samples: 13,
+          reason:
+            "62 % of past P2 Network incidents still open at 1 h 20 m went on to breach (8 of 13).",
+        },
+      },
+    });
+    expect(await screen.findByTestId("risk-chip")).toHaveTextContent("Breach risk 62%");
+    expect(screen.getByTestId("risk-reason")).toHaveTextContent(
+      "62 % of past P2 Network incidents still open at 1 h 20 m went on to breach",
+    );
+  });
+
+  it("says when the 75 % rule answered for want of history", async () => {
+    renderRoutes([{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }], {
+      path: "/technician/incidents/INC-2026-0001",
+      user: me("technician", 3),
+      routes: {
+        "GET /incidents/INC-2026-0001": incident(),
+        "GET /incidents/INC-2026-0001/risk": {
+          at_risk: false,
+          method: "threshold",
+          probability: null,
+          samples: 3,
+          reason: "40 % of the resolution target used; too few past P2 Network incidents (3).",
+        },
+      },
+    });
+    expect(await screen.findByTestId("risk-chip")).toHaveTextContent("On track (75 % rule)");
+  });
+
+  it("is not asked for in the employee portal", async () => {
+    const { calls } = detail({
+      user: me("employee", 1),
+      routes: { "GET /incidents/INC-2026-0001": incident() },
+    });
+    expect(await screen.findByText("Wi-Fi down")).toBeInTheDocument();
+    expect(calls.some((c) => c.path.endsWith("/risk"))).toBe(false);
+  });
+});
+
+describe("suggested resolution (§6.1)", () => {
+  it("shows past fixes with the cited AI summary and copies a fix into the resolve box", async () => {
+    const { calls } = renderRoutes(
+      [{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }],
+      {
+        path: "/technician/incidents/INC-2026-0001",
+        user: me("technician", 3),
+        routes: {
+          "GET /incidents/INC-2026-0001": incident({ status: "IN_PROGRESS" }),
+          "GET /incidents/INC-2026-0001/suggested-resolution": {
+            fixes: [
+              {
+                id: "INC-2026-0040",
+                title: "Wifi drops in library",
+                status: "CLOSED",
+                resolution: "Rebooted access point AP-3",
+                score: 0.71,
+              },
+            ],
+            summary: "Reboot the library access point [INC-2026-0040].",
+            source: "gemini",
+          },
+          "POST /incidents/INC-2026-0001/resolve": incident({ status: "RESOLVED" }),
+        },
+      },
+    );
+    expect(await screen.findByTestId("fix-summary")).toHaveTextContent(
+      "AI summary (gemini), citing only the incidents below",
+    );
+    const fix = screen.getByTestId("past-fix");
+    expect(fix).toHaveTextContent("71% similar");
+    await userEvent.click(within(fix).getByRole("button", { name: "Use this fix…" }));
+    const dialog = screen.getByRole("dialog", { name: "Resolve the incident" });
+    const box = within(dialog).getByLabelText("What fixed it?");
+    // Copied, not applied: the technician can still change it before saving.
+    expect(box).toHaveValue("Rebooted access point AP-3 (as in INC-2026-0040)");
+    await userEvent.clear(box);
+    await userEvent.type(box, "Rebooted AP-3 again");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Mark as resolved" }));
+    await waitFor(() => {
+      expect(calls.find((c) => c.path.endsWith("/resolve"))?.body).toEqual({
+        summary: "Rebooted AP-3 again",
+      });
+    });
+  });
+
+  it("works without an AI summary and is not asked for by the reporter", async () => {
+    const { calls } = detail({
+      user: me("employee", 1),
+      routes: { "GET /incidents/INC-2026-0001": incident({ status: "IN_PROGRESS" }) },
+    });
+    expect(await screen.findByText("Wi-Fi down")).toBeInTheDocument();
+    expect(calls.some((c) => c.path.endsWith("/suggested-resolution"))).toBe(false);
+  });
+});
+
+describe("Telegram alerts (P4.9)", () => {
+  it("links a chat, then offers a test and unlinking", async () => {
+    let linked: string | null = null;
+    const { calls } = renderPage(<TelegramSettings onClose={() => undefined} />, {
+      user: me("technician", 3),
+      routes: {
+        "GET /auth/me": () => ({
+          ...me("technician", 3),
+          telegram_chat_id: linked,
+          telegram_available: true,
+        }),
+        "PUT /auth/me/telegram": (body: unknown) => {
+          linked = (body as { chat_id: string }).chat_id;
+          return { ...me("technician", 3), telegram_chat_id: linked, telegram_available: true };
+        },
+        "POST /auth/me/telegram/test": () => new Response(null, { status: 204 }),
+      },
+    });
+    await userEvent.type(await screen.findByLabelText("Telegram chat ID"), "123456789");
+    await userEvent.click(screen.getByRole("button", { name: "Link" }));
+    await waitFor(() => {
+      expect(calls.find((c) => c.method === "PUT")?.body).toEqual({ chat_id: "123456789" });
+    });
+    const linkedRow = await screen.findByTestId("telegram-linked");
+    expect(linkedRow).toHaveTextContent("Alerts go to chat 123456789.");
+    await userEvent.click(within(linkedRow).getByRole("button", { name: "Send a test" }));
+    expect(await screen.findByText("Test message sent. Check Telegram.")).toBeInTheDocument();
+  });
+
+  it("says when the deployment has no bot, and keeps the chat for later", async () => {
+    renderPage(<TelegramSettings onClose={() => undefined} />, {
+      user: { ...me("employee"), telegram_chat_id: "42", telegram_available: false },
+    });
+    expect(await screen.findByText(/no Telegram bot set up yet/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send a test" })).toBeDisabled();
+  });
+});
+
+describe("Google Sign-In (P4.10)", () => {
+  function fakeGoogle() {
+    const google = {
+      callback: (() => undefined) as (response: { credential: string }) => void,
+      rendered: 0,
+      accounts: {
+        id: {
+          initialize: (options: { callback: (response: { credential: string }) => void }) => {
+            google.callback = options.callback;
+          },
+          renderButton: () => {
+            google.rendered += 1;
+          },
+        },
+      },
+    };
+    vi.stubGlobal("google", google);
+    return google;
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("is not offered when no client id is configured", () => {
+    vi.stubEnv("VITE_GOOGLE_CLIENT_ID", "");
+    renderPage(<LoginPage />, {});
+    expect(screen.queryByTestId("google-sign-in")).not.toBeInTheDocument();
+  });
+
+  it("signs in with the credential Google hands back", async () => {
+    vi.stubEnv("VITE_GOOGLE_CLIENT_ID", "client-123");
+    const google = fakeGoogle();
+    const { calls } = renderPage(<LoginPage />, {
+      routes: { "POST /auth/google": TOKEN, "GET /auth/me": me("employee") },
+    });
+    await waitFor(() => {
+      expect(google.rendered).toBe(1);
+    });
+    google.callback({ credential: "header.payload.signature" });
+    await waitFor(() => {
+      expect(calls.find((c) => c.path === "/auth/google")?.body).toEqual({
+        credential: "header.payload.signature",
+      });
+    });
+  });
+
+  it("shows why a Google account was refused", async () => {
+    vi.stubEnv("VITE_GOOGLE_CLIENT_ID", "client-123");
+    const google = fakeGoogle();
+    renderPage(<LoginPage />, {
+      routes: {
+        "POST /auth/google": apiError(401, "Sign in with your campus.edu Google account."),
+      },
+    });
+    await waitFor(() => {
+      expect(google.rendered).toBe(1);
+    });
+    google.callback({ credential: "header.payload.signature" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Sign in with your campus.edu Google account.",
+    );
   });
 });

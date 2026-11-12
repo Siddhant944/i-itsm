@@ -15,7 +15,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import __version__
+from app.adapters.gemini_advisor import gemini_advisor, gemini_summarizer
+from app.adapters.gemini_embeddings import gemini_embeddings
+from app.adapters.google_identity import GoogleIdTokenVerifier
 from app.adapters.smtp_email import EmailSettings, email_sender_for
+from app.adapters.telegram import telegram_sender
 from app.api import health
 from app.api.deps import Services
 from app.api.errors import register_error_handlers
@@ -29,17 +33,28 @@ from app.api.routers import notifications as notifications_router
 from app.api.routers import reports as reports_router
 from app.api.routers import users as users_router
 from app.api.routers import violations as violations_router
+from app.api.routers import ws as ws_router
 from app.core.clock import AcceleratedClock, Clock, FakeClock, SystemClock
 from app.core.config import ClockMode, Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.security import Argon2PasswordHasher, JwtTokenService
 from app.domain.errors import ITSMError
+from app.domain.ports import (
+    AIAdvisor,
+    ChatSender,
+    EmbeddingProvider,
+    IdentityVerifier,
+    ResolutionSummarizer,
+)
 from app.domain.repositories import UnitOfWork
-from app.domain.rule_advisor import RuleBasedAdvisor
+from app.domain.rule_advisor import FallbackAdvisor, RuleBasedAdvisor
+from app.domain.similarity import TfIdfEmbeddings
 from app.repositories.database import make_engine, ping
 from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session_factory
 from app.services.auth_service import AuthPolicy
+from app.services.live import LiveHub, LivePublisher
 from app.services.notifications import EmailChannel, default_factory
+from app.services.notifications.channels import TelegramChannel
 from app.services.notifications.service import NotificationService
 from app.services.scheduler import MonitorScheduler
 from app.services.sla_monitor import SLAMonitor, TickReport
@@ -68,6 +83,50 @@ def email_settings(settings: Settings) -> EmailSettings:
         sender=settings.smtp_from,
         starttls=settings.smtp_starttls,
     )
+
+
+def classifier(settings: Settings) -> AIAdvisor:
+    """§6.1: Gemini behind the keyword rules when a key and a model are set, else the rules."""
+    key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else ""
+    if key and settings.gemini_model:
+        return FallbackAdvisor(gemini_advisor(key, settings.gemini_model), RuleBasedAdvisor())
+    return RuleBasedAdvisor()
+
+
+def google_verifier(settings: Settings) -> IdentityVerifier | None:
+    """P4.10: Google Sign-In needs both the client id and the campus domain (D-008).
+
+    Google's tokens expire in real time, so they are judged by the system clock even when the
+    application runs ×10 or stands still for the demo (P4 review).
+    """
+    if settings.google_client_id and settings.google_hd_domain:
+        return GoogleIdTokenVerifier(settings.google_client_id, SystemClock())
+    return None
+
+
+def chat_sender(settings: Settings) -> ChatSender | None:
+    """§5.4: Telegram alerts when TELEGRAM_BOT_TOKEN is set; without it, no Telegram channel."""
+    token = settings.telegram_bot_token.get_secret_value() if settings.telegram_bot_token else ""
+    return telegram_sender(token) if token else None
+
+
+def summarizer(settings: Settings) -> ResolutionSummarizer | None:
+    """§6.1: Gemini summarises past fixes when a key and a model are set; otherwise none."""
+    key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else ""
+    if key and settings.gemini_model:
+        return gemini_summarizer(key, settings.gemini_model)
+    return None
+
+
+def embedding_provider(settings: Settings) -> EmbeddingProvider:
+    """§6.2: Gemini when a key and a model are set, otherwise the offline TF-IDF.
+
+    Either way the duplicate detector keeps TF-IDF as its fallback for an outage.
+    """
+    key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else ""
+    if key and settings.gemini_embedding_model:
+        return gemini_embeddings(key, settings.gemini_embedding_model)
+    return TfIdfEmbeddings()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -128,16 +187,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             settings.jwt_secret.get_secret_value(),
             timedelta(minutes=settings.jwt_access_ttl_minutes),
         ),
-        policy=AuthPolicy(allowed_email_domains=tuple(settings.allowed_email_domains)),
+        policy=AuthPolicy(
+            allowed_email_domains=tuple(settings.allowed_email_domains),
+            google_hosted_domain=settings.google_hd_domain,
+        ),
         email=email_sender_for(email_settings(settings)),
-        # §6.1: Gemini arrives in P4.4 with this rule-based advisor as its fallback.
-        advisor=RuleBasedAdvisor(),
+        advisor=classifier(settings),
+        embeddings=embedding_provider(settings),
+        summarizer=summarizer(settings),
+        telegram=chat_sender(settings),
+        google=google_verifier(settings),
     )
     app.state.db_probe = lambda: ping(engine)
     app.state.settings = settings
     app.dependency_overrides[get_settings] = lambda: settings
 
-    scheduler = _schedule_monitor(app, settings, sessions, clock)
+    scheduler = _schedule_monitor(app, settings, sessions, clock, app.state.services.live)
     register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(auth_router.router)
@@ -149,6 +214,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(users_router.router)
     app.include_router(configuration_router.router)
     app.include_router(audit_router.router)
+    app.include_router(ws_router.router)
     if settings.clock_control_enabled:
         # D-009: controlling time is for the test and demo environments only.
         app.include_router(dev_router.router)
@@ -161,6 +227,7 @@ def _schedule_monitor(
     settings: Settings,
     sessions: sessionmaker[Session],
     clock: Clock,
+    hub: LiveHub,
 ) -> MonitorScheduler | None:
     """The background SLA monitor, unless SLA_TICK_SECONDS is 0 (D-003).
 
@@ -171,19 +238,32 @@ def _schedule_monitor(
         return None
 
     email = email_sender_for(email_settings(settings))
+    chat = chat_sender(settings)
 
     def tick() -> TickReport:
         uow = SqlAlchemyUnitOfWork(sessions, clock)
         try:
             channels = default_factory(
-                email=EmailChannel(email, lambda user_id: _address(uow, user_id))
+                email=EmailChannel(email, lambda user_id: _address(uow, user_id)),
+                telegram=None
+                if chat is None
+                else TelegramChannel(chat, lambda user_id: _chat_of(uow, user_id)),
             )
             notifications = NotificationService(uow, clock, channels)
-            return SLAMonitor(uow, clock, notify=notifications.notify).tick()
+            report = SLAMonitor(uow, clock, notify=notifications.notify).tick()
+            LivePublisher(uow, hub).incidents_changed(report.changed)
+            return report
         finally:
             uow.close()
 
     return MonitorScheduler(tick, clock, timedelta(seconds=settings.sla_tick_seconds))
+
+
+def _chat_of(uow: UnitOfWork, user_id: int) -> str | None:
+    try:
+        return uow.users.get(user_id).telegram_chat_id
+    except ITSMError:
+        return None
 
 
 def _address(uow: UnitOfWork, user_id: int) -> str | None:

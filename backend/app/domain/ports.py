@@ -29,12 +29,39 @@ class AIAdvisor(ABC):
 
 
 class EmbeddingProvider(ABC):
-    """Turns texts into vectors for similarity (Gemini, or TF-IDF offline)."""
+    """Turns texts into vectors for similarity (Gemini, or TF-IDF offline; §6.2).
+
+    ``name`` and ``model`` tag every stored vector, so one from another model is never
+    compared with it. ``stable`` says whether vectors from separate calls are comparable,
+    which is what makes them worth storing per incident.
+    """
+
+    name: str
+    model: str
+    stable: bool
+
+    @abstractmethod
+    def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
+        """One vector per text, in order. Raise NetworkFailureError when unreachable."""
+
+
+@dataclass(frozen=True, slots=True)
+class PastFix:
+    """A resolved incident offered as evidence for a suggested fix (§6.1)."""
+
+    incident_id: str
+    title: str
+    resolution: str
+
+
+class ResolutionSummarizer(ABC):
+    """Summarises how similar incidents were fixed, citing only the ones it was given (§6.1)."""
 
     name: str
 
     @abstractmethod
-    def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]: ...
+    def summarize(self, ticket: str, fixes: Sequence[PastFix]) -> str:
+        """A short suggested fix. Raise NetworkFailureError when it cannot answer properly."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +82,16 @@ class EmailSender(ABC):
         """Deliver, or raise NetworkFailureError so the caller can retry."""
 
 
+class ChatSender(ABC):
+    """Hands one message to a chat service: the Telegram Bot API, or a fake (§5.4, P4.9)."""
+
+    name: str
+
+    @abstractmethod
+    def send(self, chat_id: str, text: str) -> None:
+        """Deliver, or raise NetworkFailureError so the caller can retry."""
+
+
 class NotificationChannel(ABC):
     """In-app, email or Telegram delivery; a new channel is one class (blueprint §5.4)."""
 
@@ -67,9 +104,13 @@ class NotificationChannel(ABC):
 
 @dataclass(frozen=True, slots=True)
 class VerifiedIdentity:
+    """Who Google says signed in. Only built from a token whose signature checked out."""
+
     email: str
     full_name: str
     hosted_domain: str | None
+    #: Google's stable id for the account (the ``sub`` claim).
+    subject: str
 
 
 class IdentityVerifier(ABC):

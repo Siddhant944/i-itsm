@@ -7,7 +7,7 @@ reading the wall clock. The hash is compared in the service layer, which owns th
 
 from datetime import datetime, timedelta
 
-from app.domain.errors import InvalidUserInputError
+from app.domain.errors import InvalidLoginError, InvalidUserInputError
 
 MAX_FAILED_ATTEMPTS = 5  # §8: locked after 5 failed attempts
 LOCKOUT_DURATION = timedelta(minutes=15)
@@ -24,8 +24,10 @@ class Credentials:
         failed_attempts: int = 0,
         locked_until: datetime | None = None,
         last_login_at: datetime | None = None,
+        google_subject: str | None = None,
     ) -> None:
         self.__user_id = user_id
+        self.__google_subject = google_subject
         self.__password_hash = password_hash
         self.__failed_attempts = failed_attempts
         self.__locked_until = locked_until
@@ -55,6 +57,21 @@ class Credentials:
     @property
     def last_login_at(self) -> datetime | None:
         return self.__last_login_at
+
+    @property
+    def google_subject(self) -> str | None:
+        """The Google account (its stable ``sub``) this account signs in with, if any."""
+        return self.__google_subject
+
+    def accepts_google(self, subject: str) -> bool:
+        """True unless a *different* Google account is already linked (P4.10)."""
+        return self.__google_subject in (None, subject)
+
+    def link_google(self, subject: str) -> None:
+        """Remember the Google account on first use; a different one is refused (P4.10)."""
+        if not self.accepts_google(subject):
+            raise InvalidLoginError("This account is linked to a different Google account.")
+        self.__google_subject = subject
 
     def is_locked(self, now: datetime) -> bool:
         return self.__locked_until is not None and now < self.__locked_until
@@ -90,6 +107,12 @@ class Credentials:
         if not hashed.strip():
             raise InvalidUserInputError({"password": "Must not be empty."})
         self.__password_hash = hashed.strip()
+        self.__failed_attempts = 0
+        self.__locked_until = None
+
+    def drop_password(self) -> None:
+        """Forget the password, so only another way in (Google) works until one is set again."""
+        self.__password_hash = None
         self.__failed_attempts = 0
         self.__locked_until = None
 

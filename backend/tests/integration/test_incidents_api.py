@@ -6,6 +6,7 @@ SLA deadlines and emails are all exact.
 """
 
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -13,6 +14,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
+from starlette.websockets import WebSocketDisconnect
 
 from app.adapters.smtp_email import ConsoleEmailSender
 from app.api.deps import Services
@@ -20,6 +22,7 @@ from app.core.clock import FakeClock
 from app.core.security import FakePasswordHasher, JwtTokenService
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.permissions import Role
+from app.domain.ports import IdentityVerifier, VerifiedIdentity
 from app.domain.priority import Priority
 from app.domain.rule_advisor import RuleBasedAdvisor
 from app.domain.sla import default_policies
@@ -485,7 +488,9 @@ def test_cancelling_and_duplicates(
     api: TestClient, reporter: dict[str, str], admin: dict[str, str]
 ) -> None:
     first = report(api, reporter)["incident"]["id"]
-    second = report(api, reporter, title="Wi-Fi still dropping")["incident"]["id"]
+    second = report(
+        api, reporter, title="Projector is dim", description="Lecture hall F-105, yellow tint"
+    )["incident"]["id"]
 
     missing_parent = api.post(
         f"/incidents/{second}/cancel",
@@ -503,7 +508,14 @@ def test_cancelling_and_duplicates(
     assert linked.json()["status"] == S.CANCELLED.value
     assert linked.json()["parent_id"] == first
 
-    withdrawn = api.post(f"/incidents/{first}/cancel", json={}, headers=reporter)
+    # Another report now follows the first, so it cannot simply be withdrawn (P4 review).
+    refused = api.post(f"/incidents/{first}/cancel", json={}, headers=reporter)
+    assert refused.status_code == 422
+
+    third = report(api, reporter, title="Printer out of toner", description="Admin office printer")[
+        "incident"
+    ]["id"]
+    withdrawn = api.post(f"/incidents/{third}/cancel", json={}, headers=reporter)
     assert withdrawn.json()["cancel_reason"] == "withdrawn"
 
 
@@ -560,3 +572,304 @@ def test_no_response_ever_contains_a_stack_trace_or_a_hash(
         assert "argon2" not in response.text.lower()
         assert "sqlalchemy" not in response.text.lower()
         assert set(response.json()["error"]) <= {"code", "message", "details"}
+
+
+# ---------------------------------------------------------------- duplicates (§6.2, BR-09)
+PORTAL_DOWN = {
+    "title": "Fee portal down",
+    "description": "The fee payment portal shows error 503 when I try to pay",
+    "service_id": PORTAL,
+}
+
+
+def test_BR09_the_form_is_shown_a_similar_open_incident_and_nothing_more_than_its_title(
+    api: TestClient, reporter: dict[str, str], clock: FakeClock
+) -> None:
+    existing = report(api, reporter, **PORTAL_DOWN)["incident"]
+    clock.advance(timedelta(minutes=5))
+    other = token_for(api, "other@campus.edu")
+
+    hint = api.post(
+        "/incidents/similar",
+        json={"title": "Fee payment portal error 503", "service_id": PORTAL},
+        headers=other,
+    )
+    assert hint.status_code == 200, hint.text
+    assert hint.json()["provider"] == "tfidf"
+    (candidate,) = hint.json()["candidates"]
+    # BR-01: enough to recognise and follow it; not its description, reporter or notes.
+    assert set(candidate) == {"id", "title", "status", "created_at", "score", "reasons"}
+    assert candidate["id"] == existing["id"]
+    assert candidate["score"] >= 0.49
+    assert "same service" in candidate["reasons"]
+    assert api.get(f"/incidents/{existing['id']}", headers=other).status_code == 403
+
+    unrelated = api.post("/incidents/similar", json={"title": "Projector is dim"}, headers=other)
+    assert unrelated.json()["candidates"] == []
+    assert api.post("/incidents/similar", json={"title": ""}, headers=other).status_code == 422
+
+
+def test_BR09_a_repeat_by_the_same_reporter_is_409_with_a_link_to_the_first(
+    api: TestClient, reporter: dict[str, str], clock: FakeClock
+) -> None:
+    first = report(api, reporter, **PORTAL_DOWN)["incident"]["id"]
+    clock.advance(timedelta(minutes=10))
+    body = {**PORTAL_DOWN, "impact": 2, "urgency": 2}
+
+    repeat = api.post("/incidents", json=body, headers=reporter)
+    assert repeat.status_code == 409
+    assert repeat.json()["error"]["code"] == "duplicate_incident"
+    assert repeat.json()["error"]["details"] == {"existing_incident_id": first}
+    assert len(api.get("/incidents/mine", headers=reporter).json()) == 1
+
+    clock.advance(timedelta(minutes=21))  # 31 minutes after the first
+    signed_in_again = token_for(api, "devika@campus.edu")  # the 30-minute token has expired
+    later = api.post("/incidents", json=body, headers=signed_in_again)
+    assert later.status_code == 201
+    assert [c["id"] for c in later.json()["possible_duplicates"]] == [first]
+
+
+def test_BR09_following_a_suggested_incident_links_the_report_to_it(
+    api: TestClient, reporter: dict[str, str], technician: dict[str, str], clock: FakeClock
+) -> None:
+    parent = report(api, reporter, **PORTAL_DOWN)["incident"]["id"]
+    clock.advance(timedelta(minutes=5))
+    other = token_for(api, "other@campus.edu")
+    body = {
+        "title": "Fee payment portal error 503",
+        "description": "Cannot pay my fees",
+        "service_id": PORTAL,
+        "impact": 2,
+        "urgency": 2,
+    }
+
+    not_suggested = api.post("/incidents", json={**body, "follow": "INC-2026-9999"}, headers=other)
+    assert not_suggested.status_code == 422
+
+    followed = api.post("/incidents", json={**body, "follow": parent}, headers=other)
+    assert followed.status_code == 201, followed.text
+    payload = followed.json()
+    assert payload["incident"]["status"] == S.CANCELLED.value
+    assert payload["incident"]["cancel_reason"] == "duplicate"
+    assert payload["followed"]["id"] == parent
+
+    # The follower's own page names the incident it follows and how that one stands.
+    child = api.get(f"/incidents/{payload['incident']['id']}", headers=other).json()
+    assert child["duplicate_of"] == {"id": parent, "title": "Fee portal down", "status": "ASSIGNED"}
+    assert api.get(f"/incidents/{parent}", headers=other).status_code == 403  # still BR-01
+    assert api.get(f"/incidents/{parent}", headers=reporter).json()["duplicate_count"] == 1
+
+    # ...and they hear when it is fixed (D-005).
+    for step, json in (("acknowledge", None), ("start", None), ("resolve", {"summary": "Fixed"})):
+        assert (
+            api.post(f"/incidents/{parent}/{step}", json=json, headers=technician).status_code
+            == 200
+        )
+    bell = api.get("/notifications", headers=other).json()["latest"]
+    assert any(parent in n["subject"] and "resolved" in n["subject"] for n in bell)
+
+
+def test_BR09_whoever_works_the_incident_confirms_a_possible_duplicate(
+    api: TestClient, reporter: dict[str, str], lead: dict[str, str], clock: FakeClock
+) -> None:
+    parent = report(api, reporter, **PORTAL_DOWN)["incident"]["id"]
+    clock.advance(timedelta(minutes=5))
+    other = token_for(api, "other@campus.edu")
+    child = report(
+        api,
+        other,
+        title="Fee payment portal error 503",
+        description="Cannot pay my fees",
+        service_id=PORTAL,
+    )
+    child_id = child["incident"]["id"]
+    assert [c["id"] for c in child["possible_duplicates"]] == [parent]
+
+    seen = api.get(f"/incidents/{child_id}/possible-duplicates", headers=lead)
+    assert seen.status_code == 200, seen.text
+    assert [c["id"] for c in seen.json()["candidates"]] == [parent]
+    assert api.get(f"/incidents/{child_id}/possible-duplicates", headers=other).status_code == 403
+
+    refused = api.post(
+        f"/incidents/{child_id}/confirm-duplicate", json={"parent_id": parent}, headers=other
+    )
+    assert refused.status_code == 403
+    itself = api.post(
+        f"/incidents/{child_id}/confirm-duplicate", json={"parent_id": child_id}, headers=lead
+    )
+    assert itself.status_code == 422
+    missing = api.post(
+        f"/incidents/{child_id}/confirm-duplicate",
+        json={"parent_id": "INC-2026-9999"},
+        headers=lead,
+    )
+    assert missing.status_code == 404
+
+    confirmed = api.post(
+        f"/incidents/{child_id}/confirm-duplicate", json={"parent_id": parent}, headers=lead
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["status"] == S.CANCELLED.value
+    assert confirmed.json()["duplicate_of"]["id"] == parent
+    again = api.post(
+        f"/incidents/{child_id}/confirm-duplicate", json={"parent_id": parent}, headers=lead
+    )
+    assert again.status_code == 409  # CANCELLED is terminal (§4)
+
+    bell = api.get("/notifications", headers=other).json()["latest"]
+    assert any(f"handled as part of {parent}" in n["subject"] for n in bell)
+
+
+# ---------------------------------------------------------------- correlation (§6.2)
+def test_the_fee_portal_incident_names_the_database_outage_as_its_likely_root_cause(
+    api: TestClient, engine: Engine, reporter: dict[str, str], admin: dict[str, str]
+) -> None:
+    uow = SqlAlchemyUnitOfWork(make_session_factory(engine))
+    try:
+        uow.catalogue.save_service(ITService(4, "Database Cluster", criticality=3))
+        portal = uow.catalogue.get_service(PORTAL)
+        portal.add_dependency(4)
+        uow.catalogue.save_service(portal)
+        uow.commit()
+    finally:
+        uow.close()
+
+    database = report(
+        api,
+        reporter,
+        title="Database cluster unreachable",
+        description="Every network query times out",
+        service_id=4,
+        impact=3,
+        urgency=3,
+    )["incident"]
+    assert database["priority"] in ("P1", "P2")
+    fees = report(
+        api,
+        reporter,
+        title="Cannot pay hostel fees",
+        description="The payment page spins and then errors",
+        service_id=PORTAL,
+    )["incident"]
+
+    found = api.get(f"/incidents/{fees['id']}/correlation", headers=admin)
+    assert found.status_code == 200, found.text
+    body = found.json()
+    assert body["hint"] == (
+        f"Likely related to {database['id']} (Database Cluster): possible root cause."
+    )
+    (cause,) = body["root_causes"]
+    assert cause["path"] == ["Fee Payment Portal", "Database Cluster"]
+    assert cause["hops"] == 1
+
+    reverse = api.get(f"/incidents/{database['id']}/correlation", headers=admin).json()
+    assert reverse["hint"] is None
+    assert [i["id"] for i in reverse["impacted"]] == [fees["id"]]
+
+    # BR-01: the reporter of both still may not read the graph's view of other incidents.
+    assert api.get(f"/incidents/{fees['id']}/correlation", headers=reporter).status_code == 403
+
+    # Once the database incident is withdrawn, the hint goes with it.
+    api.post(f"/incidents/{database['id']}/cancel", json={}, headers=reporter)
+    after = api.get(f"/incidents/{fees['id']}/correlation", headers=admin).json()
+    assert after == {"hint": None, "root_causes": [], "impacted": []}
+
+
+# ---------------------------------------------------------------- live updates (P4.8)
+def test_a_socket_without_a_valid_token_is_closed_with_4401(api: TestClient) -> None:
+    for first in ({"token": "not-a-token"}, {"hello": "there"}):
+        with api.websocket_connect("/ws") as socket:
+            socket.send_json(first)
+            with pytest.raises(WebSocketDisconnect) as closed:
+                socket.receive_json()
+            assert closed.value.code == 4401
+
+
+def test_the_reporter_and_the_admin_hear_about_a_change_after_it_commits(
+    api: TestClient, reporter: dict[str, str], admin: dict[str, str]
+) -> None:
+    def bearer(headers: dict[str, str]) -> str:
+        return headers["Authorization"].removeprefix("Bearer ")
+
+    with (
+        api.websocket_connect("/ws") as mine,
+        api.websocket_connect("/ws") as watching,
+    ):
+        mine.send_json({"token": bearer(reporter)})
+        watching.send_json({"token": bearer(admin)})
+        assert mine.receive_json() == {"type": "ready"}
+        assert watching.receive_json() == {"type": "ready"}
+
+        incident_id = report(api, reporter)["incident"]["id"]
+
+        pushed = mine.receive_json()
+        assert pushed == {"type": "incident", "incident_id": incident_id, "status": "ASSIGNED"}
+        assert watching.receive_json()["incident_id"] == incident_id
+        # Only the id and status travel; the content is read through the API (BR-01).
+        assert set(pushed) == {"type", "incident_id", "status"}
+
+
+# ---------------------------------------------------------------- Telegram linking (P4.9)
+def test_a_user_links_and_unlinks_telegram_and_without_a_bot_a_test_is_503(
+    api: TestClient, reporter: dict[str, str]
+) -> None:
+    me = api.get("/auth/me", headers=reporter).json()
+    assert (me["telegram_chat_id"], me["telegram_available"]) == (None, False)
+
+    assert (
+        api.put("/auth/me/telegram", json={"chat_id": "@me"}, headers=reporter).status_code == 422
+    )
+    linked = api.put("/auth/me/telegram", json={"chat_id": "123456789"}, headers=reporter)
+    assert linked.status_code == 200
+    assert linked.json()["telegram_chat_id"] == "123456789"
+    assert api.get("/auth/me", headers=reporter).json()["telegram_chat_id"] == "123456789"
+
+    refused = api.post("/auth/me/telegram/test", headers=reporter)
+    assert refused.status_code == 503
+    assert refused.json()["error"]["code"] == "network_failure"
+
+    assert api.delete("/auth/me/telegram", headers=reporter).json()["telegram_chat_id"] is None
+
+
+# ---------------------------------------------------------------- Google Sign-In (P4.10)
+def test_google_sign_in_signs_a_campus_account_in_and_refuses_others(api: TestClient) -> None:
+    class Google(IdentityVerifier):
+        def __init__(self) -> None:
+            self.hd: str | None = "campus.edu"
+
+        def verify(self, token: str) -> VerifiedIdentity:
+            return VerifiedIdentity("meera@campus.edu", "Meera Iyer", self.hd, "g-77")
+
+    google = Google()
+    app_services: Services = api.app.state.services  # type: ignore[attr-defined]
+    api.app.state.services = replace(  # type: ignore[attr-defined]
+        app_services, google=google, policy=AuthPolicy(google_hosted_domain="campus.edu")
+    )
+    body = {"credential": "a-google-id-token-of-some-length"}
+
+    signed_in = api.post("/auth/google", json=body)
+    assert signed_in.status_code == 200, signed_in.text
+    assert signed_in.json()["role"] == "employee"
+    me = api.get(
+        "/auth/me", headers={"Authorization": f"Bearer {signed_in.json()['access_token']}"}
+    ).json()
+    assert (me["email"], me["full_name"]) == ("meera@campus.edu", "Meera Iyer")
+
+    google.hd = "gmail.com"
+    refused = api.post("/auth/google", json=body)
+    assert refused.status_code == 401
+    assert "campus.edu" in refused.json()["error"]["message"]
+
+
+def test_a_socket_closes_with_4401_once_its_token_has_expired(
+    api: TestClient, reporter: dict[str, str], clock: FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P4 review: a socket must not keep receiving pushes after the sign-in lapses."""
+    monkeypatch.setattr("app.api.routers.ws.RECHECK_SECONDS", 0.05)
+    with api.websocket_connect("/ws") as socket:
+        socket.send_json({"token": reporter["Authorization"].removeprefix("Bearer ")})
+        assert socket.receive_json() == {"type": "ready"}
+        clock.advance(timedelta(minutes=31))  # the test tokens last 30 minutes
+        with pytest.raises(WebSocketDisconnect) as closed:
+            socket.receive_json()
+        assert closed.value.code == 4401

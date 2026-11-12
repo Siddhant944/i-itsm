@@ -197,6 +197,8 @@ _REGISTRY: Mapping[S, IncidentState] = MappingProxyType(
 OPEN_STATUSES: frozenset[S] = frozenset({S.ASSIGNED, S.ACKNOWLEDGED, S.IN_PROGRESS, S.ON_HOLD})
 #: Work that is finished for the technician but not yet closed by the reporter.
 AWAITING_REPORTER: frozenset[S] = frozenset({S.RESOLVED})
+#: A fix was applied and has not been rejected since: the incident's resolution time is known.
+RESOLVED_STATUSES: frozenset[S] = frozenset({S.RESOLVED, S.VERIFIED, S.CLOSED})
 #: Nothing more will happen to these.
 TERMINAL_STATUSES: frozenset[S] = frozenset({S.CLOSED, S.CANCELLED})
 

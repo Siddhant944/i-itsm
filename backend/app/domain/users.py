@@ -6,6 +6,7 @@ role → permission map (``app.domain.permissions``), never from isinstance chec
 name-mangled behind read-only properties and change only through intention-revealing methods.
 """
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
@@ -13,6 +14,9 @@ from types import MappingProxyType
 from app.domain.errors import InvalidUserInputError
 from app.domain.permissions import Permission, Role, escalation_level, permissions_for
 from app.domain.value_objects import EmailAddress, SkillSet
+
+#: A Telegram chat id: digits, negative for a group (§5.4, P4.9).
+TELEGRAM_CHAT_ID = re.compile(r"-?\d{1,20}")
 
 MIN_EXPERIENCE_LEVEL = 1  # blueprint §5.3: experience level 1-3 (x_t = level / 3)
 MAX_EXPERIENCE_LEVEL = 3
@@ -30,6 +34,7 @@ class User(ABC):
         self.__email = email
         self.__full_name = full_name.strip()
         self.__active = active
+        self.__telegram_chat_id: str | None = None
 
     @property
     @abstractmethod
@@ -67,6 +72,23 @@ class User(ABC):
 
     def activate(self) -> None:
         self.__active = True
+
+    @property
+    def telegram_chat_id(self) -> str | None:
+        """Where P1/P2 alerts go on Telegram (§5.4); None until the user links a chat."""
+        return self.__telegram_chat_id
+
+    def link_telegram(self, chat_id: str) -> None:
+        """Send this user's Telegram alerts to ``chat_id`` (a number; groups are negative)."""
+        cleaned = chat_id.strip()
+        if not TELEGRAM_CHAT_ID.fullmatch(cleaned):
+            raise InvalidUserInputError(
+                {"chat_id": "A Telegram chat ID is a number, such as 123456789."}
+            )
+        self.__telegram_chat_id = cleaned
+
+    def unlink_telegram(self) -> None:
+        self.__telegram_chat_id = None
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(id={self.__id}, email={self.__email})"

@@ -26,18 +26,22 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly fieldErrors: Readonly<Record<string, string>>;
+  /** The error's other plain-text details, e.g. the existing incident's id on a 409. */
+  readonly details: Readonly<Record<string, string>>;
 
   constructor(
     status: number,
     message: string,
     code = "error",
     fieldErrors: Record<string, string> = {},
+    details: Record<string, string> = {},
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.fieldErrors = fieldErrors;
+    this.details = details;
   }
 
   /** True when the server could not be reached at all (offline, or the API is down). */
@@ -94,7 +98,7 @@ export function toApiError(status: number, body: unknown): ApiError {
   const code = typeof error.code === "string" ? error.code : "error";
   const details = isRecord(error.details) ? error.details : {};
   const fields = { ...stringRecord(details.fields), ...stringRecord(details.field_errors) };
-  return new ApiError(status, message, code, fields);
+  return new ApiError(status, message, code, fields, stringRecord(details));
 }
 
 /** Await a client call and return its data, or throw an ApiError. */

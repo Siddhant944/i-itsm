@@ -197,6 +197,8 @@ E2E_ENV = {
     "DATABASE_URL": "sqlite:///./e2e.db",
     # The seeded history was never watched by the monitor; keep it from catching up mid-test.
     "SLA_TICK_SECONDS": "0",
+    # D-009: Workflow 3 moves time with /dev/clock to show the escalation chain.
+    "CLOCK_MODE": "fake",
     "CORS_ORIGINS": '["http://127.0.0.1:5173"]',
 }
 

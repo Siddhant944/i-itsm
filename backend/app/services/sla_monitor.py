@@ -66,6 +66,17 @@ class TickReport:
     auto_closed: tuple[str, ...] = field(default_factory=tuple)
 
     @property
+    def changed(self) -> tuple[str, ...]:
+        """Every incident this tick touched, once each, for live updates (P4.8)."""
+        ids = [
+            *(v.incident_id for v in self.warned),
+            *(v.incident_id for v in self.breached),
+            *self.escalated,
+            *self.auto_closed,
+        ]
+        return tuple(dict.fromkeys(ids))
+
+    @property
     def escalated(self) -> tuple[str, ...]:
         """The ids that moved up a level."""
         return tuple(step.incident_id for step in self.escalations)

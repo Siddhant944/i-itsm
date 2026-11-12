@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-query";
 
 import { api, unwrap, type Schemas } from "./client";
+import { liveInterval, POLL_MS } from "../lib/live";
 
 export type Incident = Schemas["IncidentResponse"];
 export type IncidentSummary = Schemas["IncidentSummaryResponse"];
@@ -19,8 +20,8 @@ export type Category = Schemas["CategoryResponse"];
 export type SearchFilters = Schemas["SearchFilters"];
 export type UserRow = Schemas["UserResponse"];
 
-/** How often open screens re-read live data until WebSockets arrive (P4.8). */
-export const LIVE_MS = 10_000;
+/** How often open screens re-read live data: slowly while pushes arrive (P4.8). */
+export const LIVE_MS = POLL_MS;
 
 // ------------------------------------------------------------------ catalogue and names
 export function useServices(includeInactive = false) {
@@ -103,7 +104,7 @@ export function useMyIncidents() {
   return useQuery({
     queryKey: ["incidents", "mine"],
     queryFn: () => unwrap(api.GET("/incidents/mine")),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -111,7 +112,7 @@ export function useQueue() {
   return useQuery({
     queryKey: ["incidents", "queue"],
     queryFn: () => unwrap(api.GET("/incidents/queue", { params: { query: { limit: 100 } } })),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -120,7 +121,7 @@ export function useIncident(id: string) {
     queryKey: ["incident", id],
     queryFn: () =>
       unwrap(api.GET("/incidents/{incident_id}", { params: { path: { incident_id: id } } })),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -129,7 +130,7 @@ export function useSearch(filters: SearchFilters, live = false) {
     queryKey: ["incidents", "search", filters],
     queryFn: () => unwrap(api.POST("/incidents/search", { body: filters })),
     placeholderData: keepPreviousData,
-    refetchInterval: live ? LIVE_MS : false,
+    refetchInterval: live ? liveInterval : false,
   });
 }
 
@@ -164,6 +165,68 @@ export function useReportIncident() {
   });
 }
 
+/** §6.2: open incidents like the one being typed. Advice only; never links anything. */
+export function useSimilar() {
+  return useMutation({
+    mutationFn: (body: Schemas["SimilarRequest"]) =>
+      unwrap(api.POST("/incidents/similar", { body })),
+  });
+}
+
+/** §6.2: what an open incident may duplicate, for the technician to confirm. */
+export function usePossibleDuplicates(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["incident", id, "duplicates"],
+    queryFn: () =>
+      unwrap(
+        api.GET("/incidents/{incident_id}/possible-duplicates", {
+          params: { path: { incident_id: id } },
+        }),
+      ),
+    enabled,
+  });
+}
+
+/** §6.1: past fixes like this incident, and an AI summary citing only them (staff only). */
+export function useSuggestedResolution(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["incident", id, "suggested-resolution"],
+    queryFn: () =>
+      unwrap(
+        api.GET("/incidents/{incident_id}/suggested-resolution", {
+          params: { path: { incident_id: id } },
+        }),
+      ),
+    enabled,
+  });
+}
+
+/** §6.3: the predicted breach risk; null when there is nothing to forecast. */
+export function useRisk(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["incident", id, "risk"],
+    queryFn: () =>
+      unwrap(api.GET("/incidents/{incident_id}/risk", { params: { path: { incident_id: id } } })),
+    enabled,
+    refetchInterval: liveInterval,
+  });
+}
+
+/** §6.2: the likely root cause and what this incident may be causing (staff only). */
+export function useCorrelation(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["incident", id, "correlation"],
+    queryFn: () =>
+      unwrap(
+        api.GET("/incidents/{incident_id}/correlation", {
+          params: { path: { incident_id: id } },
+        }),
+      ),
+    enabled,
+    refetchInterval: liveInterval,
+  });
+}
+
 export function useClassify() {
   return useMutation({
     mutationFn: (text: string) => unwrap(api.POST("/incidents/classify", { body: { text } })),
@@ -180,7 +243,8 @@ export type IncidentAction =
   | { kind: "cancel" }
   | { kind: "reassign"; technicianId: number }
   | { kind: "priority"; priority: Schemas["Priority"]; reason: string }
-  | { kind: "category"; categoryId: number };
+  | { kind: "category"; categoryId: number }
+  | { kind: "confirm-duplicate"; parentId: string };
 
 function perform(id: string, action: IncidentAction): Promise<Incident> {
   const params = { path: { incident_id: id } };
@@ -248,6 +312,13 @@ function perform(id: string, action: IncidentAction): Promise<Incident> {
           body: { category_id: action.categoryId },
         }),
       );
+    case "confirm-duplicate":
+      return unwrap(
+        api.POST("/incidents/{incident_id}/confirm-duplicate", {
+          params,
+          body: { parent_id: action.parentId },
+        }),
+      );
   }
 }
 
@@ -258,6 +329,8 @@ export function useIncidentAction(id: string) {
     onSuccess: (incident) => {
       refreshIncidents(client, incident);
       void client.invalidateQueries({ queryKey: ["incident", id, "advice"] });
+      void client.invalidateQueries({ queryKey: ["incident", id, "duplicates"] });
+      void client.invalidateQueries({ queryKey: ["incident", id, "risk"] });
       void client.invalidateQueries({ queryKey: ["violations"] });
     },
   });
@@ -268,7 +341,7 @@ export function useNotifications(enabled = true) {
   return useQuery({
     queryKey: ["notifications"],
     queryFn: () => unwrap(api.GET("/notifications", { params: { query: { limit: 20 } } })),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
     enabled,
   });
 }
@@ -293,7 +366,7 @@ export function useWorkload() {
   return useQuery({
     queryKey: ["workload"],
     queryFn: () => unwrap(api.GET("/reports/workload")),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -302,7 +375,7 @@ export function useDashboard(windowDays: number) {
     queryKey: ["dashboard", windowDays],
     queryFn: () =>
       unwrap(api.GET("/reports/dashboard", { params: { query: { window_days: windowDays } } })),
-    refetchInterval: LIVE_MS * 3,
+    refetchInterval: () => liveInterval() * 3,
     placeholderData: keepPreviousData,
   });
 }
@@ -311,7 +384,7 @@ export function useViolations() {
   return useQuery({
     queryKey: ["violations"],
     queryFn: () => unwrap(api.GET("/sla/violations", { params: { query: { limit: 100 } } })),
-    refetchInterval: LIVE_MS,
+    refetchInterval: liveInterval,
   });
 }
 
@@ -493,4 +566,24 @@ export function useRunMonitor() {
       void client.invalidateQueries({ queryKey: ["incidents"] });
     },
   });
+}
+
+// ------------------------------------------------------------------ Telegram alerts (P4.9)
+export function useTelegramLink() {
+  const client = useQueryClient();
+  const refreshMe = () => void client.invalidateQueries({ queryKey: ["me"] });
+  return {
+    link: useMutation({
+      mutationFn: (chatId: string) =>
+        unwrap(api.PUT("/auth/me/telegram", { body: { chat_id: chatId } })),
+      onSuccess: refreshMe,
+    }),
+    unlink: useMutation({
+      mutationFn: () => unwrap(api.DELETE("/auth/me/telegram")),
+      onSuccess: refreshMe,
+    }),
+    test: useMutation({
+      mutationFn: () => unwrap(api.POST("/auth/me/telegram/test")),
+    }),
+  };
 }

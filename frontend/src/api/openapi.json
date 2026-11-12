@@ -427,6 +427,59 @@
         "title": "ClassifyRequest",
         "type": "object"
       },
+      "ConfirmDuplicateRequest": {
+        "description": "BR-09: the open incident this one duplicates.",
+        "properties": {
+          "parent_id": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Parent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "parent_id"
+        ],
+        "title": "ConfirmDuplicateRequest",
+        "type": "object"
+      },
+      "CorrelationResponse": {
+        "description": "\u00a76.2: the possible root cause in plain words, and the evidence behind it.",
+        "properties": {
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "impacted": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedIncidentResponse"
+            },
+            "title": "Impacted",
+            "type": "array"
+          },
+          "root_causes": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedIncidentResponse"
+            },
+            "title": "Root Causes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hint",
+          "root_causes",
+          "impacted"
+        ],
+        "title": "CorrelationResponse",
+        "type": "object"
+      },
       "CreateUserRequest": {
         "properties": {
           "email": {
@@ -547,6 +600,28 @@
         "title": "DirectoryEntryResponse",
         "type": "object"
       },
+      "DuplicateCheckResponse": {
+        "description": "Possible duplicates, best first. Advice: nothing is linked until someone confirms.",
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarIncidentResponse"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "candidates"
+        ],
+        "title": "DuplicateCheckResponse",
+        "type": "object"
+      },
       "FeedbackResponse": {
         "properties": {
           "comment": {
@@ -569,6 +644,22 @@
           "given_at"
         ],
         "title": "FeedbackResponse",
+        "type": "object"
+      },
+      "GoogleSignInRequest": {
+        "description": "The ID token Google Identity Services hands the browser (P4.10).",
+        "properties": {
+          "credential": {
+            "maxLength": 4096,
+            "minLength": 20,
+            "title": "Credential",
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential"
+        ],
+        "title": "GoogleSignInRequest",
         "type": "object"
       },
       "HealthResponse": {
@@ -727,6 +818,21 @@
           "description": {
             "title": "Description",
             "type": "string"
+          },
+          "duplicate_count": {
+            "default": 0,
+            "title": "Duplicate Count",
+            "type": "integer"
+          },
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedIncidentResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "escalation_level": {
             "title": "Escalation Level",
@@ -985,6 +1091,29 @@
         "title": "IncidentSummaryResponse",
         "type": "object"
       },
+      "LinkedIncidentResponse": {
+        "description": "Just enough of another incident to name it: its id, title and status (D-005).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status"
+        ],
+        "title": "LinkedIncidentResponse",
+        "type": "object"
+      },
       "LoginRequest": {
         "description": "Sign-in. The password is not length-checked here, so a wrong one still counts.",
         "properties": {
@@ -1061,6 +1190,22 @@
                 "type": "null"
               }
             ]
+          },
+          "telegram_available": {
+            "default": false,
+            "title": "Telegram Available",
+            "type": "boolean"
+          },
+          "telegram_chat_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Chat Id"
           }
         },
         "required": [
@@ -1343,6 +1488,41 @@
         "title": "OverviewResponse",
         "type": "object"
       },
+      "PastFixResponse": {
+        "description": "A resolved incident like this one, and what fixed it.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "resolution": {
+            "title": "Resolution",
+            "type": "string"
+          },
+          "score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "resolution",
+          "score"
+        ],
+        "title": "PastFixResponse",
+        "type": "object"
+      },
       "Permission": {
         "enum": [
           "incident:create",
@@ -1483,6 +1663,66 @@
         "title": "RegisterRequest",
         "type": "object"
       },
+      "RelatedIncidentResponse": {
+        "description": "An open incident related through the dependency graph, and the way it is related.",
+        "properties": {
+          "hops": {
+            "description": "How many dependency edges apart the two services are",
+            "minimum": 1.0,
+            "title": "Hops",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "path": {
+            "description": "Service names from this incident's service to its own",
+            "items": {
+              "type": "string"
+            },
+            "title": "Path",
+            "type": "array"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          },
+          "service_name": {
+            "title": "Service Name",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "priority",
+          "service_id",
+          "service_name",
+          "hops",
+          "path"
+        ],
+        "title": "RelatedIncidentResponse",
+        "type": "object"
+      },
       "ReportIncidentRequest": {
         "description": "The plain-language report form (\u00a71: no jargon, three simple questions).",
         "properties": {
@@ -1504,6 +1744,19 @@
             "minLength": 1,
             "title": "Description",
             "type": "string"
+          },
+          "follow": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A suggested open incident to follow instead; this report is linked to it",
+            "title": "Follow"
           },
           "impact": {
             "description": "1 just me, 2 my team, 3 everyone",
@@ -1554,12 +1807,29 @@
               }
             ]
           },
+          "followed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedIncidentResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "incident": {
             "$ref": "#/components/schemas/IncidentResponse"
           },
           "needs_triage": {
             "title": "Needs Triage",
             "type": "boolean"
+          },
+          "possible_duplicates": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarIncidentResponse"
+            },
+            "title": "Possible Duplicates",
+            "type": "array"
           },
           "queued_for_team_lead": {
             "title": "Queued For Team Lead",
@@ -1624,6 +1894,56 @@
           "summary"
         ],
         "title": "ResolveRequest",
+        "type": "object"
+      },
+      "RiskMethod": {
+        "enum": [
+          "history",
+          "threshold"
+        ],
+        "title": "RiskMethod",
+        "type": "string"
+      },
+      "RiskResponse": {
+        "description": "\u00a76.3: the predicted chance of a resolution breach, and the evidence in plain words.",
+        "properties": {
+          "at_risk": {
+            "title": "At Risk",
+            "type": "boolean"
+          },
+          "method": {
+            "$ref": "#/components/schemas/RiskMethod"
+          },
+          "probability": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probability"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at_risk",
+          "method",
+          "reason",
+          "probability",
+          "samples"
+        ],
+        "title": "RiskResponse",
         "type": "object"
       },
       "Role": {
@@ -2034,6 +2354,84 @@
         "title": "ServiceRowResponse",
         "type": "object"
       },
+      "SimilarIncidentResponse": {
+        "description": "An open incident that resembles a report, with the score and the reasons (\u00a76.2).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "created_at",
+          "score",
+          "reasons"
+        ],
+        "title": "SimilarIncidentResponse",
+        "type": "object"
+      },
+      "SimilarRequest": {
+        "description": "What the reporter has typed so far, for the while-typing duplicate hint (\u00a76.2).",
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 5000,
+            "title": "Description",
+            "type": "string"
+          },
+          "service_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Id"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "SimilarRequest",
+        "type": "object"
+      },
       "SkillResponse": {
         "properties": {
           "id": {
@@ -2062,6 +2460,47 @@
         ],
         "title": "SortField",
         "type": "string"
+      },
+      "SuggestedResolutionResponse": {
+        "description": "\u00a76.1: past fixes, and an AI summary that cites only them (null without one).",
+        "properties": {
+          "fixes": {
+            "items": {
+              "$ref": "#/components/schemas/PastFixResponse"
+            },
+            "title": "Fixes",
+            "type": "array"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "fixes",
+          "summary",
+          "source"
+        ],
+        "title": "SuggestedResolutionResponse",
+        "type": "object"
       },
       "SuggestionResponse": {
         "description": "An AI suggestion, always shown with its confidence and never applied silently.",
@@ -2210,6 +2649,22 @@
           "team_id"
         ],
         "title": "TechnicianProfileResponse",
+        "type": "object"
+      },
+      "TelegramLinkRequest": {
+        "description": "The chat to send P1/P2 alerts to; the user finds it by messaging the bot (\u00a75.4).",
+        "properties": {
+          "chat_id": {
+            "maxLength": 21,
+            "minLength": 1,
+            "title": "Chat Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chat_id"
+        ],
+        "title": "TelegramLinkRequest",
         "type": "object"
       },
       "TickResponse": {
@@ -2690,6 +3145,41 @@
         ]
       }
     },
+    "/auth/google": {
+      "post": {
+        "description": "Sign in with Google (campus domain only); the first sign-in creates an Employee.",
+        "operationId": "google_auth_google_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleSignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "summary": "Google",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "description": "Sign in. Five failures lock the account for fifteen minutes (blueprint \u00a78).",
@@ -2750,6 +3240,97 @@
           }
         ],
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me/telegram": {
+      "delete": {
+        "description": "Stop sending my alerts to Telegram.",
+        "operationId": "unlink_telegram_auth_me_telegram_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Unlink Telegram",
+        "tags": [
+          "auth"
+        ]
+      },
+      "put": {
+        "description": "Send my P1/P2 alerts to this Telegram chat (\u00a75.4). Audited.",
+        "operationId": "link_telegram_auth_me_telegram_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Link Telegram",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me/telegram/test": {
+      "post": {
+        "description": "Send a test message to my linked chat; 503 if Telegram is down or not set up.",
+        "operationId": "test_telegram_auth_me_telegram_test_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Test Telegram",
         "tags": [
           "auth"
         ]
@@ -3467,6 +4048,46 @@
         ]
       }
     },
+    "/incidents/similar": {
+      "post": {
+        "description": "Open incidents that look like what is being typed (\u00a76.2, BR-09). Advice only.\n\nOnly an incident's id, title and status are shown, so the reporter can follow it instead\nof filing the same problem again.",
+        "operationId": "similar_incidents_similar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimilarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Similar",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
     "/incidents/{incident_id}": {
       "get": {
         "description": "One incident, if the caller may see it (BR-01). 403 otherwise, never a leak.",
@@ -3732,6 +4353,98 @@
         ]
       }
     },
+    "/incidents/{incident_id}/confirm-duplicate": {
+      "post": {
+        "description": "BR-09: cancel this incident as a duplicate; its reporter then follows the parent.",
+        "operationId": "confirm_duplicate_incidents__incident_id__confirm_duplicate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmDuplicateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Confirm Duplicate",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/correlation": {
+      "get": {
+        "description": "\u00a76.2: the likely root cause upstream, and the open incidents it may be causing.",
+        "operationId": "correlation_incidents__incident_id__correlation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrelationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Correlation",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
     "/incidents/{incident_id}/information": {
       "post": {
         "description": "The reporter answers; an incident on hold resumes (D-006).",
@@ -3828,6 +4541,47 @@
           }
         ],
         "summary": "Add Note",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/possible-duplicates": {
+      "get": {
+        "description": "What this incident may be a duplicate of, for the technician to confirm (\u00a76.2).",
+        "operationId": "possible_duplicates_incidents__incident_id__possible_duplicates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Possible Duplicates",
         "tags": [
           "incidents"
         ]
@@ -4128,6 +4882,55 @@
         ]
       }
     },
+    "/incidents/{incident_id}/risk": {
+      "get": {
+        "description": "\u00a76.3: predicted breach risk from comparable past incidents; null when nothing to forecast.",
+        "operationId": "risk_incidents__incident_id__risk_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RiskResponse"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Risk Incidents  Incident Id  Risk Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Risk",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
     "/incidents/{incident_id}/start": {
       "post": {
         "operationId": "start_incidents__incident_id__start_post",
@@ -4163,6 +4966,47 @@
           }
         ],
         "summary": "Start",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/suggested-resolution": {
+      "get": {
+        "description": "\u00a76.1: the three most similar resolved incidents, and a summary citing only them.",
+        "operationId": "suggested_resolution_incidents__incident_id__suggested_resolution_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestedResolutionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Suggested Resolution",
         "tags": [
           "incidents"
         ]

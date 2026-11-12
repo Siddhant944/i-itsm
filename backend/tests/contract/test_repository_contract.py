@@ -18,7 +18,7 @@ from app.domain.audit import AuditAction, ChainVerification, verify_chain
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import LOCKOUT_DURATION, MAX_FAILED_ATTEMPTS
 from app.domain.errors import IncidentNotFoundError, NotFoundError, ServiceNotFoundError
-from app.domain.incident import Incident, IncidentFactory
+from app.domain.incident import CancelReason, Incident, IncidentFactory
 from app.domain.notifications import (
     ChannelName,
     DeliveryStatus,
@@ -26,8 +26,9 @@ from app.domain.notifications import (
     NotificationEvent,
 )
 from app.domain.permissions import Role
-from app.domain.priority import Priority
+from app.domain.priority import Priority, PriorityAssessment
 from app.domain.repositories import UnitOfWork
+from app.domain.similarity import StoredEmbedding
 from app.domain.sla import GOLD_TARGETS, SLATarget, SLATier, default_policies
 from app.domain.states import IncidentStatus
 from app.domain.users import Technician, UserFactory
@@ -729,3 +730,126 @@ def test_settings_are_stored_per_key_and_replaced_whole(uow: UnitOfWork) -> None
     uow.commit()
     assert uow.settings.get("assignment") == {"strategy": "load_based"}
     assert uow.settings.get("other") is None
+
+
+# ------------------------------------------------------------------ duplicates (§6.2, D-005)
+def test_duplicates_are_listed_under_the_incident_they_were_linked_to(
+    backend: Backend, uow: UnitOfWork
+) -> None:
+    clock = FakeClock(NOW)
+    backend.with_catalogue(uow)
+    reporter(uow)
+    parent = new_incident(uow, clock)
+    uow.incidents.add(parent)
+    children = []
+    for _ in range(2):
+        clock.advance(timedelta(minutes=1))
+        child = new_incident(uow, clock)
+        uow.incidents.add(child)
+        child.cancel(1, clock, CancelReason.DUPLICATE, parent.id)
+        uow.incidents.save(child)
+        children.append(child.id)
+    uow.commit()
+
+    assert [i.id for i in uow.incidents.duplicates_of(parent.id)] == children
+    assert uow.incidents.duplicates_of(children[0]) == ()
+
+
+def test_an_embedding_is_stored_per_incident_and_tagged_with_its_model(
+    backend: Backend, uow: UnitOfWork
+) -> None:
+    clock = FakeClock(NOW)
+    backend.with_catalogue(uow)
+    reporter(uow)
+    first, second = new_incident(uow, clock), new_incident(uow, clock)
+    uow.incidents.add(first)
+    uow.incidents.add(second)
+    uow.embeddings.put(StoredEmbedding(first.id, "gemini", "embed-1", (0.25, -0.5, 1.0), NOW))
+    uow.embeddings.put(StoredEmbedding(second.id, "gemini", "embed-0", (1.0,), NOW))
+    uow.commit()
+
+    found = uow.embeddings.get_many(
+        [first.id, second.id, "INC-2026-9999"], provider="gemini", model="embed-1"
+    )
+    assert found == {first.id: (0.25, -0.5, 1.0)}  # the other model's vector is left out
+    assert uow.embeddings.get_many([], provider="gemini", model="embed-1") == {}
+
+    # Recomputing with a new model replaces the row: one vector per incident (§9).
+    uow.embeddings.put(StoredEmbedding(second.id, "gemini", "embed-1", (0.0, 1.0, 0.0), NOW))
+    uow.commit()
+    assert uow.embeddings.get_many([second.id], provider="gemini", model="embed-0") == {}
+    assert uow.embeddings.get_many([second.id], provider="gemini", model="embed-1") == {
+        second.id: (0.0, 1.0, 0.0)
+    }
+
+
+# ------------------------------------------------------------------ predictive risk (§6.3)
+def test_resolution_durations_exclude_paused_time_and_unfinished_work(
+    backend: Backend, uow: UnitOfWork
+) -> None:
+    clock = FakeClock(NOW)
+    backend.with_catalogue(uow)
+    reporter(uow)
+    uow.users.add(
+        UserFactory.create(Role.TECHNICIAN, user_id=2, email="t@campus.edu", full_name="T")
+    )
+
+    def worked(minutes: int, *, paused: int = 0, priority: Priority = Priority.P2) -> Incident:
+        incident = new_incident(uow, clock)
+        incident.prioritise(PriorityAssessment(priority, None, "test"), clock)
+        incident.apply_sla(TARGET)
+        uow.incidents.add(incident)
+        incident.classify(1, None, clock)
+        incident.assign(2, None, clock)
+        incident.acknowledge(2, clock)
+        incident.start(2, clock)
+        if paused:
+            incident.hold(2, clock, "Which building?")
+            clock.advance(timedelta(minutes=paused))
+            incident.provide_info(1, clock, "Library")
+        clock.advance(timedelta(minutes=minutes))
+        return incident
+
+    first = worked(30, paused=45)
+    first.resolve(2, clock, "Fixed")
+    uow.incidents.save(first)
+    second = worked(90)
+    second.resolve(2, clock, "Fixed")
+    uow.incidents.save(second)
+    uow.incidents.save(worked(500))  # still in progress: no resolution time yet
+    other = worked(10, priority=Priority.P3)
+    other.resolve(2, clock, "Fixed")
+    uow.incidents.save(other)
+    uow.commit()
+
+    found = uow.incidents.resolution_durations(1, Priority.P2)
+    assert found == (timedelta(minutes=90), timedelta(minutes=30))  # newest first
+    assert uow.incidents.resolution_durations(1, Priority.P2, limit=1) == (timedelta(minutes=90),)
+    assert uow.incidents.resolution_durations(1, Priority.P3) == (timedelta(minutes=10),)
+    assert uow.incidents.resolution_durations(2, Priority.P2) == ()
+
+
+def test_a_linked_telegram_chat_round_trips(backend: Backend, uow: UnitOfWork) -> None:
+    reporter(uow)
+    user = uow.users.get(1)
+    user.link_telegram("-100200300")
+    uow.users.save(user)
+    uow.commit()
+    assert uow.users.get(1).telegram_chat_id == "-100200300"
+    again = uow.users.get(1)
+    again.unlink_telegram()
+    uow.users.save(again)
+    uow.commit()
+    assert uow.users.get(1).telegram_chat_id is None
+
+
+def test_a_linked_google_account_round_trips_with_the_credentials(uow: UnitOfWork) -> None:
+    reporter(uow)
+    credentials = uow.credentials.get(1)
+    credentials.link_google("google-sub-1")
+    uow.credentials.save(credentials)
+    uow.commit()
+    stored = uow.credentials.get(1)
+    assert stored.google_subject == "google-sub-1"
+    assert stored.accepts_google("google-sub-1")
+    assert not stored.accepts_google("google-sub-2")

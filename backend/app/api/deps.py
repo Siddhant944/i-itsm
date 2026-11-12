@@ -8,7 +8,7 @@ Authorisation is a dependency, never a check inside a handler, so a route cannot
 """
 
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -18,17 +18,29 @@ from app.core.clock import Clock
 from app.core.security import PasswordHasher, TokenService
 from app.domain.errors import InvalidLoginError, ITSMError
 from app.domain.permissions import Permission
-from app.domain.ports import AIAdvisor, EmailSender
+from app.domain.ports import (
+    AIAdvisor,
+    ChatSender,
+    EmailSender,
+    EmbeddingProvider,
+    IdentityVerifier,
+    ResolutionSummarizer,
+)
 from app.domain.repositories import UnitOfWork
+from app.domain.similarity import TfIdfEmbeddings
 from app.domain.users import User
 from app.services.analytics import AnalyticsService
 from app.services.audit import AuditService
 from app.services.auth_service import AuthPolicy, AuthService
 from app.services.configuration import ConfigurationService, active_strategy
 from app.services.dispatcher import PostCommitDispatcher
+from app.services.duplicates import DuplicateDetector
 from app.services.incident_service import IncidentService
+from app.services.live import LiveHub, LivePublisher
 from app.services.notifications import EmailChannel, default_factory
+from app.services.notifications.channels import TelegramChannel
 from app.services.notifications.service import NotificationService
+from app.services.resolution_advisor import ResolutionAdvisor
 from app.services.search import SearchService
 from app.services.sla_monitor import SLAMonitor
 from app.services.user_admin import UserAdminService
@@ -48,6 +60,16 @@ class Services:
     policy: AuthPolicy
     email: EmailSender
     advisor: AIAdvisor
+    #: §6.2: Gemini when configured; TF-IDF offline, and always the fallback.
+    embeddings: EmbeddingProvider = field(default_factory=TfIdfEmbeddings)
+    #: §6.1: Gemini summarises past fixes when configured; without it the list stands alone.
+    summarizer: ResolutionSummarizer | None = None
+    #: P4.8: the open WebSockets; one per process.
+    live: LiveHub = field(default_factory=LiveHub)
+    #: P4.9: the Telegram Bot API when TELEGRAM_BOT_TOKEN is set; otherwise no Telegram channel.
+    telegram: ChatSender | None = None
+    #: P4.10: Google ID-token checks when GOOGLE_CLIENT_ID and GOOGLE_HD_DOMAIN are set.
+    google: IdentityVerifier | None = None
 
 
 def get_services(request: Request) -> Services:
@@ -72,7 +94,14 @@ UowDep = Annotated[UnitOfWork, Depends(get_uow)]
 
 
 def get_auth_service(services: ServicesDep, uow: UowDep) -> AuthService:
-    return AuthService(uow, services.hasher, services.tokens, services.clock, services.policy)
+    return AuthService(
+        uow,
+        services.hasher,
+        services.tokens,
+        services.clock,
+        services.policy,
+        identity=services.google,
+    )
 
 
 AuthDep = Annotated[AuthService, Depends(get_auth_service)]
@@ -88,7 +117,10 @@ AuditDep = Annotated[AuditService, Depends(get_audit_service)]
 def get_notification_service(services: ServicesDep, uow: UowDep) -> NotificationService:
     """The notification service for this request, with the channels this deployment has."""
     channels = default_factory(
-        email=EmailChannel(services.email, lambda user_id: _address(uow, user_id))
+        email=EmailChannel(services.email, lambda user_id: _address(uow, user_id)),
+        telegram=None
+        if services.telegram is None
+        else TelegramChannel(services.telegram, lambda user_id: _chat(uow, user_id)),
     )
     return NotificationService(uow, services.clock, channels)
 
@@ -104,6 +136,14 @@ def _address(uow: UnitOfWork, user_id: int) -> str | None:
         return None
 
 
+def _chat(uow: UnitOfWork, user_id: int) -> str | None:
+    """A recipient's linked Telegram chat, or None."""
+    try:
+        return uow.users.get(user_id).telegram_chat_id
+    except ITSMError:
+        return None
+
+
 def get_incident_service(
     services: ServicesDep, uow: UowDep, notifications: NotificationsDep
 ) -> IncidentService:
@@ -111,10 +151,14 @@ def get_incident_service(
     return IncidentService(
         uow,
         services.clock,
-        dispatcher=PostCommitDispatcher([notifications.on_event]),
+        dispatcher=PostCommitDispatcher(
+            [notifications.on_event, LivePublisher(uow, services.live).on_event]
+        ),
         advisor=services.advisor,
         # §5.3: the admin's saved choice, read per request so a switch takes effect at once.
         assignment_strategy=active_strategy(uow.settings),
+        duplicates=DuplicateDetector(uow, services.clock, services.embeddings),
+        resolutions=ResolutionAdvisor(uow, services.clock, services.summarizer),
     )
 
 

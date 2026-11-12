@@ -77,6 +77,7 @@ const PERMISSIONS: Record<Schemas["Role"], Schemas["Permission"][]> = {
     "incident:work",
     "incident:override_priority",
     "incident:override_category",
+    "incident:confirm_duplicate",
     "workload:view_own",
   ],
   team_lead: [],
@@ -128,6 +129,8 @@ export function me(role: Schemas["Role"], id = 1): Schemas["MeResponse"] {
       role === "technician" || role === "team_lead"
         ? { skills: ["networking"], experience_level: 2, available: true, team_id: 1 }
         : null,
+    telegram_chat_id: null,
+    telegram_available: false,
   };
 }
 
@@ -152,6 +155,8 @@ export function incident(
     cancel_reason: null,
     escalation_level: 0,
     reopen_count: 0,
+    duplicate_of: null,
+    duplicate_count: 0,
     created_at: "2026-11-11T04:00:00Z",
     acknowledged_at: null,
     resolved_at: null,
@@ -173,6 +178,12 @@ export function incident(
 
 /** The reads nearly every screen makes; tests add their own on top. */
 export const BASE_ROUTES: Record<string, Handler> = {
+  // §6.2: nothing looks like a duplicate unless a test says otherwise.
+  "POST /incidents/similar": { provider: "tfidf", candidates: [] },
+  "GET /incidents/INC-2026-0001/possible-duplicates": { provider: "tfidf", candidates: [] },
+  "GET /incidents/INC-2026-0001/correlation": { hint: null, root_causes: [], impacted: [] },
+  "GET /incidents/INC-2026-0001/risk": () => null,
+  "GET /incidents/INC-2026-0001/suggested-resolution": { fixes: [], summary: null, source: null },
   "GET /catalogue/services": [
     {
       id: 1,

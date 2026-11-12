@@ -45,6 +45,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/auth/google": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Google
+     * @description Sign in with Google (campus domain only); the first sign-in creates an Employee.
+     */
+    post: operations["google_auth_google_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/auth/login": {
     parameters: {
       query?: never;
@@ -79,6 +99,50 @@ export interface paths {
     get: operations["me_auth_me_get"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/me/telegram": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Link Telegram
+     * @description Send my P1/P2 alerts to this Telegram chat (§5.4). Audited.
+     */
+    put: operations["link_telegram_auth_me_telegram_put"];
+    post?: never;
+    /**
+     * Unlink Telegram
+     * @description Stop sending my alerts to Telegram.
+     */
+    delete: operations["unlink_telegram_auth_me_telegram_delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/me/telegram/test": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Test Telegram
+     * @description Send a test message to my linked chat; 503 if Telegram is down or not set up.
+     */
+    post: operations["test_telegram_auth_me_telegram_test_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -386,6 +450,29 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents/similar": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Similar
+     * @description Open incidents that look like what is being typed (§6.2, BR-09). Advice only.
+     *
+     *     Only an incident's id, title and status are shown, so the reporter can follow it instead
+     *     of filing the same problem again.
+     */
+    post: operations["similar_incidents_similar_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/incidents/{incident_id}": {
     parameters: {
       query?: never;
@@ -503,6 +590,46 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents/{incident_id}/confirm-duplicate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Confirm Duplicate
+     * @description BR-09: cancel this incident as a duplicate; its reporter then follows the parent.
+     */
+    post: operations["confirm_duplicate_incidents__incident_id__confirm_duplicate_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/correlation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Correlation
+     * @description §6.2: the likely root cause upstream, and the open incidents it may be causing.
+     */
+    get: operations["correlation_incidents__incident_id__correlation_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/incidents/{incident_id}/information": {
     parameters: {
       query?: never;
@@ -534,6 +661,26 @@ export interface paths {
     put?: never;
     /** Add Note */
     post: operations["add_note_incidents__incident_id__notes_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/possible-duplicates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Possible Duplicates
+     * @description What this incident may be a duplicate of, for the technician to confirm (§6.2).
+     */
+    get: operations["possible_duplicates_incidents__incident_id__possible_duplicates_get"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -657,6 +804,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents/{incident_id}/risk": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Risk
+     * @description §6.3: predicted breach risk from comparable past incidents; null when nothing to forecast.
+     */
+    get: operations["risk_incidents__incident_id__risk_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/incidents/{incident_id}/start": {
     parameters: {
       query?: never;
@@ -668,6 +835,26 @@ export interface paths {
     put?: never;
     /** Start */
     post: operations["start_incidents__incident_id__start_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/suggested-resolution": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Suggested Resolution
+     * @description §6.1: the three most similar resolved incidents, and a summary citing only them.
+     */
+    get: operations["suggested_resolution_incidents__incident_id__suggested_resolution_get"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1213,6 +1400,26 @@ export interface components {
       /** Text */
       text: string;
     };
+    /**
+     * ConfirmDuplicateRequest
+     * @description BR-09: the open incident this one duplicates.
+     */
+    ConfirmDuplicateRequest: {
+      /** Parent Id */
+      parent_id: string;
+    };
+    /**
+     * CorrelationResponse
+     * @description §6.2: the possible root cause in plain words, and the evidence behind it.
+     */
+    CorrelationResponse: {
+      /** Hint */
+      hint: string | null;
+      /** Impacted */
+      impacted: components["schemas"]["RelatedIncidentResponse"][];
+      /** Root Causes */
+      root_causes: components["schemas"]["RelatedIncidentResponse"][];
+    };
     /** CreateUserRequest */
     CreateUserRequest: {
       /**
@@ -1259,6 +1466,16 @@ export interface components {
       id: number;
       role: components["schemas"]["Role"];
     };
+    /**
+     * DuplicateCheckResponse
+     * @description Possible duplicates, best first. Advice: nothing is linked until someone confirms.
+     */
+    DuplicateCheckResponse: {
+      /** Candidates */
+      candidates: components["schemas"]["SimilarIncidentResponse"][];
+      /** Provider */
+      provider: string;
+    };
     /** FeedbackResponse */
     FeedbackResponse: {
       /** Comment */
@@ -1270,6 +1487,14 @@ export interface components {
       given_at: string;
       /** Rating */
       rating: number;
+    };
+    /**
+     * GoogleSignInRequest
+     * @description The ID token Google Identity Services hands the browser (P4.10).
+     */
+    GoogleSignInRequest: {
+      /** Credential */
+      credential: string;
     };
     /**
      * HealthResponse
@@ -1334,6 +1559,12 @@ export interface components {
       created_at: string;
       /** Description */
       description: string;
+      /**
+       * Duplicate Count
+       * @default 0
+       */
+      duplicate_count: number;
+      duplicate_of?: components["schemas"]["LinkedIncidentResponse"] | null;
       /** Escalation Level */
       escalation_level: number;
       feedback: components["schemas"]["FeedbackResponse"] | null;
@@ -1410,6 +1641,17 @@ export interface components {
       title: string;
     };
     /**
+     * LinkedIncidentResponse
+     * @description Just enough of another incident to name it: its id, title and status (D-005).
+     */
+    LinkedIncidentResponse: {
+      /** Id */
+      id: string;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
+    };
+    /**
      * LoginRequest
      * @description Sign-in. The password is not length-checked here, so a wrong one still counts.
      */
@@ -1440,6 +1682,13 @@ export interface components {
       portal: string;
       role: components["schemas"]["Role"];
       technician?: components["schemas"]["TechnicianProfileResponse"] | null;
+      /**
+       * Telegram Available
+       * @default false
+       */
+      telegram_available: boolean;
+      /** Telegram Chat Id */
+      telegram_chat_id?: string | null;
     };
     /**
      * MetricsResponse
@@ -1548,6 +1797,21 @@ export interface components {
       unassigned: number;
     };
     /**
+     * PastFixResponse
+     * @description A resolved incident like this one, and what fixed it.
+     */
+    PastFixResponse: {
+      /** Id */
+      id: string;
+      /** Resolution */
+      resolution: string;
+      /** Score */
+      score: number;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
+    };
+    /**
      * Permission
      * @enum {string}
      */
@@ -1627,6 +1891,32 @@ export interface components {
       password: string;
     };
     /**
+     * RelatedIncidentResponse
+     * @description An open incident related through the dependency graph, and the way it is related.
+     */
+    RelatedIncidentResponse: {
+      /**
+       * Hops
+       * @description How many dependency edges apart the two services are
+       */
+      hops: number;
+      /** Id */
+      id: string;
+      /**
+       * Path
+       * @description Service names from this incident's service to its own
+       */
+      path: string[];
+      priority: components["schemas"]["Priority"] | null;
+      /** Service Id */
+      service_id: number;
+      /** Service Name */
+      service_name: string;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
+    };
+    /**
      * ReportIncidentRequest
      * @description The plain-language report form (§1: no jargon, three simple questions).
      */
@@ -1638,6 +1928,11 @@ export interface components {
       category_id?: number | null;
       /** Description */
       description: string;
+      /**
+       * Follow
+       * @description A suggested open incident to follow instead; this report is linked to it
+       */
+      follow?: string | null;
       /**
        * Impact
        * @description 1 just me, 2 my team, 3 everyone
@@ -1659,9 +1954,12 @@ export interface components {
      */
     ReportedIncidentResponse: {
       assignment: components["schemas"]["CandidateScoreResponse"] | null;
+      followed?: components["schemas"]["LinkedIncidentResponse"] | null;
       incident: components["schemas"]["IncidentResponse"];
       /** Needs Triage */
       needs_triage: boolean;
+      /** Possible Duplicates */
+      possible_duplicates?: components["schemas"]["SimilarIncidentResponse"][];
       /** Queued For Team Lead */
       queued_for_team_lead: boolean;
       suggestion: components["schemas"]["SuggestionResponse"] | null;
@@ -1685,6 +1983,26 @@ export interface components {
     ResolveRequest: {
       /** Summary */
       summary: string;
+    };
+    /**
+     * RiskMethod
+     * @enum {string}
+     */
+    RiskMethod: "history" | "threshold";
+    /**
+     * RiskResponse
+     * @description §6.3: the predicted chance of a resolution breach, and the evidence in plain words.
+     */
+    RiskResponse: {
+      /** At Risk */
+      at_risk: boolean;
+      method: components["schemas"]["RiskMethod"];
+      /** Probability */
+      probability: number | null;
+      /** Reason */
+      reason: string;
+      /** Samples */
+      samples: number;
     };
     /**
      * Role
@@ -1837,6 +2155,41 @@ export interface components {
       /** Service Id */
       service_id: number;
     };
+    /**
+     * SimilarIncidentResponse
+     * @description An open incident that resembles a report, with the score and the reasons (§6.2).
+     */
+    SimilarIncidentResponse: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Id */
+      id: string;
+      /** Reasons */
+      reasons: string[];
+      /** Score */
+      score: number;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
+    };
+    /**
+     * SimilarRequest
+     * @description What the reporter has typed so far, for the while-typing duplicate hint (§6.2).
+     */
+    SimilarRequest: {
+      /**
+       * Description
+       * @default
+       */
+      description: string;
+      /** Service Id */
+      service_id?: number | null;
+      /** Title */
+      title: string;
+    };
     /** SkillResponse */
     SkillResponse: {
       /** Id */
@@ -1850,6 +2203,18 @@ export interface components {
      * @enum {string}
      */
     SortField: "created_at" | "priority" | "status" | "id";
+    /**
+     * SuggestedResolutionResponse
+     * @description §6.1: past fixes, and an AI summary that cites only them (null without one).
+     */
+    SuggestedResolutionResponse: {
+      /** Fixes */
+      fixes: components["schemas"]["PastFixResponse"][];
+      /** Source */
+      source: string | null;
+      /** Summary */
+      summary: string | null;
+    };
     /**
      * SuggestionResponse
      * @description An AI suggestion, always shown with its confidence and never applied silently.
@@ -1903,6 +2268,14 @@ export interface components {
       skills: string[];
       /** Team Id */
       team_id: number | null;
+    };
+    /**
+     * TelegramLinkRequest
+     * @description The chat to send P1/P2 alerts to; the user finds it by messaging the bot (§5.4).
+     */
+    TelegramLinkRequest: {
+      /** Chat Id */
+      chat_id: string;
     };
     /**
      * TickResponse
@@ -2112,6 +2485,37 @@ export interface operations {
       };
     };
   };
+  google_auth_google_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["GoogleSignInRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TokenResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   login_auth_login_post: {
     parameters: {
       query?: never;
@@ -2160,6 +2564,89 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["MeResponse"];
         };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  link_telegram_auth_me_telegram_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TelegramLinkRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MeResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  unlink_telegram_auth_me_telegram_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MeResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  test_telegram_auth_me_telegram_test_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description Validation error */
       422: {
@@ -2707,6 +3194,37 @@ export interface operations {
       };
     };
   };
+  similar_incidents_similar_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SimilarRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DuplicateCheckResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   detail_incidents__incident_id__get: {
     parameters: {
       query?: never;
@@ -2889,6 +3407,68 @@ export interface operations {
       };
     };
   };
+  confirm_duplicate_incidents__incident_id__confirm_duplicate_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConfirmDuplicateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  correlation_incidents__incident_id__correlation_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CorrelationResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   provide_information_incidents__incident_id__information_post: {
     parameters: {
       query?: never;
@@ -2944,6 +3524,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  possible_duplicates_incidents__incident_id__possible_duplicates_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DuplicateCheckResponse"];
         };
       };
       /** @description Validation error */
@@ -3149,6 +3758,35 @@ export interface operations {
       };
     };
   };
+  risk_incidents__incident_id__risk_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RiskResponse"] | null;
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   start_incidents__incident_id__start_post: {
     parameters: {
       query?: never;
@@ -3167,6 +3805,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  suggested_resolution_incidents__incident_id__suggested_resolution_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuggestedResolutionResponse"];
         };
       };
       /** @description Validation error */
