@@ -6,9 +6,9 @@ Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECIS
 
 On `claude/gallant-darwin-vrgc1q`, cut from main after the P4 PR merged. Every P5 package still
 in scope after D-027 is done (P5.2, the Locust run, stays cut), and the phase review's findings
-are fixed. `make verify` passes: 1071 backend tests (97.4 % coverage, 98 % on domain and
-services) and 105 frontend tests. Playwright passes 8 specs (`make e2e`): WF1 (2), WF2, WF3, live
-updates, and a new accessibility check of every screen in the three portals.
+are fixed. `make verify` passes: 1080 backend tests (97.4 % coverage, 98 % on domain and
+services) and 106 frontend tests. Playwright passes 9 specs (`make e2e`): WF1 (2), WF2, WF3, live
+updates, an accessibility check of every screen in the three portals, and the phone drawer.
 
 **Four days ahead of the freeze.** P5 was planned for 15-16 Nov and finished on the 12th, so the
 diagrams, the report and the demo script (P6) can start early, and the cut items can come back
@@ -50,7 +50,38 @@ in D-027's reverse order if the team wants them (health map first).
   regression test.
 
 ### Phase review
-In progress: a fresh-context subagent is reviewing the phase diff; findings and fixes follow.
+A fresh-context subagent reviewed the whole phase diff and reported 8 findings: 3 confirmed by
+running code, 5 from reading it. It also ran the reset twice on a real PostgreSQL 16 and
+exercised every branch of the image's start command. All 8 are fixed, the code ones each with a
+test that fails without the fix:
+- **`make demo-reset` could wipe the production database.** It sets `APP_ENV=demo` itself, so
+  the "never in prod" check could not fire. With the Neon URL in `.env` (DEPLOY.md hands it
+  out for `make migrate`), it would have dropped every table. The reset now also refuses any
+  database that is not SQLite or a local or Compose PostgreSQL, unless given
+  `--allow-remote-database`, which only the image's opt-in `DEMO_RESET_ON_START` passes.
+- **A redeploy broke open tabs.** With screens loaded on demand, a tab opened before a push to
+  main asked for a chunk that no longer existed and got React Router's developer error page.
+  It now reloads once to pick up the new build, and otherwise shows "This screen could not be
+  opened" with a Reload button.
+- **The drawer did not move focus.** Keyboard users had to Shift+Tab to reach its links, and
+  Escape dropped focus to the page body. Focus now moves into the drawer and back to Menu, and
+  the page behind it is inert. The jsdom test could not see this, so the accessibility spec now
+  checks the drawer in a real browser at phone width.
+- **`CORS_ORIGINS` with a trailing slash** (copied from the address bar) passed the prod check
+  but never matches a browser's `Origin`, so every sign-in would fail. Origins must now be
+  exactly `https://host[:port]`.
+- **A failed first catch-up was never retried**, because the seed marker was already written.
+  The catch-up now has a marker of its own. Its test now also runs on CI's PostgreSQL leg.
+- **Docs:**
+  - DEPLOY.md's step 2 contradicted the new prod check; it now has you enter the URLs up front.
+  - The way back from a demo instance would have kept future-dated data; it now resets on the
+    real clock first.
+  - D-037 and DEPLOY.md now say plainly that the seeded admin password is public on the
+    deployment and should be deactivated after the evaluation (Needs a human 2).
+
+One finding is answered rather than changed: `DemoResetRefusedError` is a `ValueError` and not
+an `ITSMError`. It is a command-line guard that never reaches the API, like the settings
+validators, and the §8 hierarchy is pinned at exactly 8 groups and 14 specific errors.
 
 ### Next
 - **P6 Documentation and demo** (planned 17-18 Nov; can start now): PlantUML diagrams
@@ -62,7 +93,9 @@ In progress: a fresh-context subagent is reviewing the phase diff; findings and 
 ### Needs a human
 1. **Review and merge this PR.** Add the `e2e` label so Playwright runs in CI.
 2. **Create the Render and Neon accounts and deploy** (docs/DEPLOY.md). The deployment now
-   needs `CORS_ORIGINS` set to the web app's https URL, or the API refuses to start.
+   needs `CORS_ORIGINS` set to the web app's https URL, or the API refuses to start. The seeded
+   admin and manager accounts use the public demo password: deactivate them after the
+   evaluation.
 3. **Try `make demo-reset` before dry run 2** (15 Nov) and say whether the staged incidents
    suit the script; P6.5 writes the shot list around them.
 4. Still open from P4: the keys (`GEMINI_*`, `TELEGRAM_BOT_TOKEN`, `GOOGLE_*`) on the host;
