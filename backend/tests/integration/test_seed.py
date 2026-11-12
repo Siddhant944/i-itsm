@@ -283,3 +283,19 @@ def test_seeding_only_if_empty_leaves_a_seeded_database_alone(
         get_settings.cache_clear()
         Base.metadata.drop_all(engine)
         engine.dispose()
+
+
+def test_a_seeded_fix_fits_its_incidents_category(unit_of_work: SqlAlchemyUnitOfWork) -> None:
+    """The suggested-fix panel (§6.1) quotes these, so a Wi-Fi ticket must not read like a
+    database fix in the demo (P6 review)."""
+    from app.seed.history import CATEGORY_FIXES
+
+    seed(unit_of_work, FakeClock(NOW), history=SMALL)
+    rows = unit_of_work.session.execute(
+        select(CategoryRow.name, ResolutionRow.summary)
+        .join(IncidentRow, IncidentRow.id == ResolutionRow.incident_id)
+        .join(CategoryRow, CategoryRow.id == IncidentRow.category_id)
+    ).all()
+    assert rows
+    for category, summary in rows:
+        assert summary in CATEGORY_FIXES[category], (category, summary)

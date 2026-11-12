@@ -6,7 +6,7 @@ times are all ones the system could really have produced. Nothing is written str
 column. A fixed seed means two machines generate byte-identical history.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from random import Random
@@ -31,6 +31,62 @@ RESOLUTION_SUMMARIES: tuple[str, ...] = (
     "Freed disk space on the node and tuned the slow query behind it.",
     "Re-provisioned the certificate and reloaded the load balancer.",
 )
+#: What a fix for each category plausibly says, so the suggested-fix panel (§6.1) shows a
+#: Wi-Fi fix for a Wi-Fi ticket. Picked with the same draw as RESOLUTION_SUMMARIES (an index
+#: below its length), so the generated history is otherwise unchanged.
+CATEGORY_FIXES: Mapping[str, tuple[str, ...]] = {
+    "Network": (
+        "Rebooted the access point on that floor and moved it off the crowded channel.",
+        "Replaced the faulty patch cable at the switch and confirmed the link.",
+        "Cleared the stale DHCP leases and the user reconnected.",
+        "Updated the access point firmware; roaming between floors is stable again.",
+    ),
+    "Account and Access": (
+        "Unlocked the account and reset the password with the user.",
+        "Re-synced the account with the identity provider; sign-in works again.",
+        "Added the missing group membership so the portal grants access.",
+    ),
+    "Email": (
+        "Released the message from quarantine and allow-listed the sender.",
+        "Freed space in the mailbox and archived old mail.",
+        "Re-created the mail profile on the laptop; sync works again.",
+    ),
+    "Software": (
+        "Reinstalled the application and reapplied the campus licence.",
+        "Applied the vendor patch after testing it on a spare machine.",
+        "Cleared the corrupted cache and settings; the application starts normally.",
+    ),
+    "Hardware": (
+        "Replaced the faulty hardware and tested it with the user.",
+        "Reseated the memory module and ran diagnostics; no further faults.",
+        "Swapped the failing battery and charger.",
+    ),
+    "Printing": (
+        "Cleared the stuck print queue and restarted the spooler.",
+        "Replaced the toner and cleared the paper jam.",
+        "Reinstalled the printer driver on the workstation.",
+    ),
+    "Web Application": (
+        "Restarted the application server and cleared the session store.",
+        "Rolled back the faulty release and redeployed the previous version.",
+        "Raised the gateway timeout and fixed the slow page query.",
+    ),
+    "Database": (
+        "Freed disk space on the node and tuned the slow query behind it.",
+        "Killed the blocking session and added the missing index.",
+        "Restored the table from the overnight backup and checked the data.",
+    ),
+    "Security": (
+        "Isolated the laptop, removed the malware and reset the user's passwords.",
+        "Blocked the phishing sender and warned the affected users.",
+        "Re-provisioned the certificate and reloaded the load balancer.",
+    ),
+    "Payments": (
+        "Reconciled the failed transactions with the bank and re-queued the refunds.",
+        "Renewed the payment gateway's expired API credentials.",
+        "Restarted the gateway connector; payments go through again.",
+    ),
+}
 REJECTION_REASONS: tuple[str, ...] = (
     "It worked for an hour and then failed again.",
     "The problem is back this morning.",
@@ -252,6 +308,13 @@ class HistoryGenerator:
     def __reporter_id(self) -> int:
         return self.__rng.choice(people.EMPLOYEES).user_id
 
+    def __fix_for(self, category: Category) -> str:
+        """A fix that fits the category, from one draw of the same size as the generic list,
+        so the random sequence (and with it the rest of the history) is unchanged."""
+        draw = self.__rng.randrange(len(RESOLUTION_SUMMARIES))
+        fixes = CATEGORY_FIXES.get(category.name, RESOLUTION_SUMMARIES)
+        return fixes[draw % len(fixes)]
+
     def __technician_for(self, category: Category) -> Technician:
         """An available technician who has the category's skill, else anyone available."""
         wanted = self.__catalogue.skill_names.get(category.required_skill_id or -1)
@@ -314,7 +377,7 @@ class HistoryGenerator:
             incident.provide_info(incident.reporter_id, clock, self.__rng.choice(INFO_ANSWERS))
 
         clock.advance(self.__fraction(target.resolution, 0.3, 1.4))
-        incident.resolve(technician.id, clock, self.__rng.choice(RESOLUTION_SUMMARIES))
+        incident.resolve(technician.id, clock, self.__fix_for(category))
         if outcome == "resolved":
             return
 
@@ -322,7 +385,7 @@ class HistoryGenerator:
             clock.advance(timedelta(hours=self.__rng.randrange(2, 30)))
             incident.reject(incident.reporter_id, clock, self.__rng.choice(REJECTION_REASONS))
             clock.advance(self.__fraction(target.resolution, 0.2, 0.8))
-            incident.resolve(technician.id, clock, self.__rng.choice(RESOLUTION_SUMMARIES))
+            incident.resolve(technician.id, clock, self.__fix_for(category))
 
         if outcome == "closed_auto":
             clock.advance(timedelta(hours=72, minutes=1))
