@@ -14,6 +14,9 @@ EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --retries=5 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status == 200 else 1)"
 # Migrate, then serve: the schema is always at head before the first request.
-# SEED_ON_START=true fills a never-seeded database with the demo data and is a no-op afterwards.
+# SEED_ON_START=true fills a never-seeded database with the demo data, catching the SLA monitor
+# up on that history, and is a no-op afterwards.
+# DEMO_RESET_ON_START=true (with APP_ENV=demo) wipes and re-stages the database on every start
+# instead, for a demo instance on the x10 clock (P5.5, D-036); it never runs with APP_ENV=prod.
 # PORT is set by hosts such as Render; locally and in Compose it stays 8000.
-CMD ["sh", "-c", "alembic upgrade head && if [ \"$SEED_ON_START\" = \"true\" ]; then python -m app.seed --if-empty; fi && exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "alembic upgrade head && if [ \"$DEMO_RESET_ON_START\" = \"true\" ]; then python -m app.demo; elif [ \"$SEED_ON_START\" = \"true\" ]; then python -m app.demo --seed-if-empty; fi && exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]

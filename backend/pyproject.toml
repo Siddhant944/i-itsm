@@ -135,10 +135,10 @@ source_modules = ["app.seed"]
 forbidden_modules = ["app.api", "app.services", "app.main", "fastapi", "starlette"]
 
 [[tool.importlinter.contracts]]
-name = "Only the composition root and the seed CLI import app.seed"
+name = "Only the composition roots (app.main, app.demo) and the seed CLI import app.seed"
 type = "forbidden"
 source_modules = ["app.domain", "app.services", "app.api", "app.repositories", "app.adapters", "app.core"]
-forbidden_modules = ["app.seed"]
+forbidden_modules = ["app.seed", "app.demo"]
 
 [[tool.importlinter.contracts]]
 name = "Core depends on no application layer"

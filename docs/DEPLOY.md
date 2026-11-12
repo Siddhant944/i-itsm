@@ -26,9 +26,16 @@ every push to `main` redeploys them.
    itself instead of the API and every sign-in fails. Set the variable, then use "Manual
    Deploy → Clear build cache & deploy" on i-itsm-web.
 3. **First start.** The API image runs `alembic upgrade head`, then, because
-   `SEED_ON_START=true`, seeds the demo data into the empty database (about a minute), then
-   serves. Later starts find the seed marker and change nothing, so configuration made on the
-   admin screens survives a redeploy.
+   `SEED_ON_START=true`, seeds the demo data into the empty database (about a minute) and runs
+   the SLA monitor over that history once, quietly, so the first live tick does not notify
+   anyone about months-old breaches (P5.5). Then it serves. Later starts find the seed marker
+   and change nothing, so configuration made on the admin screens survives a redeploy.
+
+   **Production settings (P5.1).** The Blueprint sets `APP_ENV=prod`, and the API then refuses
+   to start unless `JWT_SECRET` is at least 32 characters (Render generates one) and
+   `CORS_ORIGINS` lists only the web app's `https://` origin. If the API's log says
+   `CORS_ORIGINS must list the web app's https:// origin(s)`, step 2 was skipped. HTTPS itself
+   is Render's: both services get a certificate and redirect plain HTTP.
 
 ## Checking it
 
@@ -45,7 +52,23 @@ every push to `main` redeploys them.
   are unaffected.
 - **`VITE_API_URL` is baked in at build time.** Changing the API's URL means rebuilding the
   static site.
-- `APP_ENV=demo` exposes `/dev/clock` (D-009). P5.1 moves the deployment to production settings.
+
+## A demo instance (P5.5, D-036)
+
+The recording itself runs locally with `make demo-reset`. To give the deployment the same
+demo state instead, change three variables on i-itsm-api and redeploy:
+
+| Variable | Value |
+|---|---|
+| `APP_ENV` | `demo` (prod refuses to reset; demo also exposes `/dev/clock`, D-009) |
+| `CLOCK_MODE` | `accelerated` (×10: a P1's 5-minute response window takes 30 s) |
+| `DEMO_RESET_ON_START` | `true` |
+
+Every start then wipes the database, reseeds it, catches the monitor up and stages Workflows 1
+and 2. On the free plan that includes every wake from sleep, which is deliberate: the ×10
+clock restarts from the real time when the process does, so data written by the previous run
+would otherwise sit hours in the clock's future. Anything done on a demo instance is gone the
+next time it sleeps. Set `APP_ENV=prod` and remove the other two to go back.
 
 ## Docker Compose instead
 
