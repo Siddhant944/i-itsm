@@ -2,7 +2,36 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P3 Frontend MVP and first deployment — done, PR open (11 Nov)
+## Status: P4 Intelligence and integrations — in progress (12 Nov, checkpoint)
+
+On `claude/awesome-brahmagupta-65bn2j`, cut from main after the P3 PR merged. `make verify`
+passes: 1000 backend tests, 94 frontend tests; Playwright WF1, WF2 and WF3 pass.
+
+### Done so far
+- **P4.1 Duplicates (BR-09).** Hybrid score of §6.2 (TF-IDF offline, Gemini embeddings when
+  configured, stored per incident); θ = 0.49 and θ-high = 0.89 tuned on 52 labelled pairs
+  (`docs/testing/duplicates.md`: F1 0.92 and 1.00; text alone at 60 % gets F1 0.68). While
+  typing the form offers open look-alikes and "Follow this instead"; the same reporter's
+  near-identical report within 30 min is 409 with a link; staff confirm a possible duplicate
+  in two clicks; followers are told when the parent is resolved (D-005, D-030, D-031).
+- **P4.2 Correlation.** BFS over `depends_on`; the incident page names the likely root cause
+  ("Likely related to INC-… (Database Cluster): possible root cause.") and what an outage
+  may be causing. Staff only.
+- **P4.3 WF3 in Playwright.** Database P1 → three payment tickets → one followed, one
+  confirmed → root cause shown → escalation to levels 1 and 2 on the fake clock.
+- **P4.4 Gemini classifier** behind the rules (FallbackAdvisor); every AI classification is
+  audited with source and confidence. Wired only when `GEMINI_API_KEY` and `GEMINI_MODEL`
+  are set; untested against the real API until someone provides a key.
+- **P4.5 Predictive SLA risk (§6.3)** with the 75 % fallback below ten samples; staff see a
+  chip and the reason. Scope in D-032 (needs the team's confirmation).
+- **P4.6** was already done in P3 (top three with reasons; WF1 asserts them).
+- **P4.7 Suggested resolution.** Three most similar past fixes; a Gemini summary may cite
+  only those (checked); "Use this fix…" copies into the resolve box to edit.
+
+### Next
+- P4.8 WebSockets, P4.9 Telegram alerts, P4.10 Google Sign-In, P4.14 phase close.
+
+## Previous: P3 Frontend MVP and first deployment (merged 11 Nov, PR #4)
 
 On `claude/affectionate-mccarthy-txowq5`, cut from main after the P2 PR merged. All seven
 packages are done and the phase review's findings are fixed (see P3.7 below).
