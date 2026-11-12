@@ -1,0 +1,93 @@
+@startuml usecase
+!pragma layout smetana
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam packageStyle rectangle
+left to right direction
+title I-ITSM use cases: three portals, five roles and the automated actors
+
+actor Employee as EMP
+actor Technician as TECH
+actor "Team Lead" as LEAD
+actor Administrator as ADM
+actor "IT Manager" as MGR
+actor "SLA monitor\n(every 30 s of clock time)" as MON <<system>>
+actor "Gemini API" as GEM <<external>>
+actor "Email / Telegram" as MSG <<external>>
+actor "Google Sign-In" as GOO <<external>>
+
+LEAD -|> TECH
+MGR -|> ADM
+
+rectangle "I-ITSM" {
+  usecase "Sign in / register\n(password or Google)" as UC_AUTH
+  usecase "Report an incident" as UC_REPORT
+  usecase "See similar open incidents\nwhile typing" as UC_SIMILAR
+  usecase "Get an AI category suggestion\n(with confidence, overridable)" as UC_CLASSIFY
+  usecase "Follow an existing incident\ninstead of reporting again" as UC_FOLLOW
+  usecase "Track my incidents\nand their timeline" as UC_TRACK
+  usecase "Answer an information request" as UC_INFO
+  usecase "Verify or reject a fix,\nand rate it" as UC_VERIFY
+  usecase "Read notifications" as UC_NOTIFY
+  usecase "Link Telegram alerts" as UC_TG
+
+  usecase "Work my queue: acknowledge,\nstart, note, hold, resolve" as UC_WORK
+  usecase "Request information\n(SLA clock pauses)" as UC_ASK
+  usecase "View suggested resolution\nfrom similar past fixes" as UC_SUGGEST
+  usecase "Confirm a duplicate" as UC_DUP
+  usecase "See SLA risk and\nroot-cause hint" as UC_RISK
+  usecase "Work the team queue;\nreassign within the team" as UC_TEAM
+
+  usecase "Assign / reassign with\nranked candidates and reasons" as UC_ASSIGN
+  usecase "Override priority\n(with a reason)" as UC_PRIO
+  usecase "Configure categories, services,\ndependencies, SLA grid, strategy" as UC_CONFIG
+  usecase "Manage users and technicians" as UC_USERS
+  usecase "Search with 9 filters;\nexport CSV" as UC_SEARCH
+  usecase "Dashboards and analytics" as UC_DASH
+  usecase "Audit log and\nintegrity check" as UC_AUDIT
+  usecase "SLA violations" as UC_VIOL
+  usecase "Manage IT Managers" as UC_MGRS
+
+  usecase "Classify, prioritise,\nset SLA, auto-assign" as UC_AUTO
+  usecase "Warn at risk, record breaches,\nescalate, auto-close after 72 h" as UC_SLA
+  usecase "Send notifications" as UC_SEND
+}
+
+EMP --> UC_AUTH
+EMP --> UC_REPORT
+EMP --> UC_TRACK
+EMP --> UC_INFO
+EMP --> UC_VERIFY
+EMP --> UC_NOTIFY
+EMP --> UC_TG
+UC_REPORT <.. UC_SIMILAR : <<extend>>
+UC_REPORT <.. UC_CLASSIFY : <<extend>>
+UC_REPORT <.. UC_FOLLOW : <<extend>>
+UC_REPORT ..> UC_AUTO : <<include>>
+
+TECH --> UC_WORK
+TECH --> UC_ASK
+TECH --> UC_SUGGEST
+TECH --> UC_DUP
+TECH --> UC_RISK
+TECH --> UC_NOTIFY
+LEAD --> UC_TEAM
+
+ADM --> UC_ASSIGN
+ADM --> UC_PRIO
+ADM --> UC_CONFIG
+ADM --> UC_USERS
+ADM --> UC_SEARCH
+ADM --> UC_DASH
+ADM --> UC_AUDIT
+ADM --> UC_VIOL
+MGR --> UC_MGRS
+
+UC_AUTH -- GOO
+UC_CLASSIFY -- GEM
+UC_SUGGEST -- GEM
+MON --> UC_SLA
+UC_AUTO ..> UC_SEND : <<include>>
+UC_SLA ..> UC_SEND : <<include>>
+UC_SEND -- MSG
+@enduml

@@ -280,21 +280,25 @@ def demo_reset(_: argparse.Namespace) -> None:
 
 
 def diagrams(_: argparse.Namespace) -> None:
-    """Render every PlantUML source under docs/diagrams/ to SVG next to it."""
+    """Regenerate the code-derived diagrams, then render every PlantUML source (P6.1).
+
+    SVG (committed, viewable on GitHub) and PNG (git-ignored, for the PDF report) land next
+    to each source. No Graphviz needed: the sources use PlantUML's built-in smetana layout.
+    """
+    run(["uv", "run", "python", "scripts/gen_diagrams.py"], BACKEND)
     sources = sorted(str(p) for p in DIAGRAMS.rglob("*.puml"))
-    if not sources:
-        print("no diagrams yet (docs/diagrams/**/*.puml)")
-        return
     jar = Path(os.environ.get("PLANTUML_JAR", REPO / "tools" / "plantuml.jar"))
     if not jar.exists():
         raise TaskError(
             f"PlantUML not found at {jar}; run scripts/cloud-setup.sh or set PLANTUML_JAR"
         )
-    run(["java", "-jar", str(jar), "-tsvg", *sources], REPO)
+    for fmt in ("-tsvg", "-tpng"):
+        run(["java", "-jar", str(jar), fmt, *sources], REPO)
 
 
 def report(_: argparse.Namespace) -> None:
-    """Build report/build/main.pdf with tectonic."""
+    """Render the diagrams, then build report/build/main.pdf with tectonic."""
+    diagrams(argparse.Namespace())
     tectonic = shutil.which("tectonic") or str(REPO / "tools" / "tex" / "bin" / "tectonic")
     if not Path(tectonic).exists():
         raise TaskError(

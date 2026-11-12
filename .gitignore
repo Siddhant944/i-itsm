@@ -31,6 +31,7 @@ e2e/playwright-report/
 
 # report and tools
 report/build/
+docs/diagrams/**/*.png
 tools/
 
 # editors / OS

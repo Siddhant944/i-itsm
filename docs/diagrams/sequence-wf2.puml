@@ -1,0 +1,78 @@
+@startuml sequence-wf2
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+title Workflow 2: technician investigates -> SLA monitored -> incident resolved -> user notified
+
+actor Technician
+participant "Technician portal" as TUI
+participant "incidents router\n+ deps (BR-01, BR-02)" as API
+participant "IncidentService\n<<Facade>>" as SVC
+participant "Incident\n+ IncidentState <<State>>" as INC
+participant "SLAClock" as CLK
+participant "SLAMonitor\n(tick every 30 s of clock time)" as MON
+participant "ResolutionAdvisor\n(similar past fixes, Gemini summary)" as RES
+participant "UnitOfWork + AuditService" as UOW
+participant "NotificationService" as NOTIF
+actor Employee
+
+Technician -> TUI : opens the queue (SLA chips count down)
+TUI -> API : POST /incidents/{id}/acknowledge
+API -> SVC : acknowledge()
+SVC -> INC : acknowledge() -> ACKNOWLEDGED
+INC -> CLK : respond(now): response target met or missed
+SVC -> UOW : save + audit + commit
+TUI -> API : POST /incidents/{id}/start
+SVC -> INC : start() -> IN_PROGRESS
+
+group SLA monitored (in the background)
+  MON -> UOW : needing_sla_attention(now)
+  MON -> CLK : response_status / resolution_status(now)
+  alt elapsed >= 75 % of target (BR-07)
+    MON -> NOTIF : "SLA approaching" to assignee and Team Lead (in-app, Telegram)
+  else deadline passed
+    MON -> UOW : record SLAViolation (once per cycle) + audit
+    MON -> NOTIF : "SLA violated" to assignee, Team Lead and admins
+  end
+end
+
+Technician -> TUI : Request information ("Which browser?")
+TUI -> API : POST /incidents/{id}/request-information
+SVC -> INC : hold(question) -> ON_HOLD
+INC -> CLK : pause(now): resolution clock stops
+SVC -> NOTIF : (after commit) "Information requested" to the reporter
+Employee -> API : POST /incidents/{id}/information (answer)
+SVC -> INC : provide_info() -> IN_PROGRESS (D-006)
+INC -> CLK : resume(now): paused time excluded from the deadline
+SVC -> NOTIF : (after commit) "Information provided" to the assignee
+
+Technician -> TUI : opens the suggested resolution
+TUI -> API : GET /incidents/{id}/suggested-resolution
+API -> RES : top 3 similar resolved incidents (+ summary citing only them)
+Technician -> TUI : Resolve with a summary (BR-04: required)
+TUI -> API : POST /incidents/{id}/resolve
+SVC -> INC : resolve(summary) -> RESOLVED
+INC -> CLK : stop(now): resolution target frozen
+SVC -> UOW : save + audit + commit
+SVC -> NOTIF : (after commit)
+NOTIF -> Employee : "Your incident is resolved: please verify" (in-app, email)
+
+alt fix rejected
+  Employee -> API : POST /incidents/{id}/reject (reason)
+  SVC -> INC : reject() -> IN_PROGRESS, reopen_count + 1, clock restarts
+  note right : the technician sees it back in the queue (live push)
+else fix accepted
+  Employee -> API : POST /incidents/{id}/verify (rating 1-5, comment)
+  SVC -> INC : verify() -> VERIFIED (feedback recorded)
+  Technician -> API : POST /incidents/{id}/close
+  SVC -> INC : close() -> CLOSED
+  NOTIF -> Employee : "Closed" (in-app)
+end
+note over MON, INC
+  A RESOLVED incident nobody verifies is closed by the
+  monitor after 72 h (BR-03). NEW -> CLOSED, or any other
+  pair outside the 20 transitions, raises
+  InvalidStateTransitionError -> 409.
+end note
+@enduml
