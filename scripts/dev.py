@@ -127,9 +127,22 @@ def serve(*, reload: bool, extra_env: dict[str, str] | None = None) -> None:
                 p.kill()
 
 
+#: P5.3: domain and services, on their own, stay at or above 80 % (CI runs the same command).
+CORE_COVERAGE_GATE = [
+    "uv",
+    "run",
+    "coverage",
+    "report",
+    "--include=app/domain/*,app/services/*",
+    "--fail-under=80",
+    "--format=total",
+]
+
+
 def test(_: argparse.Namespace) -> None:
     """Run the backend and frontend unit and integration tests."""
     run(["uv", "run", "pytest", "--cov", "--cov-report=term:skip-covered"], BACKEND)
+    run(CORE_COVERAGE_GATE, BACKEND)
     run(["npm", "test"], FRONTEND)
 
 

@@ -92,6 +92,9 @@ source = ["app"]
 branch = true
 
 [tool.coverage.report]
+# P5.3: the whole backend may not fall below 90 % (97 % on 12 Nov). Domain and services have
+# their own 80 % gate in scripts/dev.py and CI, so a well-tested API cannot hide them.
+fail_under = 90
 skip_empty = true
 show_missing = false
 exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@abstractmethod"]

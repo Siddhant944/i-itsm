@@ -74,6 +74,8 @@ jobs:
         run: |
           uv run pytest --cov --cov-report=term:skip-covered --cov-report=xml
           uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+          # P5.3: domain and services on their own (the same gate as scripts/dev.py)
+          uv run coverage report --include='app/domain/*,app/services/*' --fail-under=80 --format=total
       - uses: actions/upload-artifact@v4
         if: matrix.db == 'sqlite'
         with:
