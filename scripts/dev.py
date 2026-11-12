@@ -302,8 +302,10 @@ def write_test_report(_: argparse.Namespace) -> None:
 
 
 def report(_: argparse.Namespace) -> None:
-    """Render the diagrams, then build report/build/main.pdf with tectonic."""
+    """Render the diagrams and the code-derived tables, then build report/build/main.pdf."""
     diagrams(argparse.Namespace())
+    run(["uv", "run", "python", "scripts/gen_pattern_table.py"], BACKEND)
+    run(["uv", "run", "python", "scripts/gen_versions.py"], BACKEND)
     tectonic = shutil.which("tectonic") or str(REPO / "tools" / "tex" / "bin" / "tectonic")
     if not Path(tectonic).exists():
         raise TaskError(

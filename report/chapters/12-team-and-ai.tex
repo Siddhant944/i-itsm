@@ -1,8 +1,82 @@
-\chapter{Team Responsibilities and Use of AI Tools}
-% Owner: All. Drafted in P6 (see docs/PLAN.md).
+\chapter{Team Responsibilities and Use of AI Tools}\label{ch:team}
+% Owner: All. Draft 1, 12 Nov 2026; sources: blueprint §15, docs/PLAN.md, AGENTS.md, git history.
+% TEAM: confirm the responsibilities below and add your own words to 12.2 before submission.
 
 \section{Team responsibilities}
-\emph{To be written.}
+Group 15 split the work by layer so that each member owns a part end to end --- code, tests,
+report chapters and a demo segment --- while every member reviewed every phase before it was
+merged, so that each can explain the whole system.
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3cm}>{\raggedright\arraybackslash}p{5.6cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{3.2cm}@{}}
+\toprule
+\textbf{Member} & \textbf{Code} & \textbf{Report} & \textbf{Tests and demo} \\
+\midrule
+\endhead
+M1 Tushar B \newline Domain and lifecycle & \code{domain/}: users and permissions, the
+  \code{Incident} aggregate and its State classes, priority, events; the notification
+  subsystem and Telegram alerts; the admin configuration screens & 1 Problem analysis;
+  4 UML; 10 OOP and patterns & Domain and notification tests; demo: introduction, class and
+  state diagrams, Workflow 1 (report) \\
+M2 Siddhant L Pathak \newline Intelligence and SLA & AI advisor and fallback, similarity and
+  duplicates, dependency graph and correlation, predictive SLA risk, assignment strategies,
+  SLA engine and monitor, escalation chain, historical seed data & 2 Requirements;
+  5 Technology stack & Strategy, similarity (precision and recall), SLA and escalation tests;
+  demo: Workflow 1 (assignment, notifications) and Workflow 3 \\
+M3 Shri Krishna P \newline Platform & API and error mapping, authentication including Google
+  Sign-In, repositories, ORM and migrations, audit chain, search and analytics with the
+  dashboard, Docker, CI and deployment & 3 Architecture; 6 Repository; 7 Database;
+  9 Security & Integration and authorisation-matrix tests; demo: architecture, ER, admin
+  portal, search, audit and analytics \\
+M4 Ishaan S \newline Frontend and QA & Design system, Employee and Technician portals, live
+  updates, accessibility and phone layout, installable PWA, Playwright suites & 8 Testing;
+  final PDF; video editing & End-to-end and accessibility tests, test report; demo:
+  Workflow 2 and the test run \\
+\bottomrule
+\end{longtable}
+
+\paragraph{How we worked.} The build ran in six phases (foundations, domain core, persistence and
+API, frontend MVP, intelligence and integrations, hardening), each on its own branch and merged
+by pull request after all four members reviewed it. \code{docs/PLAN.md} lists every work
+package with its owner; \code{docs/DECISIONS.md} records the 37 design decisions taken on the
+way and why; \code{docs/PROGRESS.md} says what each phase delivered and what it left for a
+human to do.
 
 \section{How AI tools were used}
-\emph{To be written.}
+The requirements allow ``available APIs or packages, AI tools or techniques''. We used AI in two
+distinct ways and record both plainly.
+
+\subsection*{AI inside the product}
+Google Gemini, through the Google Gen AI SDK, suggests an incident's category with a confidence
+score, writes a short summary of how similar past incidents were fixed (citing only those
+incidents), and produces text embeddings for duplicate detection. Every one of these is advice:
+it is shown with its confidence and can be overridden, every AI decision is written to the
+audit trail, and each has a deterministic fallback (keyword rules, a plain list of past fixes,
+TF-IDF vectors), so the system works fully without an API key.
+
+\subsection*{AI in building the product}
+The code, tests, documentation and most of this report were written with Claude Code, an AI
+coding agent, working in cloud sessions on one shared account under rules we wrote for it in
+\code{AGENTS.md}:
+\begin{itemize}
+  \item \textbf{We approved the design first.} The blueprint (\code{docs/blueprint.md}),
+    agreed before any code was written, fixes the
+    architecture, the domain model, the lifecycle, every business rule and number, and the
+    nine patterns. The agent had to follow it and ask before deviating; each agreed deviation
+    is logged in \code{docs/DECISIONS.md}.
+  \item \textbf{We set the rules of engagement.} Test-first domain rules, \code{make verify}
+    before every commit, small reviewed commits on a phase branch, never pushing to
+    \code{main}, never reading secrets.
+  \item \textbf{We reviewed and merged.} Each phase ended with an independent review of the whole
+    phase diff, whose findings were fixed before the pull request; all four members reviewed
+    each phase's pull request and a member merged it. The git history shows which commits the
+    agent authored and which a member made.
+  \item \textbf{We supplied what an agent cannot:} the accounts and keys, the hosting, the
+    labelled duplicate pairs to check, the dry runs and the recording.
+\end{itemize}
+What we learned: an agent is fast at producing code that passes the checks it is given, so the
+quality of the result depended on the quality of those checks --- the blueprint's exact rules,
+the boundary tests, the layer contracts and the phase reviews. Several real bugs (Chapter~8)
+were caught by those reviews, not by the first draft of the code.
+
+% TEAM: add here, in your own words, what each of you did yourselves (design sessions, reviews,
+% testing by hand, dry runs, decisions you made) before submitting.

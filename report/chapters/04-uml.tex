@@ -1,14 +1,73 @@
 \chapter{UML Diagrams}\label{ch:uml}
-% Owner: M1 (Tushar B). Drafted in P6 (see docs/PLAN.md).
+% Owner: M1 (Tushar B). Draft 1, 12 Nov 2026. Sources: docs/diagrams/ (PlantUML). The state,
+% class and ER diagrams are generated from the code by backend/scripts/gen_diagrams.py.
+
+All diagrams are PlantUML sources in \code{docs/diagrams/}, rendered by \code{make diagrams}. The
+use case, sequence, architecture and deployment diagrams are drawn by hand. The state diagram,
+the six class diagrams and the ER diagram are \emph{generated from the code}: the state
+diagram by calling every trigger in every State class, the class diagrams by reading each
+class's members, base classes and abstract methods, and the ER diagram from the SQLAlchemy
+metadata. Only the associations in the class diagrams are listed by hand, because Python cannot
+tell an association from an ordinary attribute. A unit test regenerates them and fails if a
+committed diagram no longer matches the code, so what you see here is what runs.
+
+\paragraph{Notation.} \code{+name : Type \{readOnly\}} is a read-only property backed by a
+private, name-mangled field (\code{self.\_\_name}); underlined members are static (class)
+methods; italic members are abstract. A hollow triangle is inheritance (dashed for an
+interface), a filled diamond composition, a hollow diamond aggregation, a plain arrow an
+association and a dashed arrow a dependency.
 
 \section{Use case diagram}
-\emph{To be written.}
+\diagram{usecase}{Use cases. Team Lead specialises Technician and IT Manager specialises
+Administrator, so each inherits the other's use cases. The SLA monitor is a time-driven
+system actor.}
 
-\section{Class diagram}
-\emph{To be written.}
+\section{Class diagrams}
+The model is split into six views so that each fits a page; together they cover the classes,
+attributes, methods, interfaces, inheritance, associations and composition the requirements
+ask for.
+
+\diagram{class-users}{Users, roles and permissions. Inheritance is used only for true is-a
+relations; what a user may do comes from a role-to-permission map, not from type checks.}
+
+\diagram{class-incident}{The \code{Incident} aggregate. It owns (composition) its SLA clock,
+work notes, resolution and feedback, and delegates every lifecycle action to its current
+\code{IncidentState}. The state objects are stateless and shared, so the incident aggregates
+one rather than owning it.}
+
+\diagram[0.75\textwidth]{class-states}{The State pattern. Each status is a class; the
+abstract base refuses every trigger and each concrete state overrides only the ones it allows.
+Two private helpers (\code{\_Cancellable}, \code{\_Reassignable}) share the common overrides
+and are omitted.}
+
+\diagram{class-strategies}{Priority and assignment strategies. \code{AssignmentStrategy.select()}
+is a template method that applies the eligibility rules (available, skilled, under the
+10-point cap) and calls the abstract \code{rank()} hook each strategy implements.}
+
+\diagram{class-sla}{SLA policies, risk estimators and the escalation chain.}
+
+\diagram{class-ports}{Ports and adapters. The facade depends only on interfaces; persistence
+and external services implement them, each with a fake or fallback.}
 
 \section{State diagram}
-\emph{To be written.}
+\diagram[0.85\textwidth]{state}{The incident lifecycle, generated from the State classes:
+exactly the 20 transitions of the blueprint (§4). Any other trigger raises
+\code{InvalidStateTransitionError}, which the API returns as 409.}
+
+\paragraph{SLA effects of the states.} Entering ON\_HOLD pauses the resolution clock and leaving
+it resumes it; the first acknowledgement settles the response target; RESOLVED stops the clock
+and freezes the resolution target; rejecting a fix restarts it, so time spent waiting for the
+reporter's verdict never counts against the technician.
 
 \section{Sequence diagrams}
-\emph{To be written.}
+One sequence diagram per demonstrated workflow. Each is also an automated Playwright test
+(\code{e2e/tests/wf1.spec.ts}, \code{wf2.spec.ts}, \code{wf3.spec.ts}).
+
+\diagram{sequence-wf1}{Workflow 1: employee reports $\rightarrow$ system prioritises
+$\rightarrow$ technician assigned $\rightarrow$ notification generated.}
+
+\diagram{sequence-wf2}{Workflow 2: technician investigates $\rightarrow$ SLA monitored
+$\rightarrow$ incident resolved $\rightarrow$ user notified.}
+
+\diagram{sequence-wf3}{Workflow 3: several reports $\rightarrow$ duplicates and related
+incidents identified $\rightarrow$ correlated and escalated.}

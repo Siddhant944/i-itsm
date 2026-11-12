@@ -103,40 +103,6 @@ class SLATarget <<value object>> {
   +scaled(factor) : SLATarget
 }
 abstract class IncidentState {
-  {abstract} +status : IncidentStatus {readOnly}
-  +is_terminal : bool {readOnly}
-  +classify() : IncidentStatus
-  +assign() : IncidentStatus
-  +acknowledge() : IncidentStatus
-  +start() : IncidentStatus
-  +hold() : IncidentStatus
-  +resume() : IncidentStatus
-  +resolve() : IncidentStatus
-  +verify() : IncidentStatus
-  +reject() : IncidentStatus
-  +close() : IncidentStatus
-  +auto_close() : IncidentStatus
-  +cancel() : IncidentStatus
-}
-class NewState {
-}
-class ClassifiedState {
-}
-class AssignedState {
-}
-class AcknowledgedState {
-}
-class InProgressState {
-}
-class OnHoldState {
-}
-class ResolvedState {
-}
-class VerifiedState {
-}
-class ClosedState {
-}
-class CancelledState {
 }
 class DomainEvent <<value object>> {
   +occurred_at : datetime
@@ -147,16 +113,6 @@ class EventBus {
   +subscribe(event_type, handler)
   +publish(event)
 }
-NewState --|> IncidentState
-ClassifiedState --|> IncidentState
-AssignedState --|> IncidentState
-AcknowledgedState --|> IncidentState
-InProgressState --|> IncidentState
-OnHoldState --|> IncidentState
-ResolvedState --|> IncidentState
-VerifiedState --|> IncidentState
-ClosedState --|> IncidentState
-CancelledState --|> IncidentState
 Incident *-- "0..1" SLAClock : sla_clock
 Incident *-- "0..*" WorkNote : notes
 Incident *-- "0..1" Resolution : resolution
@@ -167,8 +123,7 @@ Incident ..> DomainEvent : <<emits>>
 EventBus o-- "0..*" DomainEvent : publishes
 IncidentFactory ..> Incident : <<creates>> INC-YYYY-NNNN
 note bottom of IncidentState
-  Every trigger raises InvalidStateTransitionError
-  unless a concrete state overrides it, so only the
-  20 transitions of §4 can happen.
+  The ten concrete states are drawn in the next
+  diagram (State pattern).
 end note
 @enduml

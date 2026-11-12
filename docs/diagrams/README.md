@@ -15,6 +15,7 @@ PlantUML's built-in `smetana` layout, so Graphviz is not needed.
 | State (incident lifecycle) | [generated/state.puml](generated/state.puml) · [SVG](generated/state.svg) | generated |
 | Class: users and permissions | [generated/class-users.puml](generated/class-users.puml) · [SVG](generated/class-users.svg) | generated |
 | Class: incident aggregate and states | [generated/class-incident.puml](generated/class-incident.puml) · [SVG](generated/class-incident.svg) | generated |
+| Class: the State pattern (ten state classes) | [generated/class-states.puml](generated/class-states.puml) · [SVG](generated/class-states.svg) | generated |
 | Class: priority and assignment strategies | [generated/class-strategies.puml](generated/class-strategies.puml) · [SVG](generated/class-strategies.svg) | generated |
 | Class: SLA, risk and escalation | [generated/class-sla.puml](generated/class-sla.puml) · [SVG](generated/class-sla.svg) | generated |
 | Class: ports and adapters | [generated/class-ports.puml](generated/class-ports.puml) · [SVG](generated/class-ports.svg) | generated |

@@ -1,14 +1,124 @@
 \chapter{Database Design}\label{ch:database}
-% Owner: M3 (Shri Krishna P). Drafted in P6 (see docs/PLAN.md).
+% Owner: M3 (Shri Krishna P). Draft 1, 12 Nov 2026; sources: app/repositories/sqlalchemy/models.py,
+% alembic/, app/seed/, blueprint §9. The ER diagram is generated from the ORM metadata.
+
+The data is relational: incidents refer to users, services, categories and each other; SLA
+reporting and the audit trail need joins and integrity constraints. Eighteen tables hold it.
+The same SQLAlchemy models and Alembic migrations run on SQLite in development and tests and on
+PostgreSQL in Docker, CI and the cloud.
 
 \section{ER diagram}
-\emph{To be written.}
+\diagram{er}{Entity--relationship diagram, generated from the SQLAlchemy metadata. \code{*}
+marks a NOT NULL column; crow's feet show the many side; a circle means optional.}
 
 \section{Schema}
-\emph{To be written.}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{11.4cm}@{}}
+\toprule
+\textbf{Table} & \textbf{Holds} \\
+\midrule
+\endhead
+\multicolumn{2}{@{}l}{\emph{Identity}} \\
+\code{users} & Every account: email (unique), name, role (one of five), Argon2 password hash
+  (empty for Google-only accounts), active flag, failed-login count and lock expiry, Telegram
+  chat ID, Google subject. \\
+\code{teams} & Support teams and their lead. \\
+\code{technician\_profiles} & One row per technician (1:1 with \code{users}): experience
+  level, availability, team. \\
+\code{skills}, \code{technician\_skills} & The skill catalogue and which technician has which
+  (many-to-many). \\
+\multicolumn{2}{@{}l}{\emph{Catalogue (configurable without code)}} \\
+\code{categories} & Incident categories: required skill, keywords for the rule-based
+  classifier, optional minimum priority (the category floor). \\
+\code{services} & IT services: business criticality (1--3), SLA tier, optional required
+  skill. \\
+\code{service\_dependencies} & The dependency graph, one row per ``service depends on
+  service'' edge. \\
+\code{sla\_policies} & Response and resolution targets per tier and priority (12 rows). \\
+\multicolumn{2}{@{}l}{\emph{Incidents}} \\
+\code{incidents} & The aggregate root: the INC-YYYY-NNNN key, reporter, assignee, service,
+  category, parent (for a duplicate), impact, urgency, status, priority and score, escalation
+  level, reopen count, the SLA clock's fields and three derived deadlines (D-018), and a
+  \code{version} column for optimistic locking. \\
+\code{work\_notes} & Notes, information requests and answers, oldest first. \\
+\code{resolutions}, \code{feedback} & The fix summary and the reporter's rating (each 1:1
+  with an incident). \\
+\code{incident\_embeddings} & Cached vectors for duplicate detection, tagged with provider
+  and model (D-030). \\
+\code{sla\_violations} & Each warning and breach the monitor recorded, once per cycle. \\
+\multicolumn{2}{@{}l}{\emph{Operations}} \\
+\code{audit\_log} & Append-only, hash-chained records: actor, action, incident, details,
+  previous hash and hash. \\
+\code{notifications} & In-app notifications and the delivery state of each channel. \\
+\code{system\_config} & Key--value settings edited in the admin portal (assignment strategy
+  and weights). \\
+\bottomrule
+\end{longtable}
 
-\section{Relationships}
-\emph{To be written.}
+\section{Important relationships}
+\begin{itemize}
+  \item \textbf{User--Incident} twice: every incident has exactly one reporter and at most one
+    assignee. Ownership checks (BR-01, BR-02) read these keys.
+  \item \textbf{Incident--Incident:} a cancelled duplicate points at the incident it duplicates
+    through \code{parent\_id}; that link is also what subscribes its reporter to the original
+    (D-005).
+  \item \textbf{Service--Service:} \code{service\_dependencies} forms a directed graph; the
+    correlation engine walks it breadth-first to find an open P1 or P2 on a service the
+    reported one depends on.
+  \item \textbf{Composition:} work notes, the resolution, feedback, the embedding and SLA
+    violations belong to one incident and are loaded and saved with it by the repository.
+  \item \textbf{Audit:} \code{audit\_log.incident\_id} is a real foreign key, nullable because
+    sign-ins and configuration changes are audited too.
+\end{itemize}
+
+\section{Integrity, performance and portability}
+\begin{itemize}
+  \item \textbf{Constraints} enforce what the domain also checks: unique emails and names,
+    foreign keys everywhere (SQLite connections switch \code{foreign\_keys=ON}, which is off by
+    default), one resolution and one feedback per incident.
+  \item \textbf{Transactions:} a change and its audit records commit together through one unit
+    of work; a concurrent edit fails the \code{version} check and returns 409 instead of
+    silently overwriting. Appends to the audit chain lock its head row, so two writers cannot
+    fork the chain.
+  \item \textbf{Indexes} serve the queues and the search: status with priority, assignee with
+    status, creation time, status with resolution deadline (the monitor's query), and the
+    foreign keys.
+  \item \textbf{Time} is stored as timezone-aware UTC and displayed in IST.
+  \item \textbf{No string-built SQL:} every query goes through the ORM, which binds parameters.
+  \item \textbf{Migrations:} Alembic, one linear history (a test checks there is exactly one
+    head); the API image runs \code{alembic upgrade head} before it serves.
+  \item \textbf{Nothing is hard-deleted:} incidents end CLOSED or CANCELLED, users are
+    deactivated, services and categories retired (BR-10).
+\end{itemize}
 
 \section{Sample data}
-\emph{To be written.}
+\code{make seed} loads a campus from a fixed random seed, so every run produces the same data
+and the analytics are never empty:
+\begin{center}
+\begin{tabular}{@{}lr@{\qquad}lr@{}}
+\toprule
+users & 51 & incidents & 420 \\
+teams & 5 & work notes & 570 \\
+skills & 10 & resolutions & 308 \\
+categories & 10 & feedback ratings & 195 \\
+services & 14 & SLA policies & 12 \\
+service dependencies & 20 & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+The 51 users are 31 employees, 12 technicians, 5 team leads, 2 administrators and an IT
+manager. The incidents span several months, every status and every priority (58 P1, 105 P2, 135 P3,
+122 P4) and include breaches, escalations and reopened fixes, so the dashboards and the
+predictive SLA estimator have history to work from. Examples:
+\begin{center}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+\textbf{Service} & \textbf{Criticality} & \textbf{Tier} & \textbf{P1 respond} & \textbf{P1 resolve} \\
+\midrule
+Fee Payment Portal & 3 & Gold & 5 min & 30 min \\
+Database Cluster & 3 & Gold & 5 min & 30 min \\
+Campus Email & 2 & Silver & 10 min & 1 h \\
+\bottomrule
+\end{tabular}
+\end{center}
+The Fee Payment Portal depends on the Database Cluster, the Identity Provider and the Campus
+Network Core, which is the edge Workflow~3 demonstrates.

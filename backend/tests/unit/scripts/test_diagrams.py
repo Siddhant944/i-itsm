@@ -40,8 +40,9 @@ def test_er_diagram_draws_every_table_and_marks_one_to_one_links() -> None:
 
 
 def test_class_diagrams_show_inheritance_through_private_helpers() -> None:
-    incident = gen_diagrams.class_diagram(gen_diagrams.CLASS_DIAGRAMS[1])
-    assert "NewState --|> IncidentState" in incident  # via _Cancellable
-    users = gen_diagrams.class_diagram(gen_diagrams.CLASS_DIAGRAMS[0])
+    by_name = {spec.name: spec for spec in gen_diagrams.CLASS_DIAGRAMS}
+    states = gen_diagrams.class_diagram(by_name["class-states"])
+    assert "NewState --|> IncidentState" in states  # via _Cancellable
+    users = gen_diagrams.class_diagram(by_name["class-users"])
     assert "TeamLead --|> Technician" in users
     assert "abstract class User" in users

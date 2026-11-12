@@ -373,6 +373,30 @@ CLASS_DIAGRAMS: tuple[ClassDiagram, ...] = (
             *_specs(f"{D}.incident", ["WorkNote", "Resolution", "Feedback"]),
             ClassSpec(f"{D}.sla.SLAClock", "methods"),
             ClassSpec(f"{D}.sla.SLATarget"),
+            ClassSpec(f"{D}.states.IncidentState", "none"),
+            ClassSpec(f"{D}.events.DomainEvent"),
+            ClassSpec(f"{D}.events.EventBus"),
+        ),
+        relations=(
+            'Incident *-- "0..1" SLAClock : sla_clock',
+            'Incident *-- "0..*" WorkNote : notes',
+            'Incident *-- "0..1" Resolution : resolution',
+            'Incident *-- "0..1" Feedback : feedback',
+            'Incident o-- "1" IncidentState : state (shared, stateless)',
+            'SLAClock --> "1" SLATarget : target',
+            "Incident ..> DomainEvent : <<emits>>",
+            'EventBus o-- "0..*" DomainEvent : publishes',
+            "IncidentFactory ..> Incident : <<creates>> INC-YYYY-NNNN",
+        ),
+        notes=(
+            "note bottom of IncidentState\n  The ten concrete states are drawn in the next\n"
+            "  diagram (State pattern).\nend note",
+        ),
+    ),
+    ClassDiagram(
+        name="class-states",
+        title="The State pattern: one class per lifecycle status",
+        classes=(
             ClassSpec(f"{D}.states.IncidentState"),
             *_specs(
                 f"{D}.states",
@@ -390,25 +414,14 @@ CLASS_DIAGRAMS: tuple[ClassDiagram, ...] = (
                 ],
                 "none",
             ),
-            ClassSpec(f"{D}.events.DomainEvent"),
-            ClassSpec(f"{D}.events.EventBus"),
-        ),
-        relations=(
-            'Incident *-- "0..1" SLAClock : sla_clock',
-            'Incident *-- "0..*" WorkNote : notes',
-            'Incident *-- "0..1" Resolution : resolution',
-            'Incident *-- "0..1" Feedback : feedback',
-            'Incident o-- "1" IncidentState : state (shared, stateless)',
-            'SLAClock --> "1" SLATarget : target',
-            "Incident ..> DomainEvent : <<emits>>",
-            'EventBus o-- "0..*" DomainEvent : publishes',
-            "IncidentFactory ..> Incident : <<creates>> INC-YYYY-NNNN",
         ),
         notes=(
-            "note bottom of IncidentState\n  Every trigger raises InvalidStateTransitionError\n"
+            "note left of IncidentState\n  Every trigger raises InvalidStateTransitionError\n"
             "  unless a concrete state overrides it, so only the\n"
-            "  20 transitions of §4 can happen.\nend note",
+            "  20 transitions of §4 can happen. States are\n"
+            "  stateless singletons looked up by status.\nend note",
         ),
+        direction="left to right direction",
     ),
     ClassDiagram(
         name="class-strategies",
