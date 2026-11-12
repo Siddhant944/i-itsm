@@ -1,0 +1,76 @@
+# Demo script
+
+The recorded presentation (requirements §9 and the Important Note): 15–20 minutes, all four
+members on camera, each introducing themselves and explaining a module, and **three complete
+workflows**. Planned length: **17 minutes**. Based on blueprint §14, updated for what was built
+(voice input and the health map were cut, D-027).
+
+**File name:** `15_OOP_S1_2025-2026_Project` — the brief's example uses 2025-2026 although the
+semester is 2026–27. **Confirm the year with the IC before uploading** (still open).
+
+## Before recording
+
+1. `make setup` once, then **`make demo-reset`** right before each take. It wipes and reseeds the
+   local database, stages two incidents and serves the API and web app on the **×10 clock**
+   (one real minute = ten clock minutes; a P1's 5-minute response target passes in 30 seconds).
+   It prints the IDs of the staged incidents; note them.
+   - Workflow 1's look-alike: *"Fee payment portal page is very slow"* (Fee Payment Portal),
+     reported by another employee, so the live report shows the duplicate hint.
+   - Workflow 2's ticket: *"Wi-Fi keeps dropping in the library reading room"*, reported by
+     Devika Rao and already in Arjun Menon's queue.
+2. Three browser windows side by side, each its own sign-in (a tab keeps its own session):
+   - Employee portal — `employee@campus.edu` (Devika Rao)
+   - Technician portal — `technician@campus.edu` (Arjun Menon)
+   - Admin portal — `admin@campus.edu` (Rahul Verma)
+
+   Keep `lead@campus.edu` (Priya Nair, Team Lead) and `manager@campus.edu` (Sunita Iyer) ready
+   in a fourth window for Workflow 3. All passwords: `demo1234`.
+3. Optional: Telegram linked for Arjun and Priya (user menu → Telegram alerts) with a phone in
+   shot; email shows in the API console when SMTP is not configured. Without a Gemini key the
+   suggestions say "from keyword rules" — that is the fallback working, say so.
+4. Open `report/build/main.pdf` (`make report`) at the class and state diagrams, and
+   `docs/diagrams/architecture.svg` and `generated/er.svg`.
+5. Screen at 1280×800 or larger, browser zoom 100 %, notifications off. Record each workflow as
+   one continuous take; caption the requirement IDs in editing.
+
+Every workflow ends on the incident's audit trail (Admin → Incidents → the incident → Timeline,
+or Admin → Audit log filtered by the incident).
+
+## Shot list
+
+| # | Time | Who | What is on screen | What to say / do |
+|---|---|---|---|---|
+| 1 | 0:00–1:00 | All | Title card, then each face | Each member: name, ID, module (M1 domain and lifecycle, M2 intelligence and SLA, M3 platform, M4 frontend and QA). |
+| 2 | 1:00–2:30 | M1 Tushar | Report PDF: use case and class diagrams | Problem and the three user groups; the domain model: `User` hierarchy (permissions as data, not `isinstance`), the `Incident` aggregate and what it owns. Point out that the class and state diagrams are generated from the code. |
+| 3 | 2:30–3:30 | M1 | State diagram, then `backend/app/domain/states.py` | Ten states, exactly 20 transitions; the base class refuses every trigger and each state overrides only what it allows. |
+| 4 | 3:30–5:00 | M1 | **Workflow 1a** — Employee portal → Report an incident | Type *"Fee payment page fails at checkout"*, description about the payment failing, service **Fee Payment Portal**. Show the **suggested category with its confidence** ("Use this suggestion" — nothing applied silently) and the **"This may already be reported"** card with the staged incident and its match reasons. Carry on (it's a different problem). Answer *Many people or everyone* / *I am blocked*. Submit. |
+| 5 | 5:00–6:30 | M2 Siddhant | **Workflow 1b** — the new incident's page | Priority from impact × urgency × business criticality (Gold service, criticality 3 → P1), the SLA deadlines starting to count down, the assignee chosen by the **Smart strategy**. In the admin window open the incident → assignment advice: top three candidates **with reasons**. Technician window: the bell counts up and the incident appears in the queue without a reload (WebSocket). Mention email/Telegram for P1/P2. |
+| 6 | 6:30–9:00 | M2 | **Workflow 3** — several reports, duplicates, correlation, escalation | (a) In a fourth window as another employee, report a P1: *"Database cluster not responding"*, service **Database Cluster**, many people / blocked. (b) As Devika, report a payment problem on the **Fee Payment Portal**; as another employee start a similar one — the form suggests it; click **Follow this instead**. (c) Technician (whoever holds a payment ticket) → **Possible duplicates** → confirm. (d) Open the fee-portal incident → **Related through services**: *likely related to* the database P1, *possible root cause*. (e) Nobody acknowledges the database P1: at ×10, ~30 s later it breaches and **escalates to the Team Lead**, ~60 s to an **Administrator** (BR-08). Show Admin → **SLA violations** and the incident's escalation level. |
+| 7 | 9:00–10:00 | M3 Shri Krishna | Architecture diagram, ER diagram | Five layers, dependencies inward, enforced by import-linter in CI; the facade; audit written in the same transaction, notifications after commit. 18 tables, SQLite and PostgreSQL, both tested in CI. |
+| 8 | 10:00–12:30 | M3 | Admin portal | **Categories**: add *"Printer"* live and show it in the report form at once. **SLA policies**: edit one target. **Assignment**: switch Smart → Load-based and show a different pick in the advice. **Incidents**: combine filters (status + priority + service + date), export CSV. **Audit log**: **Verify integrity** → intact (the chain is hash-linked). **Dashboard**: MTTA, MTTR, SLA compliance, CSAT, trends. |
+| 9 | 12:30–15:30 | M4 Ishaan | **Workflow 2** — Technician portal, the staged Wi-Fi ticket | **Acknowledge** → **Start work** (only the next legal step is offered). **Request information** ("Which floor and which device?") — the SLA chip shows *paused*. Employee window: the question arrives; **reply** → back to In progress, clock resumes. Technician: open **Suggested fix** (similar past incidents), **Resolve** with a summary. Employee: **Reject** with a reason → reopened. Technician resolves again. Employee: **Verify** and rate 5 ★. Technician: **Close**. Show the timeline and the notifications on both sides. |
+| 10 | 15:30–16:15 | M4 | Swagger (`/docs`) or a terminal | Try an illegal transition (e.g. resolve a closed incident) → **409 invalid_state_transition**, no stack trace. Another employee opening Devika's incident → **403**. |
+| 11 | 16:15–16:45 | M4 | Terminal or GitHub Actions | `make test` (or the CI run): ~1,100 backend tests, 97 % coverage, BR-01…BR-10 named tests; the Playwright workflows; the generated test report. |
+| 12 | 16:45–17:00 | All | Closing card | Repository link, what we would do next (task queue for the monitor, pgvector, rate limiting). |
+
+### Timing at ×10
+
+| Clock time | Real time | Gold P1 that nobody acknowledges |
+|---|---|---|
+| 3 min 45 s | ~22 s | at risk (75 % of the 5-minute response target) |
+| just after 5 min | ~30 s | response breached → Team Lead (level 1) |
+| just after 10 min | ~60 s | Administrator (level 2) |
+| just after 15 min | ~90 s | IT Manager (level 3) |
+
+If a take runs long, the staged Wi-Fi ticket (P4) is not at risk for hours of clock time, so
+Workflow 2 can be recorded last without a reset. Workflow 3's P1 must be reported live in its
+own take.
+
+## Checklist
+
+- [ ] File-name year confirmed with the IC
+- [ ] `make demo-reset` immediately before each take
+- [ ] Each member introduced and explained a module
+- [ ] Workflows 1, 2 and 3 each shown end to end, each ending on its audit trail
+- [ ] Captions with requirement IDs added in editing
+- [ ] Video length 15–20 minutes; uploaded by **21 Nov** (hard deadline 22 Nov)

@@ -8,24 +8,48 @@ notifies and audits every step until the incident is verified and closed.
 
 CS F213 / MAC F212 Object-Oriented Programming, Semester I 2026–27 · Group 15
 
-> Status: **P3, the MVP**. The Employee, Technician and Admin portals work end to end on the full backend; the intelligence features land in P4 (see [docs/PLAN.md](docs/PLAN.md)). Deploying: [docs/DEPLOY.md](docs/DEPLOY.md).
+![The admin dashboard](docs/screenshots/admin-dashboard.jpg)
 
-## Quick start (Linux / macOS)
+## What it does
 
-Needs [uv](https://docs.astral.sh/uv/), Node.js 22+ and git. uv installs Python 3.12 itself.
+- **Three portals, five roles.** Employee, Technician (and Team Lead) and Admin (and IT Manager)
+  portals that look visibly different, each with navigation to all of its screens.
+- **The full incident lifecycle.** Ten states and exactly the 20 legal transitions (State
+  pattern); anything else is refused with a 409.
+- **Automatic triage.** Category suggested by Gemini (or keyword rules) with its confidence and
+  always overridable; priority from impact × urgency × business criticality with category floors;
+  SLA targets per service tier; the best technician picked by a switchable strategy, with reasons.
+- **SLA monitoring and escalation.** Warnings at 75 % of a target, recorded breaches, escalation
+  up a Technician → Team Lead → Administrator → IT Manager chain, auto-close after 72 h, and a
+  predictive risk estimate from history.
+- **Duplicates and root causes.** Similar open incidents shown while the reporter types,
+  confirmed duplicates linked, and incidents on dependent services traced to a likely root cause.
+- **Notifications.** In-app with live WebSocket updates, email, and Telegram for urgent events.
+- **Accountability.** A hash-chained audit trail with an integrity check, 9-filter search with
+  CSV export, and live dashboards.
+
+Every external service (Gemini, SMTP, Telegram, Google Sign-In) is optional: without keys the app
+uses its fallbacks — keyword rules, TF-IDF similarity, console email, password sign-in.
+
+## Quick start
+
+Needs [uv](https://docs.astral.sh/uv/), Node.js 22+ and git; uv installs Python 3.12 itself.
 
 ```bash
 make setup
 ```
 
 ```bash
-make dev
+make demo-reset
 ```
 
-Then open http://localhost:5173 (the API runs at http://127.0.0.1:8000, docs at `/docs`).
-Run `make seed` first for the demo accounts below and three months of history to look at.
+Then open http://localhost:5173 and sign in with a demo account below. `demo-reset` builds a
+fresh local SQLite database with the campus catalogue and 420 historical incidents, stages the
+demo's starting points, and serves the API (http://127.0.0.1:8000, docs at `/docs`) and the web
+app with the clock running ten times faster. For everyday development use `make seed` once and
+then `make dev` (real-time clock, reload on save).
 
-## Windows, without make or Docker
+### Windows, without make
 
 Install uv, Node.js and git:
 
@@ -37,70 +61,32 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 winget install OpenJS.NodeJS.LTS Git.Git
 ```
 
-Then, in the repository folder (PowerShell or cmd), use the same runner that `make` uses:
+Every `make <target>` is a thin wrapper over one cross-platform runner, so in PowerShell or cmd
+run the same targets as:
 
 ```bash
 uv run scripts/dev.py setup
 ```
 
 ```bash
-uv run scripts/dev.py dev
+uv run scripts/dev.py demo-reset
 ```
 
-The database is a local SQLite file (`backend/itsm.db`); nothing else is needed. Create its tables
-with `make migrate` (Alembic), which is also what the Docker image runs before it serves. Every
-`make <target>` below works as `uv run scripts/dev.py <target>`. The git hook also needs gitleaks
+Nothing else is needed: the database is a local SQLite file. The git hook also wants gitleaks
 (`scoop install gitleaks`).
 
-## Docker (API + web + PostgreSQL)
+### Docker (API, web and PostgreSQL)
 
 ```bash
 docker compose up --build
 ```
 
-Then open http://localhost:8080.
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `make setup` | Install backend, frontend and e2e dependencies and the git hooks |
-| `make dev` | Run the API and the web app with reload |
-| `make test` | Backend (pytest) and frontend (Vitest) tests |
-| `make verify` | Lint, format, types, layer contracts, generated-client check and all tests; must pass before every commit |
-| `make e2e` | Playwright end-to-end tests |
-| `make gen-client` | Regenerate the typed TypeScript client from the API's OpenAPI document |
-| `make migrate` | Bring the database at `DATABASE_URL` up to the latest Alembic migration |
-| `make seed` | Migrate, then load the campus catalogue, the demo accounts and 420 historical incidents |
-| `make demo-reset` | Wipe and reseed the local database, stage Workflows 1 and 2, then serve both apps on the ×10 demo clock |
-| `make diagrams` / `make report` | Render PlantUML diagrams / build the report PDF with tectonic |
-
-Configuration lives in environment variables; copy `.env.example` to `.env` (never commit it).
-Without API keys the app uses its fallbacks: rule-based AI, console email, no Telegram.
+Then open http://localhost:8080. The API migrates the database before it serves. Deploying to
+the cloud (Render and Neon free plans): [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Demo accounts
 
-Added with the seed data in P2 (one account per role: Employee, Technician, Team Lead, Administrator, IT Manager).
-
-## Architecture
-
-A layered modular monolith; every dependency points inward to a framework-free domain
-(blueprint §2, enforced by import-linter):
-
-| Layer | Package | May import |
-|---|---|---|
-| API | `backend/app/api` | services, domain, core |
-| Services | `backend/app/services` | domain, core |
-| Domain | `backend/app/domain` | core only |
-| Persistence / adapters | `backend/app/repositories`, `backend/app/adapters` | domain, core |
-| Core | `backend/app/core` | — |
-
-Frontend: React + TypeScript + Tailwind (`frontend/`), talking to the API only through the client generated from OpenAPI.
-Data: SQLite locally, PostgreSQL in Docker and deployment.
-
-## Demo accounts
-
-`make seed` creates one account per role, all with the password `demo1234`:
+`make seed` and `make demo-reset` create one account per role, all with the password `demo1234`:
 
 | Email | Role | Portal |
 | --- | --- | --- |
@@ -113,21 +99,76 @@ Data: SQLite locally, PostgreSQL in Docker and deployment.
 These are demo credentials for a seeded database. Each browser tab holds its own sign-in, so the
 three portals can be open side by side as three different people.
 
+## Screenshots
+
+| Employee: reporting, with the AI suggestion and a possible duplicate | Technician: an incident with risk, suggested fix and root-cause hint |
+|---|---|
+| ![Report form](docs/screenshots/employee-report.jpg) | ![Technician incident](docs/screenshots/technician-incident.jpg) |
+| **Technician: the queue with live SLA countdowns** | **Admin: 9-filter search with CSV export** |
+| ![Technician queue](docs/screenshots/technician-queue.jpg) | ![Search](docs/screenshots/admin-search.jpg) |
+| **Admin: hash-chained audit log** | **Admin: SLA policies per tier and priority** |
+| ![Audit log](docs/screenshots/admin-audit.jpg) | ![SLA policies](docs/screenshots/admin-sla.jpg) |
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `make setup` | Install backend, frontend and e2e dependencies and the git hooks |
+| `make dev` | Run the API and the web app with reload |
+| `make migrate` | Bring the database at `DATABASE_URL` up to the latest Alembic migration |
+| `make seed` | Migrate, then load the campus catalogue, the demo accounts and 420 historical incidents |
+| `make demo-reset` | Wipe and reseed the local database, stage Workflows 1 and 2, then serve both apps on the ×10 clock |
+| `make test` | Backend (pytest) and frontend (Vitest) tests with coverage gates |
+| `make verify` | Lint, format, types, layer contracts, generated-client check and all tests; must pass before every commit |
+| `make e2e` | Playwright: the three workflows, live updates and an accessibility scan of every screen |
+| `make gen-client` | Regenerate the typed TypeScript client from the API's OpenAPI document |
+| `make diagrams` | Regenerate the code-derived UML and ER diagrams and render all of them |
+| `make test-report` | Run the tests and write the documented cases' actual results into the report |
+| `make report` | Build the report PDF (`report/build/main.pdf`) with tectonic |
+
+Configuration lives in environment variables; copy `.env.example` to `.env` (never commit it).
+
+## Architecture
+
+A layered modular monolith; every dependency points inward to a framework-free domain, and
+import-linter fails the build if one does not
+([diagram](docs/diagrams/architecture.svg)):
+
+| Layer | Package | May import |
+|---|---|---|
+| API | `backend/app/api` | services, domain, core |
+| Services | `backend/app/services` | domain, core |
+| Domain | `backend/app/domain` | core only |
+| Persistence / adapters | `backend/app/repositories`, `backend/app/adapters` | domain, core |
+| Core | `backend/app/core` | — |
+
+- **Backend:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, APScheduler, Google Gen AI SDK.
+- **Frontend:** React, TypeScript (strict), Vite, Tailwind, TanStack Query, Recharts; it talks to the
+  API only through a client generated from the OpenAPI document.
+- **Data:** SQLite locally, PostgreSQL in Docker, CI and the cloud.
+- **Design patterns:** State, Strategy, Template Method, Chain of Responsibility, Observer, Factory,
+  Repository and Unit of Work, Adapter, Facade — each class names its pattern in its docstring.
+
+UML, ER and sequence diagrams: [docs/diagrams/](docs/diagrams/README.md).
+
 ## Tests
 
 ```bash
 make test
 ```
 
-The backend suite runs on SQLite by default; set `TEST_DATABASE_URL` to a PostgreSQL URL to run it there (CI runs both).
-The repository contract suite (`backend/tests/contract`) runs every test against the in-memory and the
-SQLAlchemy repositories, and `backend/tests/integration/test_migrations.py` fails if the models and the
-migrations drift apart.
+About 1,100 backend tests (97 % coverage) and 106 frontend tests; every business rule BR-01 to
+BR-10 has tests named after it, and time-dependent rules run on a fake clock. The backend suite
+runs on SQLite by default; set `TEST_DATABASE_URL` to a PostgreSQL URL to run it there (CI runs
+both). The 23 documented test cases and their results from the latest run:
+[docs/testing/test-report.md](docs/testing/test-report.md).
 
 ## Documentation
 
-- [Requirements](docs/source/OOP_S1_2026-2027_Project.pdf) · [Blueprint](docs/blueprint.md) · [Plan](docs/PLAN.md) · [Progress](docs/PROGRESS.md) · [Decisions](docs/DECISIONS.md)
-- Report sources: `report/` (`make report`)
+- [Requirements](docs/source/OOP_S1_2026-2027_Project.pdf) · [Blueprint](docs/blueprint.md) ·
+  [Plan](docs/PLAN.md) · [Progress](docs/PROGRESS.md) · [Decisions](docs/DECISIONS.md) ·
+  [Demo script](docs/DEMO_SCRIPT.md) · [Deployment](docs/DEPLOY.md)
+- The report: `report/` (`make report`)
 
 ## Team
 

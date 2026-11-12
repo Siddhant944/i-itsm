@@ -39,3 +39,12 @@ def test_the_counts_match_the_hierarchies_the_tests_pin() -> None:
     assert "User has 5 subclasses" in inheritance
     assert "IncidentState has 10 concrete states" in inheritance
     assert "8 groups and 14 specific errors" in inheritance
+
+
+def test_committed_versions_match_the_lock_files() -> None:
+    from scripts import gen_versions
+
+    committed = (GENERATED / "versions.tex").read_text(encoding="utf-8")
+    assert committed == gen_versions.render(), (
+        "report/generated/versions.tex is stale: run `make report` (or gen_versions.py)"
+    )
