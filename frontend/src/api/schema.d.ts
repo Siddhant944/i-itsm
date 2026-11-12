@@ -777,6 +777,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents/{incident_id}/suggested-resolution": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Suggested Resolution
+     * @description §6.1: the three most similar resolved incidents, and a summary citing only them.
+     */
+    get: operations["suggested_resolution_incidents__incident_id__suggested_resolution_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/incidents/{incident_id}/verify": {
     parameters: {
       query?: never;
@@ -1698,6 +1718,21 @@ export interface components {
       unassigned: number;
     };
     /**
+     * PastFixResponse
+     * @description A resolved incident like this one, and what fixed it.
+     */
+    PastFixResponse: {
+      /** Id */
+      id: string;
+      /** Resolution */
+      resolution: string;
+      /** Score */
+      score: number;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
+    };
+    /**
      * Permission
      * @enum {string}
      */
@@ -2089,6 +2124,18 @@ export interface components {
      * @enum {string}
      */
     SortField: "created_at" | "priority" | "status" | "id";
+    /**
+     * SuggestedResolutionResponse
+     * @description §6.1: past fixes, and an AI summary that cites only them (null without one).
+     */
+    SuggestedResolutionResponse: {
+      /** Fixes */
+      fixes: components["schemas"]["PastFixResponse"][];
+      /** Source */
+      source: string | null;
+      /** Summary */
+      summary: string | null;
+    };
     /**
      * SuggestionResponse
      * @description An AI suggestion, always shown with its confidence and never applied silently.
@@ -3557,6 +3604,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  suggested_resolution_incidents__incident_id__suggested_resolution_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuggestedResolutionResponse"];
         };
       };
       /** @description Validation error */

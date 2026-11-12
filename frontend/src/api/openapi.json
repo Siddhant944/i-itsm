@@ -1456,6 +1456,41 @@
         "title": "OverviewResponse",
         "type": "object"
       },
+      "PastFixResponse": {
+        "description": "A resolved incident like this one, and what fixed it.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "resolution": {
+            "title": "Resolution",
+            "type": "string"
+          },
+          "score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "resolution",
+          "score"
+        ],
+        "title": "PastFixResponse",
+        "type": "object"
+      },
       "Permission": {
         "enum": [
           "incident:create",
@@ -2393,6 +2428,47 @@
         ],
         "title": "SortField",
         "type": "string"
+      },
+      "SuggestedResolutionResponse": {
+        "description": "\u00a76.1: past fixes, and an AI summary that cites only them (null without one).",
+        "properties": {
+          "fixes": {
+            "items": {
+              "$ref": "#/components/schemas/PastFixResponse"
+            },
+            "title": "Fixes",
+            "type": "array"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "fixes",
+          "summary",
+          "source"
+        ],
+        "title": "SuggestedResolutionResponse",
+        "type": "object"
       },
       "SuggestionResponse": {
         "description": "An AI suggestion, always shown with its confidence and never applied silently.",
@@ -4716,6 +4792,47 @@
           }
         ],
         "summary": "Start",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/incidents/{incident_id}/suggested-resolution": {
+      "get": {
+        "description": "\u00a76.1: the three most similar resolved incidents, and a summary citing only them.",
+        "operationId": "suggested_resolution_incidents__incident_id__suggested_resolution_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestedResolutionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Suggested Resolution",
         "tags": [
           "incidents"
         ]

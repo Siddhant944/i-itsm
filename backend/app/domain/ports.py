@@ -46,6 +46,25 @@ class EmbeddingProvider(ABC):
 
 
 @dataclass(frozen=True, slots=True)
+class PastFix:
+    """A resolved incident offered as evidence for a suggested fix (§6.1)."""
+
+    incident_id: str
+    title: str
+    resolution: str
+
+
+class ResolutionSummarizer(ABC):
+    """Summarises how similar incidents were fixed, citing only the ones it was given (§6.1)."""
+
+    name: str
+
+    @abstractmethod
+    def summarize(self, ticket: str, fixes: Sequence[PastFix]) -> str:
+        """A short suggested fix. Raise NetworkFailureError when it cannot answer properly."""
+
+
+@dataclass(frozen=True, slots=True)
 class OutgoingMessage:
     recipient_id: int
     subject: str

@@ -18,7 +18,7 @@ from app.core.clock import Clock
 from app.core.security import PasswordHasher, TokenService
 from app.domain.errors import InvalidLoginError, ITSMError
 from app.domain.permissions import Permission
-from app.domain.ports import AIAdvisor, EmailSender, EmbeddingProvider
+from app.domain.ports import AIAdvisor, EmailSender, EmbeddingProvider, ResolutionSummarizer
 from app.domain.repositories import UnitOfWork
 from app.domain.similarity import TfIdfEmbeddings
 from app.domain.users import User
@@ -31,6 +31,7 @@ from app.services.duplicates import DuplicateDetector
 from app.services.incident_service import IncidentService
 from app.services.notifications import EmailChannel, default_factory
 from app.services.notifications.service import NotificationService
+from app.services.resolution_advisor import ResolutionAdvisor
 from app.services.search import SearchService
 from app.services.sla_monitor import SLAMonitor
 from app.services.user_admin import UserAdminService
@@ -52,6 +53,8 @@ class Services:
     advisor: AIAdvisor
     #: §6.2: Gemini when configured; TF-IDF offline, and always the fallback.
     embeddings: EmbeddingProvider = field(default_factory=TfIdfEmbeddings)
+    #: §6.1: Gemini summarises past fixes when configured; without it the list stands alone.
+    summarizer: ResolutionSummarizer | None = None
 
 
 def get_services(request: Request) -> Services:
@@ -120,6 +123,7 @@ def get_incident_service(
         # §5.3: the admin's saved choice, read per request so a switch takes effect at once.
         assignment_strategy=active_strategy(uow.settings),
         duplicates=DuplicateDetector(uow, services.clock, services.embeddings),
+        resolutions=ResolutionAdvisor(uow, services.clock, services.summarizer),
     )
 
 

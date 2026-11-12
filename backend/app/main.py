@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import __version__
-from app.adapters.gemini_advisor import gemini_advisor
+from app.adapters.gemini_advisor import gemini_advisor, gemini_summarizer
 from app.adapters.gemini_embeddings import gemini_embeddings
 from app.adapters.smtp_email import EmailSettings, email_sender_for
 from app.api import health
@@ -36,7 +36,7 @@ from app.core.config import ClockMode, Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.security import Argon2PasswordHasher, JwtTokenService
 from app.domain.errors import ITSMError
-from app.domain.ports import AIAdvisor, EmbeddingProvider
+from app.domain.ports import AIAdvisor, EmbeddingProvider, ResolutionSummarizer
 from app.domain.repositories import UnitOfWork
 from app.domain.rule_advisor import FallbackAdvisor, RuleBasedAdvisor
 from app.domain.similarity import TfIdfEmbeddings
@@ -80,6 +80,14 @@ def classifier(settings: Settings) -> AIAdvisor:
     if key and settings.gemini_model:
         return FallbackAdvisor(gemini_advisor(key, settings.gemini_model), RuleBasedAdvisor())
     return RuleBasedAdvisor()
+
+
+def summarizer(settings: Settings) -> ResolutionSummarizer | None:
+    """§6.1: Gemini summarises past fixes when a key and a model are set; otherwise none."""
+    key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else ""
+    if key and settings.gemini_model:
+        return gemini_summarizer(key, settings.gemini_model)
+    return None
 
 
 def embedding_provider(settings: Settings) -> EmbeddingProvider:
@@ -155,6 +163,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         email=email_sender_for(email_settings(settings)),
         advisor=classifier(settings),
         embeddings=embedding_provider(settings),
+        summarizer=summarizer(settings),
     )
     app.state.db_probe = lambda: ping(engine)
     app.state.settings = settings

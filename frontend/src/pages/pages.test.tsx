@@ -848,3 +848,59 @@ describe("predictive SLA risk (§6.3)", () => {
     expect(calls.some((c) => c.path.endsWith("/risk"))).toBe(false);
   });
 });
+
+describe("suggested resolution (§6.1)", () => {
+  it("shows past fixes with the cited AI summary and copies a fix into the resolve box", async () => {
+    const { calls } = renderRoutes(
+      [{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }],
+      {
+        path: "/technician/incidents/INC-2026-0001",
+        user: me("technician", 3),
+        routes: {
+          "GET /incidents/INC-2026-0001": incident({ status: "IN_PROGRESS" }),
+          "GET /incidents/INC-2026-0001/suggested-resolution": {
+            fixes: [
+              {
+                id: "INC-2026-0040",
+                title: "Wifi drops in library",
+                status: "CLOSED",
+                resolution: "Rebooted access point AP-3",
+                score: 0.71,
+              },
+            ],
+            summary: "Reboot the library access point [INC-2026-0040].",
+            source: "gemini",
+          },
+          "POST /incidents/INC-2026-0001/resolve": incident({ status: "RESOLVED" }),
+        },
+      },
+    );
+    expect(await screen.findByTestId("fix-summary")).toHaveTextContent(
+      "AI summary (gemini), citing only the incidents below",
+    );
+    const fix = screen.getByTestId("past-fix");
+    expect(fix).toHaveTextContent("71% similar");
+    await userEvent.click(within(fix).getByRole("button", { name: "Use this fix…" }));
+    const dialog = screen.getByRole("dialog", { name: "Resolve the incident" });
+    const box = within(dialog).getByLabelText("What fixed it?");
+    // Copied, not applied: the technician can still change it before saving.
+    expect(box).toHaveValue("Rebooted access point AP-3 (as in INC-2026-0040)");
+    await userEvent.clear(box);
+    await userEvent.type(box, "Rebooted AP-3 again");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Mark as resolved" }));
+    await waitFor(() => {
+      expect(calls.find((c) => c.path.endsWith("/resolve"))?.body).toEqual({
+        summary: "Rebooted AP-3 again",
+      });
+    });
+  });
+
+  it("works without an AI summary and is not asked for by the reporter", async () => {
+    const { calls } = detail({
+      user: me("employee", 1),
+      routes: { "GET /incidents/INC-2026-0001": incident({ status: "IN_PROGRESS" }) },
+    });
+    expect(await screen.findByText("Wi-Fi down")).toBeInTheDocument();
+    expect(calls.some((c) => c.path.endsWith("/suggested-resolution"))).toBe(false);
+  });
+});

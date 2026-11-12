@@ -5,6 +5,7 @@ who may act (BR-01, BR-02, BR-03), what reporting does end to end, the audit rec
 the same transaction (BR-10) and the notification that only goes out afterwards (§5.4).
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -17,6 +18,7 @@ from app.domain.errors import (
     InvalidIncidentError,
     InvalidStateTransitionError,
     InvalidUserInputError,
+    NetworkFailureError,
     ServiceNotFoundError,
     TechnicianUnavailableError,
     UnauthorizedOperationError,
@@ -24,6 +26,7 @@ from app.domain.errors import (
 from app.domain.events import DomainEvent, IncidentCreated, IncidentStateChanged
 from app.domain.incident import CancelReason, NoteKind
 from app.domain.permissions import Role
+from app.domain.ports import PastFix, ResolutionSummarizer
 from app.domain.priority import Priority
 from app.domain.risk import RiskMethod
 from app.domain.rule_advisor import RuleBasedAdvisor
@@ -34,6 +37,7 @@ from app.domain.value_objects import SkillSet
 from app.repositories.memory import InMemoryUnitOfWork
 from app.services.dispatcher import PostCommitDispatcher
 from app.services.incident_service import IncidentService
+from app.services.resolution_advisor import ResolutionAdvisor
 
 NOW = datetime(2026, 11, 6, 9, 0, tzinfo=UTC)
 REPORTER, OTHER, TECH, TECH2, LEAD, ADMIN = 1, 2, 3, 4, 5, 6
@@ -741,3 +745,106 @@ def test_there_is_no_forecast_without_a_running_clock_or_for_a_stranger(
     assert service.risk(assignee, incident_id) is not None
     service.cancel(who(uow, REPORTER), incident_id)
     assert service.risk(assignee, incident_id) is None
+
+
+# ------------------------------------------------------------------ suggested resolution (§6.1)
+class RecordingSummarizer(ResolutionSummarizer):
+    name = "fake-gemini"
+
+    def __init__(self, fail: bool = False) -> None:
+        self.fail = fail
+        self.given: list[str] = []
+
+    def summarize(self, ticket: str, fixes: Sequence[PastFix]) -> str:
+        self.given = [fix.incident_id for fix in fixes]
+        if self.fail:
+            raise NetworkFailureError
+        return f"Try what {self.given[0]} did."
+
+
+def _resolved(
+    service: IncidentService,
+    uow: InMemoryUnitOfWork,
+    clock: FakeClock,
+    title: str,
+    description: str,
+    fix: str,
+    service_id: int = WIFI,
+) -> str:
+    incident_id = report(service, uow, title=title, description=description, service_id=service_id)
+    assignee = who(uow, uow.incidents.get(incident_id).assignee_id or 0)
+    service.acknowledge(assignee, incident_id)
+    service.start(assignee, incident_id)
+    service.resolve(assignee, incident_id, fix)
+    clock.advance(timedelta(minutes=31))
+    return incident_id
+
+
+def _history(service: IncidentService, uow: InMemoryUnitOfWork, clock: FakeClock) -> list[str]:
+    return [
+        _resolved(
+            service, uow, clock, "Wifi drops in library", "wifi signal lost", "Rebooted AP-3"
+        ),
+        _resolved(service, uow, clock, "Library wifi slow", "wifi very slow", "Moved AP channel"),
+        _resolved(service, uow, clock, "No wifi in hostel", "wifi missing", "Replaced AP switch"),
+        _resolved(service, uow, clock, "Wifi gone in library", "library wifi", "Reset controller"),
+        _resolved(
+            service, uow, clock, "Network printer jam", "network printer", "Cleared the tray"
+        ),
+    ]
+
+
+def _with(
+    uow: InMemoryUnitOfWork, clock: FakeClock, summarizer: ResolutionSummarizer | None
+) -> IncidentService:
+    return IncidentService(
+        uow,
+        clock,
+        advisor=RuleBasedAdvisor(),
+        resolutions=ResolutionAdvisor(uow, clock, summarizer),
+    )
+
+
+def test_the_three_most_similar_fixes_are_suggested_and_summarised_from_them_alone(
+    uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    summarizer = RecordingSummarizer()
+    service = _with(uow, clock, summarizer)
+    past = _history(service, uow, clock)
+    incident_id = report(
+        service, uow, title="Library wifi keeps dropping", description="wifi lost in library"
+    )
+
+    found = service.suggested_resolution(who(uow, ADMIN), incident_id)
+    assert len(found.fixes) == 3
+    assert {f.incident.id for f in found.fixes} <= set(past[:4])  # never the printer
+    assert found.fixes[0].score >= found.fixes[-1].score
+    assert all(f.resolution for f in found.fixes)
+    # The summariser saw exactly the three shown, and its answer cites one of them.
+    assert summarizer.given == [f.incident.id for f in found.fixes]
+    assert (found.summary, found.source) == (f"Try what {summarizer.given[0]} did.", "fake-gemini")
+
+
+def test_without_a_working_summariser_the_list_stands_alone(
+    uow: InMemoryUnitOfWork, clock: FakeClock
+) -> None:
+    for summarizer in (None, RecordingSummarizer(fail=True)):
+        service = _with(uow, clock, summarizer)
+        if not uow.incidents.list_by_reporter(REPORTER):
+            _history(service, uow, clock)
+        incident_id = report(
+            service, uow, title=f"Wifi lost again {id(summarizer)}", description="library wifi"
+        )
+        found = service.suggested_resolution(who(uow, ADMIN), incident_id)
+        assert len(found.fixes) == 3
+        assert (found.summary, found.source) == (None, None)
+        clock.advance(timedelta(minutes=31))
+
+
+def test_suggested_resolution_is_for_staff_and_empty_without_history(
+    service: IncidentService, uow: InMemoryUnitOfWork
+) -> None:
+    incident_id = report(service, uow)
+    with pytest.raises(UnauthorizedOperationError):
+        service.suggested_resolution(who(uow, REPORTER), incident_id)
+    assert service.suggested_resolution(who(uow, ADMIN), incident_id).fixes == ()

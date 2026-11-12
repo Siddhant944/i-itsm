@@ -186,6 +186,20 @@ export function usePossibleDuplicates(id: string, enabled: boolean) {
   });
 }
 
+/** §6.1: past fixes like this incident, and an AI summary citing only them (staff only). */
+export function useSuggestedResolution(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["incident", id, "suggested-resolution"],
+    queryFn: () =>
+      unwrap(
+        api.GET("/incidents/{incident_id}/suggested-resolution", {
+          params: { path: { incident_id: id } },
+        }),
+      ),
+    enabled,
+  });
+}
+
 /** §6.3: the predicted breach risk; null when there is nothing to forecast. */
 export function useRisk(id: string, enabled: boolean) {
   return useQuery({

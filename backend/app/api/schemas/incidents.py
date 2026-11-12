@@ -91,6 +91,21 @@ class RelatedIncidentResponse(LinkedIncidentResponse):
     path: list[str] = Field(description="Service names from this incident's service to its own")
 
 
+class PastFixResponse(LinkedIncidentResponse):
+    """A resolved incident like this one, and what fixed it."""
+
+    resolution: str
+    score: float = Field(ge=0.0, le=1.0)
+
+
+class SuggestedResolutionResponse(BaseModel):
+    """§6.1: past fixes, and an AI summary that cites only them (null without one)."""
+
+    fixes: list[PastFixResponse]
+    summary: str | None
+    source: str | None
+
+
 class RiskResponse(BaseModel):
     """§6.3: the predicted chance of a resolution breach, and the evidence in plain words."""
 

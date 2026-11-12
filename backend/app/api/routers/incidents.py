@@ -23,6 +23,7 @@ from app.api.schemas.incidents import (
     IncidentResponse,
     IncidentSummaryResponse,
     NoteRequest,
+    PastFixResponse,
     PriorityOverrideRequest,
     RatingRequest,
     ReasonRequest,
@@ -33,6 +34,7 @@ from app.api.schemas.incidents import (
     ResolveRequest,
     RiskResponse,
     SimilarRequest,
+    SuggestedResolutionResponse,
     SuggestionResponse,
     detail_of,
     linked,
@@ -282,6 +284,30 @@ def override_category(
         incidents,
         incidents.override_category(user, incident_id, payload.category_id),
         services.clock,
+    )
+
+
+@router.get("/{incident_id}/suggested-resolution", response_model=SuggestedResolutionResponse)
+def suggested_resolution(
+    incident_id: str,
+    user: Annotated[User, Depends(requires(Permission.INCIDENT_VIEW_ASSIGNED))],
+    incidents: IncidentsDep,
+) -> SuggestedResolutionResponse:
+    """§6.1: the three most similar resolved incidents, and a summary citing only them."""
+    found = incidents.suggested_resolution(user, incident_id)
+    return SuggestedResolutionResponse(
+        fixes=[
+            PastFixResponse(
+                id=fix.incident.id,
+                title=fix.incident.title,
+                status=fix.incident.status,
+                resolution=fix.resolution,
+                score=min(1.0, fix.score),
+            )
+            for fix in found.fixes
+        ],
+        summary=found.summary,
+        source=found.source,
     )
 
 

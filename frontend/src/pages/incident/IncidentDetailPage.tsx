@@ -12,6 +12,7 @@ import {
   useNames,
   usePossibleDuplicates,
   useRisk,
+  useSuggestedResolution,
   useTeams,
   type Incident,
   type IncidentAction,
@@ -92,6 +93,7 @@ function TextDialog({
   busy,
   onSubmit,
   onClose,
+  initial = "",
 }: {
   title: string;
   label: string;
@@ -100,8 +102,9 @@ function TextDialog({
   busy: boolean;
   onSubmit: (text: string) => void;
   onClose: () => void;
+  initial?: string;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initial);
   return (
     <Modal title={title} onClose={onClose}>
       <form
@@ -363,6 +366,79 @@ function AssignmentPanel({
   );
 }
 
+/**
+ * §6.1: how the most similar resolved incidents were fixed. The AI summary is labelled as such
+ * and may cite only the incidents listed; a fix is only ever copied into the resolve box,
+ * where the technician edits it before anything is saved.
+ */
+function SuggestedFixPanel({
+  incident,
+  onUse,
+}: {
+  incident: Incident;
+  onUse: ((text: string) => void) | null;
+}) {
+  const portal = usePortal();
+  const found = useSuggestedResolution(incident.id, true);
+  if (found.isPending) return <Skeleton rows={2} label="Looking for similar fixes" />;
+  if (found.isError) return <ErrorState error={found.error} />;
+  const { fixes, summary, source } = found.data;
+  return (
+    <Card title="Suggested fix">
+      {fixes.length === 0 ? (
+        <p className="text-sm text-muted">No resolved incident looks like this one yet.</p>
+      ) : (
+        <>
+          {summary !== null && (
+            <div
+              data-testid="fix-summary"
+              className="mb-3 rounded-md border border-line bg-raised px-3 py-2 text-sm"
+            >
+              <p>{summary}</p>
+              <p className="mt-1 text-xs text-muted">
+                AI summary ({source ?? "AI"}), citing only the incidents below. Check before using
+                it.
+              </p>
+            </div>
+          )}
+          <ul className="space-y-2">
+            {fixes.map((fix) => (
+              <li
+                key={fix.id}
+                data-testid="past-fix"
+                className="rounded-md border border-line px-3 py-2"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Link className="font-mono text-xs underline" to={incidentPath(portal, fix.id)}>
+                    {fix.id}
+                  </Link>
+                  <span className="text-xs text-muted">
+                    {String(Math.round(fix.score * 100))}% similar
+                  </span>
+                </div>
+                <p className="mt-1 text-sm font-medium">{fix.title}</p>
+                <p className="mt-1 text-sm whitespace-pre-wrap">{fix.resolution}</p>
+                {onUse !== null && (
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      small
+                      onClick={() => {
+                        onUse(`${fix.resolution} (as in ${fix.id})`);
+                      }}
+                    >
+                      Use this fix…
+                    </Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
+  );
+}
+
 type Related = Schemas["RelatedIncidentResponse"];
 
 function RelatedList({ items }: { items: readonly Related[] }) {
@@ -563,6 +639,7 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [note, setNote] = useState("");
   const [reply, setReply] = useState("");
+  const [draftFix, setDraftFix] = useState("");
   const teams = useTeams();
   const myTeam = teams.data?.find((team) => team.id === me.technician?.team_id);
   const allowed = availableActions(incident, me, myTeam?.member_ids ?? []);
@@ -891,6 +968,20 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
             </dl>
           </Card>
 
+          {allowed.note && (
+            <SuggestedFixPanel
+              incident={incident}
+              onUse={
+                allowed.resolve
+                  ? (text) => {
+                      setDraftFix(text);
+                      setDialog("resolve");
+                    }
+                  : null
+              }
+            />
+          )}
+
           {can("incident:view_assigned") && <CorrelationPanel incident={incident} />}
 
           {allowed.confirmDuplicate && (
@@ -928,7 +1019,11 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
           hint="The reporter sees this and is asked to confirm the fix."
           submitLabel="Mark as resolved"
           busy={busy}
-          onClose={close}
+          initial={draftFix}
+          onClose={() => {
+            setDraftFix("");
+            close();
+          }}
           onSubmit={(summary) => {
             run({ kind: "resolve", summary }, "Resolved. The reporter has been asked to confirm.");
           }}

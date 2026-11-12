@@ -71,6 +71,7 @@ from app.services.duplicates import (
     DuplicateCheck,
     DuplicateDetector,
 )
+from app.services.resolution_advisor import ResolutionAdvisor, ResolutionSuggestion
 
 #: A change applied to a loaded incident, once the caller has been allowed to make it.
 Change = Callable[[Incident], object]
@@ -141,6 +142,7 @@ class IncidentService:
         priority_strategy: PriorityStrategy | None = None,
         assignment_strategy: AssignmentStrategy | None = None,
         duplicates: DuplicateDetector | None = None,
+        resolutions: ResolutionAdvisor | None = None,
     ) -> None:
         self.__uow = uow
         self.__clock = clock
@@ -150,6 +152,7 @@ class IncidentService:
         self.__assignment = assignment_strategy or SmartStrategy()
         self.__audit = AuditService(uow.audit, clock)
         self.__duplicates = duplicates or DuplicateDetector(uow, clock)
+        self.__resolutions = resolutions or ResolutionAdvisor(uow, clock)
 
     # ------------------------------------------------------------ reading
     def get(self, actor: User, incident_id: str) -> Incident:
@@ -266,6 +269,11 @@ class IncidentService:
         return estimator.estimate(
             clock.resolution_elapsed(self.__clock.now()), clock.target.resolution
         )
+
+    def suggested_resolution(self, actor: User, incident_id: str) -> ResolutionSuggestion:
+        """§6.1: how the most similar resolved incidents were fixed. Advice for staff only."""
+        self.__require(actor, Permission.INCIDENT_VIEW_ASSIGNED)
+        return self.__resolutions.suggest(self.get(actor, incident_id))
 
     def service_names(self) -> Mapping[int, str]:
         """Every service's name, retired ones included, for the words of a hint."""
