@@ -296,6 +296,11 @@ def diagrams(_: argparse.Namespace) -> None:
         run(["java", "-jar", str(jar), fmt, *sources], REPO)
 
 
+def write_test_report(_: argparse.Namespace) -> None:
+    """Run every test once and write the documented cases' results into the report (P6.3)."""
+    run(["uv", "run", "python", "scripts/test_report.py"], BACKEND)
+
+
 def report(_: argparse.Namespace) -> None:
     """Render the diagrams, then build report/build/main.pdf with tectonic."""
     diagrams(argparse.Namespace())
@@ -326,6 +331,7 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], None]] = {
     "seed": seed,
     "demo-reset": demo_reset,
     "diagrams": diagrams,
+    "test-report": write_test_report,
     "report": report,
 }
 

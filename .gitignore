@@ -13,6 +13,7 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
+backend/.test-report/
 
 # node
 node_modules/
