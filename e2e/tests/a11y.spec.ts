@@ -70,3 +70,24 @@ for (const { email, screens } of PORTALS) {
     expect(problems).toEqual([]);
   });
 }
+
+test("on a phone the sidebar is a drawer that keyboard users can work", async ({
+  browser,
+}) => {
+  const { page, context } = await signIn(browser, "lead@campus.edu");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const menu = page.getByRole("button", { name: "Menu" });
+  const firstLink = page
+    .getByRole("navigation", { name: "Main" })
+    .getByRole("link")
+    .first();
+  await expect(firstLink).toBeHidden();
+
+  await menu.click();
+  await expect(firstLink).toBeVisible();
+  await expect(firstLink).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(firstLink).toBeHidden();
+  await expect(menu).toBeFocused();
+  await context.close();
+});

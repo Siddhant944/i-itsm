@@ -1,12 +1,13 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { matchRoutes } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { routes } from "../App";
 import type { Portal } from "../auth/portal";
 import { apiError, me, renderRoutes } from "../test/utils";
 import { NAVIGATION, PORTAL_HOME } from "./nav";
+import { RouteError } from "./RouteError";
 
 const PORTALS: Portal[] = ["employee", "technician", "admin"];
 
@@ -124,13 +125,33 @@ describe("the three portals", () => {
 
     await user.click(menu);
     expect(menu).toHaveAttribute("aria-expanded", "true");
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    // Focus moves into the drawer, and the page behind it is out of reach.
+    expect(within(nav).getAllByRole("link")[0]).toHaveFocus();
+    expect(screen.getByRole("main", { hidden: true })).toHaveAttribute("inert");
     await user.keyboard("{Escape}");
     expect(menu).toHaveAttribute("aria-expanded", "false");
+    expect(menu).toHaveFocus();
+    expect(screen.getByRole("main")).not.toHaveAttribute("inert");
 
     await user.click(menu);
-    const nav = screen.getByRole("navigation", { name: "Main" });
     await user.click(within(nav).getByRole("link", { name: "Workload" }));
     expect(menu).toHaveAttribute("aria-expanded", "false");
     expect(router.state.location.pathname).toBe("/technician/workload");
+  });
+
+  it("offers a reload when a screen cannot be opened (P5 review)", async () => {
+    const user = userEvent.setup();
+    const reload = vi.fn();
+    vi.stubGlobal("location", { href: window.location.href, reload });
+    function Broken(): never {
+      throw new Error("Failed to fetch dynamically imported module");
+    }
+    renderRoutes([{ path: "/", element: <Broken />, errorElement: <RouteError /> }]);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("This screen could not be opened");
+    await user.click(within(alert).getByRole("button", { name: "Reload" }));
+    expect(reload).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
   });
 });

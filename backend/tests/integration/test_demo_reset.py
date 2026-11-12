@@ -14,11 +14,13 @@ from sqlalchemy import Engine, func, select
 from app.core.clock import FakeClock
 from app.core.config import AppEnv, Settings
 from app.demo import (
+    CATCH_UP_MARKER,
     DEMO_EMPLOYEE,
     DEMO_TECHNICIAN,
     OTHER_EMPLOYEE,
     DemoReport,
     DemoResetRefusedError,
+    is_local_database,
     migrate,
     reset,
     seed_if_empty,
@@ -26,7 +28,7 @@ from app.demo import (
 )
 from app.domain.states import IncidentStatus
 from app.repositories.database import make_engine
-from app.repositories.sqlalchemy.models import IncidentRow, NotificationRow
+from app.repositories.sqlalchemy.models import IncidentRow, NotificationRow, SystemConfigRow
 from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session_factory
 from app.services.incident_service import IncidentService
 from app.services.sla_monitor import SLAMonitor
@@ -138,10 +140,18 @@ def test_a_production_database_is_never_wiped() -> None:
 
 
 def test_a_first_start_seeds_once_and_catches_up(tmp_path_factory: pytest.TempPathFactory) -> None:
-    """SEED_ON_START: the first start seeds quietly, every later start changes nothing."""
-    url = f"sqlite:///{tmp_path_factory.mktemp('first') / 'first.db'}"
+    """SEED_ON_START: the first start seeds quietly, every later start changes nothing.
+
+    Runs last in the module on TEST_DATABASE_URL too, so CI's PostgreSQL leg covers the path a
+    deployment takes; the module's own teardown wipes it afterwards.
+    """
+    url = os.environ.get("TEST_DATABASE_URL") or (
+        f"sqlite:///{tmp_path_factory.mktemp('first') / 'first.db'}"
+    )
     settings = Settings(app_env=AppEnv.DEV, database_url=url, _env_file=None)
     clock = FakeClock(NOW)
+    engine = make_engine(url)
+    wipe(engine)
     migrate(url)
 
     first = seed_if_empty(settings, clock)
@@ -150,10 +160,44 @@ def test_a_first_start_seeds_once_and_catches_up(tmp_path_factory: pytest.TempPa
     assert "420 incidents (written)" in first
     assert "breached" in first
     assert again == "seed: already seeded; nothing changed"
-    engine = make_engine(url)
     unit = SqlAlchemyUnitOfWork(make_session_factory(engine), clock)
     try:
         assert SLAMonitor(unit, clock).tick().did_nothing
+        # A start that seeded but never caught up (the connection dropped) catches up next time.
+        unit.session.delete(unit.session.get(SystemConfigRow, CATCH_UP_MARKER))
+        unit.commit()
     finally:
         unit.close()
-        engine.dispose()
+    assert seed_if_empty(settings, clock).startswith("history caught up")
+    engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql+psycopg://u:p@ep-cool-name.eu-central-1.aws.neon.tech/itsm?sslmode=require",
+        "postgresql+psycopg://u:p@10.0.0.5:5432/itsm",
+    ],
+)
+def test_a_remote_database_is_never_wiped_by_make_demo_reset(url: str) -> None:
+    """P5 review: make demo-reset forces APP_ENV=demo, so the env check alone could never fire.
+
+    The guard therefore looks at the database itself: only SQLite and a local or Compose host
+    are reset unless the caller says otherwise (the image's DEMO_RESET_ON_START does).
+    """
+    settings = Settings(app_env=AppEnv.DEMO, database_url=url, _env_file=None)
+    with pytest.raises(DemoResetRefusedError, match="allow-remote-database"):
+        reset(settings, FakeClock(NOW))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "sqlite:///./itsm.db",
+        "postgresql+psycopg://itsm:itsm@localhost:5432/itsm",
+        "postgresql+psycopg://itsm:itsm@127.0.0.1/itsm",
+        "postgresql+psycopg://itsm:itsm@postgres:5432/itsm",
+    ],
+)
+def test_a_local_database_may_be_reset(url: str) -> None:
+    assert is_local_database(url)

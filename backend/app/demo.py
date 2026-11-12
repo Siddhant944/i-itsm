@@ -33,6 +33,7 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, inspect, text
+from sqlalchemy.engine.url import make_url
 
 from app.core.clock import Clock, SystemClock
 from app.core.config import AppEnv, Settings, get_settings
@@ -43,7 +44,7 @@ from app.domain.repositories import UnitOfWork
 from app.domain.rule_advisor import RuleBasedAdvisor
 from app.domain.users import User
 from app.repositories.database import make_engine
-from app.repositories.sqlalchemy.models import Base
+from app.repositories.sqlalchemy.models import Base, SystemConfigRow
 from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session_factory
 from app.seed import people
 from app.seed.runner import already_seeded, seed
@@ -60,8 +61,25 @@ DEMO_LEAD = 3  # lead@campus.edu, the demo technician's Team Lead
 OTHER_EMPLOYEE = people.EMPLOYEES[0].user_id
 
 
-class DemoResetRefusedError(Exception):
-    """Raised instead of wiping a production database."""
+#: Hosts a reset may wipe without being told twice: this machine, and Compose's database service.
+LOCAL_DATABASE_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "postgres"})
+#: Written once the first seed's history has been caught up, so a failed catch-up is retried.
+CATCH_UP_MARKER = "seed:caught-up"
+
+
+class DemoResetRefusedError(ValueError):
+    """Raised instead of wiping a database the reset must not touch.
+
+    A command-line guard in a composition root, like the settings validators in
+    ``app.core.config``: it never reaches the API, so it is not part of the ITSMError hierarchy
+    (§8), which exists to be mapped to HTTP responses.
+    """
+
+
+def is_local_database(database_url: str) -> bool:
+    """True for SQLite and for PostgreSQL on this machine or Compose's ``postgres`` service."""
+    url = make_url(database_url)
+    return url.get_backend_name() == "sqlite" or (url.host or "") in LOCAL_DATABASE_HOSTS
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,10 +115,22 @@ class DemoReport:
 
 
 # ---------------------------------------------------------------- the reset
-def reset(settings: Settings, clock: Clock) -> DemoReport:
-    """Wipe, migrate, seed, catch up and stage the database ``settings`` names."""
+def reset(settings: Settings, clock: Clock, *, allow_remote_database: bool = False) -> DemoReport:
+    """Wipe, migrate, seed, catch up and stage the database ``settings`` names.
+
+    Two guards, because ``make demo-reset`` sets ``APP_ENV=demo`` itself and so can never trip
+    the first on its own (P5 review): never with ``APP_ENV=prod``, and never a database on
+    another machine unless the caller asks for exactly that (the image's DEMO_RESET_ON_START).
+    """
     if settings.app_env is AppEnv.PROD:
         msg = "demo-reset wipes the database; it never runs with APP_ENV=prod"
+        raise DemoResetRefusedError(msg)
+    if not allow_remote_database and not is_local_database(settings.database_url):
+        host = make_url(settings.database_url).host
+        msg = (
+            f"refusing to wipe the database on {host}: demo-reset only wipes a local database."
+            " If that really is a demo database, run python -m app.demo --allow-remote-database"
+        )
         raise DemoResetRefusedError(msg)
     engine = make_engine(settings.database_url)
     try:
@@ -110,6 +140,8 @@ def reset(settings: Settings, clock: Clock) -> DemoReport:
         try:
             seeded = seed(uow, clock, hash_password=Argon2PasswordHasher().hash)
             caught_up = catch_up(uow, clock)
+            uow.session.add(SystemConfigRow(key=CATCH_UP_MARKER, value={}, updated_at=clock.now()))
+            uow.commit()
             staged = stage(uow, clock)
         finally:
             uow.close()
@@ -124,15 +156,24 @@ def seed_if_empty(settings: Settings, clock: Clock) -> str:
     Unlike :func:`reset` this wipes nothing and stages nothing, so it is safe in production and
     a no-op on every later start; the catch-up keeps the first live tick from notifying dozens
     of people about breaches that happened, in the generated history, months ago.
+
+    The catch-up is recorded by a marker of its own, written only after the tick commits, so a
+    start that seeded but failed to catch up (a dropped connection, say) catches up next time.
     """
     engine = make_engine(settings.database_url)
     try:
         uow = SqlAlchemyUnitOfWork(make_session_factory(engine), clock)
         try:
-            if already_seeded(uow):
-                return "seed: already seeded; nothing changed"
-            seeded = seed(uow, clock, hash_password=Argon2PasswordHasher().hash)
-            return f"{seeded.summary()}\nhistory caught up ({catch_up(uow, clock).summary})"
+            lines: list[str] = []
+            if not already_seeded(uow):
+                lines.append(seed(uow, clock, hash_password=Argon2PasswordHasher().hash).summary())
+            if uow.session.get(SystemConfigRow, CATCH_UP_MARKER) is None:
+                lines.append(f"history caught up ({catch_up(uow, clock).summary})")
+                uow.session.add(
+                    SystemConfigRow(key=CATCH_UP_MARKER, value={}, updated_at=clock.now())
+                )
+                uow.commit()
+            return "\n".join(lines) or "seed: already seeded; nothing changed"
         finally:
             uow.close()
     finally:
@@ -225,13 +266,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="only seed a never-seeded database and catch the monitor up; wipe nothing",
     )
+    parser.add_argument(
+        "--allow-remote-database",
+        action="store_true",
+        help="let the reset wipe a database on another machine (a demo deployment only)",
+    )
     args = parser.parse_args(argv)
     settings = get_settings()
     try:
         if args.seed_if_empty:
             print(seed_if_empty(settings, SystemClock()))
         else:
-            print(reset(settings, SystemClock()).summary())
+            report = reset(
+                settings, SystemClock(), allow_remote_database=args.allow_remote_database
+            )
+            print(report.summary())
     except (DemoResetRefusedError, ITSMError) as error:
         print(f"demo-reset: {error}")
         return 1

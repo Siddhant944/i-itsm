@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Navigate, NavLink, Outlet, useNavigate } from "react-router";
 
 import { useAuth } from "../auth/AuthContext";
@@ -126,14 +126,31 @@ function SidebarLayout({ portal }: { portal: Portal }) {
   const items = useVisibleNav(portal);
   const groups = [...new Set(items.map((item) => item.group ?? ""))];
   const [menuOpen, setMenuOpen] = useState(false);
+  const drawer = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
   useEffect(() => {
+    // Focus follows the drawer (WCAG 2.4.3): into its first link on opening, back to the Menu
+    // button on closing, so a keyboard user is never left on a hidden link or on <body>.
+    if (menuOpen) drawer.current?.querySelector<HTMLElement>("a")?.focus();
+    else if (wasOpen.current) menuButton.current?.focus();
+    wasOpen.current = menuOpen;
     if (!menuOpen) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setMenuOpen(false);
     };
+    // Widening past the breakpoint shows the sidebar anyway; do not leave the page inert.
+    // jsdom (the unit tests) has no matchMedia.
+    const wide =
+      typeof window.matchMedia === "function" ? window.matchMedia("(min-width: 1024px)") : null;
+    const onWide = (event: MediaQueryListEvent) => {
+      if (event.matches) setMenuOpen(false);
+    };
     window.addEventListener("keydown", onKey);
+    wide?.addEventListener("change", onWide);
     return () => {
       window.removeEventListener("keydown", onKey);
+      wide?.removeEventListener("change", onWide);
     };
   }, [menuOpen]);
   const close = () => {
@@ -150,6 +167,7 @@ function SidebarLayout({ portal }: { portal: Portal }) {
         />
       )}
       <aside
+        ref={drawer}
         id="portal-nav"
         className={`${menuOpen ? "fixed inset-y-0 left-0 z-40 flex shadow-xl" : "hidden"} w-56 shrink-0 flex-col overflow-y-auto bg-nav text-nav-ink lg:static lg:flex lg:shadow-none`}
       >
@@ -189,6 +207,7 @@ function SidebarLayout({ portal }: { portal: Portal }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-2.5 sm:px-6">
           <button
+            ref={menuButton}
             type="button"
             className="mr-auto rounded-md border border-line px-3 py-1.5 text-sm font-medium lg:hidden"
             aria-expanded={menuOpen}
@@ -202,7 +221,8 @@ function SidebarLayout({ portal }: { portal: Portal }) {
           <NotificationBell incidentHref={(id) => incidentPath(portal, id)} />
           <UserMenu />
         </header>
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+        {/* While the drawer is open the page behind it can be neither clicked nor tabbed to. */}
+        <main inert={menuOpen} className="min-w-0 flex-1 px-4 py-6 sm:px-6">
           <LiveBanner />
           <Screen />
         </main>

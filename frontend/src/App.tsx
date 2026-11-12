@@ -8,6 +8,7 @@ import { ToastProvider } from "./components/Toasts";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
 import { HomeRedirect, PortalShell } from "./shell/PortalShell";
+import { RouteError } from "./shell/RouteError";
 
 /**
  * P5.6: each screen is its own chunk, fetched when first opened, so an employee never downloads
@@ -47,6 +48,7 @@ export const routes: RouteObject[] = [
   {
     path: "/employee",
     element: <PortalShell portal="employee" />,
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <Navigate to="incidents" replace /> },
       { path: "incidents", element: <MyIncidentsPage /> },
@@ -57,6 +59,7 @@ export const routes: RouteObject[] = [
   {
     path: "/technician",
     element: <PortalShell portal="technician" />,
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <Navigate to="queue" replace /> },
       { path: "queue", element: <QueuePage /> },
@@ -70,6 +73,7 @@ export const routes: RouteObject[] = [
   {
     path: "/admin",
     element: <PortalShell portal="admin" />,
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <Navigate to="dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },

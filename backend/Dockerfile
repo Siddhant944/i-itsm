@@ -19,4 +19,4 @@ HEALTHCHECK --interval=10s --timeout=3s --retries=5 \
 # DEMO_RESET_ON_START=true (with APP_ENV=demo) wipes and re-stages the database on every start
 # instead, for a demo instance on the x10 clock (P5.5, D-036); it never runs with APP_ENV=prod.
 # PORT is set by hosts such as Render; locally and in Compose it stays 8000.
-CMD ["sh", "-c", "alembic upgrade head && if [ \"$DEMO_RESET_ON_START\" = \"true\" ]; then python -m app.demo; elif [ \"$SEED_ON_START\" = \"true\" ]; then python -m app.demo --seed-if-empty; fi && exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "alembic upgrade head && if [ \"$DEMO_RESET_ON_START\" = \"true\" ]; then python -m app.demo --allow-remote-database; elif [ \"$SEED_ON_START\" = \"true\" ]; then python -m app.demo --seed-if-empty; fi && exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]

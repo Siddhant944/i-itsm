@@ -57,7 +57,15 @@ def test_production_accepts_a_real_secret() -> None:
 
 @pytest.mark.parametrize(
     "origins",
-    [["*"], ["http://localhost:5173"], [], ["https://i-itsm-web.onrender.com", "*"]],
+    [
+        ["*"],
+        ["http://localhost:5173"],
+        [],
+        ["https://i-itsm-web.onrender.com", "*"],
+        ["https://i-itsm-web.onrender.com/"],
+        ["https://i-itsm-web.onrender.com/login"],
+        ["https://"],
+    ],
 )
 def test_production_locks_cors_to_https_origins(origins: list[str]) -> None:
     """P5.1: no wildcard, no plain http, and not the localhost default."""
