@@ -9,7 +9,7 @@ The same classes run on SQLite and PostgreSQL. Optimistic locking rides on
 ``StaleDataError`` and that becomes a ConcurrentModificationError (409).
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -61,6 +61,7 @@ from app.domain.repositories import (
     AuditRepository,
     CatalogueRepository,
     CredentialsRepository,
+    EmbeddingRepository,
     IncidentRepository,
     NotificationRepository,
     SettingsRepository,
@@ -69,6 +70,7 @@ from app.domain.repositories import (
     UserRepository,
 )
 from app.domain.search import AWAITING_ASSIGNMENT, IncidentQuery, Page, SortField
+from app.domain.similarity import StoredEmbedding
 from app.domain.sla import (
     SLAPolicyBook,
     SLAStatus,
@@ -91,6 +93,7 @@ from app.repositories.sqlalchemy.models import (
     Base,
     CategoryRow,
     FeedbackRow,
+    IncidentEmbeddingRow,
     IncidentRow,
     NotificationRow,
     ResolutionRow,
@@ -258,6 +261,14 @@ class SqlAlchemyIncidentRepository(IncidentRepository):
         self.__session.flush()
         return issued
 
+    def duplicates_of(self, parent_id: str) -> tuple[Incident, ...]:
+        rows = self.__session.scalars(
+            select(IncidentRow)
+            .where(IncidentRow.parent_id == parent_id)
+            .order_by(IncidentRow.created_at, IncidentRow.id)
+        ).all()
+        return tuple(self.__load(row) for row in rows)
+
     # ------------------------------------------------------------ internals
     def __load(self, row: IncidentRow) -> Incident:
         self.__loaded_versions.setdefault(row.id, row.version)
@@ -422,6 +433,39 @@ def _ordering(query: IncidentQuery) -> tuple[ColumnElement[Any], ...]:
     primary = column.desc().nulls_first() if query.descending else column.asc().nulls_last()
     tiebreak = IncidentRow.id.desc() if query.descending else IncidentRow.id.asc()
     return (primary, tiebreak)
+
+
+class SqlAlchemyEmbeddingRepository(EmbeddingRepository):
+    """``incident_embeddings``: one provider-tagged vector per incident (§6.2, §9)."""
+
+    def __init__(self, session: Session) -> None:
+        self.__session = session
+
+    def put(self, embedding: StoredEmbedding) -> None:
+        row = self.__session.get(IncidentEmbeddingRow, embedding.incident_id)
+        if row is None:
+            row = IncidentEmbeddingRow(incident_id=embedding.incident_id)
+            self.__session.add(row)
+        row.provider = embedding.provider
+        row.model = embedding.model
+        row.dimensions = len(embedding.vector)
+        row.vector = list(embedding.vector)
+        row.created_at = embedding.created_at
+        self.__session.flush()
+
+    def get_many(
+        self, incident_ids: Sequence[str], *, provider: str, model: str
+    ) -> Mapping[str, tuple[float, ...]]:
+        if not incident_ids:
+            return {}
+        rows = self.__session.scalars(
+            select(IncidentEmbeddingRow).where(
+                IncidentEmbeddingRow.incident_id.in_(incident_ids),
+                IncidentEmbeddingRow.provider == provider,
+                IncidentEmbeddingRow.model == model,
+            )
+        ).all()
+        return {row.incident_id: tuple(row.vector) for row in rows}
 
 
 class SqlAlchemyUserRepository(UserRepository):
@@ -1281,6 +1325,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.analytics = SqlAlchemyAnalyticsRepository(self.__session)
         self.violations = SqlAlchemySLAViolationRepository(self.__session)
         self.settings = SqlAlchemySettingsRepository(self.__session, self.__clock)
+        self.embeddings = SqlAlchemyEmbeddingRepository(self.__session)
 
     @property
     def session(self) -> Session:

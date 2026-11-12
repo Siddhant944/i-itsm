@@ -29,12 +29,20 @@ class AIAdvisor(ABC):
 
 
 class EmbeddingProvider(ABC):
-    """Turns texts into vectors for similarity (Gemini, or TF-IDF offline)."""
+    """Turns texts into vectors for similarity (Gemini, or TF-IDF offline; §6.2).
+
+    ``name`` and ``model`` tag every stored vector, so one from another model is never
+    compared with it. ``stable`` says whether vectors from separate calls are comparable,
+    which is what makes them worth storing per incident.
+    """
 
     name: str
+    model: str
+    stable: bool
 
     @abstractmethod
-    def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]: ...
+    def embed(self, texts: Sequence[str]) -> list[tuple[float, ...]]:
+        """One vector per text, in order. Raise NetworkFailureError when unreachable."""
 
 
 @dataclass(frozen=True, slots=True)

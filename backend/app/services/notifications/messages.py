@@ -87,3 +87,29 @@ def compose(event: NotificationEvent, incident: Incident, detail: str = "") -> M
         subject=_SUBJECTS[event].format(**fields),
         body=_BODIES[event].format(**fields).strip(),
     )
+
+
+def compose_linked(duplicate: Incident, parent: Incident) -> Message:
+    """For a reporter whose incident was confirmed as a duplicate of another (§6.2)."""
+    return Message(
+        subject=f"{duplicate.id} is being handled as part of {parent.id}",
+        body=(
+            f"Your report {duplicate.id} ('{duplicate.title}') is the same problem as "
+            f"{parent.id} ('{parent.title}'), which is already being worked on.\n"
+            f"We have linked the two, so there is nothing more you need to do: "
+            f"you will hear from us when {parent.id} is fixed."
+        ),
+    )
+
+
+def compose_for_follower(duplicate: Incident, parent: Incident, detail: str = "") -> Message:
+    """For the reporter of a linked duplicate, when the incident it follows is fixed (D-005)."""
+    fix = f"\n\n{detail}" if detail else ""
+    return Message(
+        subject=f"{parent.id} is resolved (your {duplicate.id} was linked to it)",
+        body=(
+            f"A technician believes {parent.id} ('{parent.title}') is fixed:{fix}\n\n"
+            f"Your report {duplicate.id} was linked to it. If the problem is still there "
+            "for you, please report it again and mention this."
+        ),
+    )

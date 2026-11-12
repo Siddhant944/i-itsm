@@ -9,6 +9,7 @@ The last test compares the matrix with the OpenAPI document, so a new endpoint c
 without saying who may call it.
 """
 
+import itertools
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -133,6 +134,13 @@ MATRIX: tuple[Operation, ...] = (
         },
     ),
     Operation("POST", "/incidents/classify", EVERYONE, body={"text": "no wifi signal"}),
+    Operation(
+        "POST",
+        "/incidents/similar",
+        EVERYONE,
+        body={"title": "no wifi signal"},
+        notes="BR-09: the while-typing duplicate hint",
+    ),
     # --- the reporter's own incident
     Operation(
         "GET",
@@ -201,6 +209,21 @@ MATRIX: tuple[Operation, ...] = (
         notes="BR-04",
     ),
     Operation("POST", "/incidents/{incident_id}/close", STAFF, needs_incident=True),
+    Operation(
+        "GET",
+        "/incidents/{incident_id}/possible-duplicates",
+        STAFF,
+        needs_incident=True,
+        notes="BR-09",
+    ),
+    Operation(
+        "POST",
+        "/incidents/{incident_id}/confirm-duplicate",
+        STAFF,
+        body={"parent_id": "INC-2026-0001"},
+        needs_incident=True,
+        notes="BR-09: the technician confirms",
+    ),
     Operation(
         "POST",
         "/incidents/{incident_id}/priority",
@@ -408,13 +431,30 @@ def world(api: TestClient) -> World:
     return built
 
 
+#: BR-09 refuses the same reporter's near-identical report within 30 minutes, so each fresh
+#: incident is about something else.
+FRESH_REPORTS: tuple[tuple[str, str], ...] = (
+    ("Wi-Fi down in the library", "No wifi signal on the first floor"),
+    ("Projector will not switch on", "Lecture hall F-105 before the ten o'clock class"),
+    ("Printer jammed", "Paper stuck in tray two of the admin office printer"),
+    ("Cannot open my mailbox", "Outlook asks for a password again and again"),
+    ("Lab computer shows a black screen", "Machine fourteen in C-309 never boots"),
+    ("VPN keeps disconnecting", "Drops every few minutes from home"),
+    ("Keyboard keys are stuck", "The space bar on the reception desk keyboard"),
+    ("Shared drive missing", "The accounts folder vanished from the network drive"),
+)
+_fresh_reports = itertools.count()
+
+
 def fresh_incident(world: World) -> str:
     """An incident reported by ``employee`` and assigned by the system."""
+    title, description = FRESH_REPORTS[next(_fresh_reports) % len(FRESH_REPORTS)]
     response = world.api.post(
         "/incidents",
         json={
-            "title": "Wi-Fi down in the library",
-            "description": "No wifi signal on the first floor",
+            "title": title,
+            # "wifi" is the seeded category's keyword, so each one is classified and assigned.
+            "description": f"{description}. The wifi is also slow.",
             "service_id": SERVICE,
             "impact": 2,
             "urgency": 2,

@@ -6,7 +6,7 @@ against every implementation.
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from types import TracebackType
 from typing import Self
@@ -25,6 +25,7 @@ from app.domain.incident import Incident
 from app.domain.notifications import Notification
 from app.domain.priority import Priority
 from app.domain.search import IncidentQuery, Page
+from app.domain.similarity import StoredEmbedding
 from app.domain.sla import SLAPolicyBook, SLATarget, SLATier, SLAViolation
 from app.domain.users import Technician, User
 from app.domain.value_objects import EmailAddress
@@ -80,6 +81,28 @@ class IncidentRepository(ABC):
     @abstractmethod
     def next_sequence(self, year: int) -> int:
         """The next number for INC-<year>-NNNN (1-based, per year)."""
+
+    @abstractmethod
+    def duplicates_of(self, parent_id: str) -> tuple[Incident, ...]:
+        """The incidents cancelled as duplicates of ``parent_id``, oldest first (D-005)."""
+
+
+class EmbeddingRepository(ABC):
+    """Stored vectors for duplicate detection, one per incident (§6.2, §9)."""
+
+    @abstractmethod
+    def put(self, embedding: StoredEmbedding) -> None:
+        """Store the incident's vector, replacing one from another provider or model."""
+
+    @abstractmethod
+    def get_many(
+        self, incident_ids: Sequence[str], *, provider: str, model: str
+    ) -> Mapping[str, tuple[float, ...]]:
+        """The stored vectors of these incidents that ``provider`` and ``model`` made.
+
+        A vector from anything else is left out, so the caller recomputes it rather than
+        comparing across models.
+        """
 
 
 class UserRepository(ABC):
@@ -325,6 +348,7 @@ class UnitOfWork(ABC):
     analytics: AnalyticsRepository
     violations: SLAViolationRepository
     settings: SettingsRepository
+    embeddings: EmbeddingRepository
 
     def __enter__(self) -> Self:
         return self

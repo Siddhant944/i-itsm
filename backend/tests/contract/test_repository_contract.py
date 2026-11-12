@@ -18,7 +18,7 @@ from app.domain.audit import AuditAction, ChainVerification, verify_chain
 from app.domain.catalogue import Category, ITService, Skill, Team
 from app.domain.credentials import LOCKOUT_DURATION, MAX_FAILED_ATTEMPTS
 from app.domain.errors import IncidentNotFoundError, NotFoundError, ServiceNotFoundError
-from app.domain.incident import Incident, IncidentFactory
+from app.domain.incident import CancelReason, Incident, IncidentFactory
 from app.domain.notifications import (
     ChannelName,
     DeliveryStatus,
@@ -28,6 +28,7 @@ from app.domain.notifications import (
 from app.domain.permissions import Role
 from app.domain.priority import Priority
 from app.domain.repositories import UnitOfWork
+from app.domain.similarity import StoredEmbedding
 from app.domain.sla import GOLD_TARGETS, SLATarget, SLATier, default_policies
 from app.domain.states import IncidentStatus
 from app.domain.users import Technician, UserFactory
@@ -729,3 +730,54 @@ def test_settings_are_stored_per_key_and_replaced_whole(uow: UnitOfWork) -> None
     uow.commit()
     assert uow.settings.get("assignment") == {"strategy": "load_based"}
     assert uow.settings.get("other") is None
+
+
+# ------------------------------------------------------------------ duplicates (§6.2, D-005)
+def test_duplicates_are_listed_under_the_incident_they_were_linked_to(
+    backend: Backend, uow: UnitOfWork
+) -> None:
+    clock = FakeClock(NOW)
+    backend.with_catalogue(uow)
+    reporter(uow)
+    parent = new_incident(uow, clock)
+    uow.incidents.add(parent)
+    children = []
+    for _ in range(2):
+        clock.advance(timedelta(minutes=1))
+        child = new_incident(uow, clock)
+        uow.incidents.add(child)
+        child.cancel(1, clock, CancelReason.DUPLICATE, parent.id)
+        uow.incidents.save(child)
+        children.append(child.id)
+    uow.commit()
+
+    assert [i.id for i in uow.incidents.duplicates_of(parent.id)] == children
+    assert uow.incidents.duplicates_of(children[0]) == ()
+
+
+def test_an_embedding_is_stored_per_incident_and_tagged_with_its_model(
+    backend: Backend, uow: UnitOfWork
+) -> None:
+    clock = FakeClock(NOW)
+    backend.with_catalogue(uow)
+    reporter(uow)
+    first, second = new_incident(uow, clock), new_incident(uow, clock)
+    uow.incidents.add(first)
+    uow.incidents.add(second)
+    uow.embeddings.put(StoredEmbedding(first.id, "gemini", "embed-1", (0.25, -0.5, 1.0), NOW))
+    uow.embeddings.put(StoredEmbedding(second.id, "gemini", "embed-0", (1.0,), NOW))
+    uow.commit()
+
+    found = uow.embeddings.get_many(
+        [first.id, second.id, "INC-2026-9999"], provider="gemini", model="embed-1"
+    )
+    assert found == {first.id: (0.25, -0.5, 1.0)}  # the other model's vector is left out
+    assert uow.embeddings.get_many([], provider="gemini", model="embed-1") == {}
+
+    # Recomputing with a new model replaces the row: one vector per incident (§9).
+    uow.embeddings.put(StoredEmbedding(second.id, "gemini", "embed-1", (0.0, 1.0, 0.0), NOW))
+    uow.commit()
+    assert uow.embeddings.get_many([second.id], provider="gemini", model="embed-0") == {}
+    assert uow.embeddings.get_many([second.id], provider="gemini", model="embed-1") == {
+        second.id: (0.0, 1.0, 0.0)
+    }

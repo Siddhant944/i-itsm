@@ -386,6 +386,29 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents/similar": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Similar
+     * @description Open incidents that look like what is being typed (§6.2, BR-09). Advice only.
+     *
+     *     Only an incident's id, title and status are shown, so the reporter can follow it instead
+     *     of filing the same problem again.
+     */
+    post: operations["similar_incidents_similar_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/incidents/{incident_id}": {
     parameters: {
       query?: never;
@@ -503,6 +526,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/incidents/{incident_id}/confirm-duplicate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Confirm Duplicate
+     * @description BR-09: cancel this incident as a duplicate; its reporter then follows the parent.
+     */
+    post: operations["confirm_duplicate_incidents__incident_id__confirm_duplicate_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/incidents/{incident_id}/information": {
     parameters: {
       query?: never;
@@ -534,6 +577,26 @@ export interface paths {
     put?: never;
     /** Add Note */
     post: operations["add_note_incidents__incident_id__notes_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/incidents/{incident_id}/possible-duplicates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Possible Duplicates
+     * @description What this incident may be a duplicate of, for the technician to confirm (§6.2).
+     */
+    get: operations["possible_duplicates_incidents__incident_id__possible_duplicates_get"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1213,6 +1276,14 @@ export interface components {
       /** Text */
       text: string;
     };
+    /**
+     * ConfirmDuplicateRequest
+     * @description BR-09: the open incident this one duplicates.
+     */
+    ConfirmDuplicateRequest: {
+      /** Parent Id */
+      parent_id: string;
+    };
     /** CreateUserRequest */
     CreateUserRequest: {
       /**
@@ -1258,6 +1329,16 @@ export interface components {
       /** Id */
       id: number;
       role: components["schemas"]["Role"];
+    };
+    /**
+     * DuplicateCheckResponse
+     * @description Possible duplicates, best first. Advice: nothing is linked until someone confirms.
+     */
+    DuplicateCheckResponse: {
+      /** Candidates */
+      candidates: components["schemas"]["SimilarIncidentResponse"][];
+      /** Provider */
+      provider: string;
     };
     /** FeedbackResponse */
     FeedbackResponse: {
@@ -1334,6 +1415,12 @@ export interface components {
       created_at: string;
       /** Description */
       description: string;
+      /**
+       * Duplicate Count
+       * @default 0
+       */
+      duplicate_count: number;
+      duplicate_of?: components["schemas"]["LinkedIncidentResponse"] | null;
       /** Escalation Level */
       escalation_level: number;
       feedback: components["schemas"]["FeedbackResponse"] | null;
@@ -1405,6 +1492,17 @@ export interface components {
       /** Service Id */
       service_id: number;
       sla: components["schemas"]["SLAResponse"] | null;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
+    };
+    /**
+     * LinkedIncidentResponse
+     * @description Just enough of another incident to name it: its id, title and status (D-005).
+     */
+    LinkedIncidentResponse: {
+      /** Id */
+      id: string;
       status: components["schemas"]["IncidentStatus"];
       /** Title */
       title: string;
@@ -1639,6 +1737,11 @@ export interface components {
       /** Description */
       description: string;
       /**
+       * Follow
+       * @description A suggested open incident to follow instead; this report is linked to it
+       */
+      follow?: string | null;
+      /**
        * Impact
        * @description 1 just me, 2 my team, 3 everyone
        */
@@ -1659,9 +1762,12 @@ export interface components {
      */
     ReportedIncidentResponse: {
       assignment: components["schemas"]["CandidateScoreResponse"] | null;
+      followed?: components["schemas"]["LinkedIncidentResponse"] | null;
       incident: components["schemas"]["IncidentResponse"];
       /** Needs Triage */
       needs_triage: boolean;
+      /** Possible Duplicates */
+      possible_duplicates?: components["schemas"]["SimilarIncidentResponse"][];
       /** Queued For Team Lead */
       queued_for_team_lead: boolean;
       suggestion: components["schemas"]["SuggestionResponse"] | null;
@@ -1836,6 +1942,41 @@ export interface components {
       name: string;
       /** Service Id */
       service_id: number;
+    };
+    /**
+     * SimilarIncidentResponse
+     * @description An open incident that resembles a report, with the score and the reasons (§6.2).
+     */
+    SimilarIncidentResponse: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Id */
+      id: string;
+      /** Reasons */
+      reasons: string[];
+      /** Score */
+      score: number;
+      status: components["schemas"]["IncidentStatus"];
+      /** Title */
+      title: string;
+    };
+    /**
+     * SimilarRequest
+     * @description What the reporter has typed so far, for the while-typing duplicate hint (§6.2).
+     */
+    SimilarRequest: {
+      /**
+       * Description
+       * @default
+       */
+      description: string;
+      /** Service Id */
+      service_id?: number | null;
+      /** Title */
+      title: string;
     };
     /** SkillResponse */
     SkillResponse: {
@@ -2707,6 +2848,37 @@ export interface operations {
       };
     };
   };
+  similar_incidents_similar_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SimilarRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DuplicateCheckResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   detail_incidents__incident_id__get: {
     parameters: {
       query?: never;
@@ -2889,6 +3061,39 @@ export interface operations {
       };
     };
   };
+  confirm_duplicate_incidents__incident_id__confirm_duplicate_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConfirmDuplicateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   provide_information_incidents__incident_id__information_post: {
     parameters: {
       query?: never;
@@ -2944,6 +3149,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IncidentResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  possible_duplicates_incidents__incident_id__possible_duplicates_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        incident_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DuplicateCheckResponse"];
         };
       };
       /** @description Validation error */

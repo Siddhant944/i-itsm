@@ -8,7 +8,7 @@ Authorisation is a dependency, never a check inside a handler, so a route cannot
 """
 
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -18,14 +18,16 @@ from app.core.clock import Clock
 from app.core.security import PasswordHasher, TokenService
 from app.domain.errors import InvalidLoginError, ITSMError
 from app.domain.permissions import Permission
-from app.domain.ports import AIAdvisor, EmailSender
+from app.domain.ports import AIAdvisor, EmailSender, EmbeddingProvider
 from app.domain.repositories import UnitOfWork
+from app.domain.similarity import TfIdfEmbeddings
 from app.domain.users import User
 from app.services.analytics import AnalyticsService
 from app.services.audit import AuditService
 from app.services.auth_service import AuthPolicy, AuthService
 from app.services.configuration import ConfigurationService, active_strategy
 from app.services.dispatcher import PostCommitDispatcher
+from app.services.duplicates import DuplicateDetector
 from app.services.incident_service import IncidentService
 from app.services.notifications import EmailChannel, default_factory
 from app.services.notifications.service import NotificationService
@@ -48,6 +50,8 @@ class Services:
     policy: AuthPolicy
     email: EmailSender
     advisor: AIAdvisor
+    #: §6.2: Gemini when configured; TF-IDF offline, and always the fallback.
+    embeddings: EmbeddingProvider = field(default_factory=TfIdfEmbeddings)
 
 
 def get_services(request: Request) -> Services:
@@ -115,6 +119,7 @@ def get_incident_service(
         advisor=services.advisor,
         # §5.3: the admin's saved choice, read per request so a switch takes effect at once.
         assignment_strategy=active_strategy(uow.settings),
+        duplicates=DuplicateDetector(uow, services.clock, services.embeddings),
     )
 
 

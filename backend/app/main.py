@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import __version__
+from app.adapters.gemini_embeddings import gemini_embeddings
 from app.adapters.smtp_email import EmailSettings, email_sender_for
 from app.api import health
 from app.api.deps import Services
@@ -34,8 +35,10 @@ from app.core.config import ClockMode, Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.security import Argon2PasswordHasher, JwtTokenService
 from app.domain.errors import ITSMError
+from app.domain.ports import EmbeddingProvider
 from app.domain.repositories import UnitOfWork
 from app.domain.rule_advisor import RuleBasedAdvisor
+from app.domain.similarity import TfIdfEmbeddings
 from app.repositories.database import make_engine, ping
 from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session_factory
 from app.services.auth_service import AuthPolicy
@@ -68,6 +71,17 @@ def email_settings(settings: Settings) -> EmailSettings:
         sender=settings.smtp_from,
         starttls=settings.smtp_starttls,
     )
+
+
+def embedding_provider(settings: Settings) -> EmbeddingProvider:
+    """§6.2: Gemini when a key and a model are set, otherwise the offline TF-IDF.
+
+    Either way the duplicate detector keeps TF-IDF as its fallback for an outage.
+    """
+    key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else ""
+    if key and settings.gemini_embedding_model:
+        return gemini_embeddings(key, settings.gemini_embedding_model)
+    return TfIdfEmbeddings()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -132,6 +146,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         email=email_sender_for(email_settings(settings)),
         # §6.1: Gemini arrives in P4.4 with this rule-based advisor as its fallback.
         advisor=RuleBasedAdvisor(),
+        embeddings=embedding_provider(settings),
     )
     app.state.db_probe = lambda: ping(engine)
     app.state.settings = settings

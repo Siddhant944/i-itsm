@@ -37,6 +37,7 @@ class AuditAction(StrEnum):
     PRIORITY_OVERRIDDEN = "incident.priority_overridden"
     CATEGORY_OVERRIDDEN = "incident.category_overridden"
     INCIDENT_ESCALATED = "incident.escalated"
+    DUPLICATE_SUGGESTED = "incident.duplicate_suggested"
     SLA_VIOLATED = "sla.violated"
     # --- administration
     CONFIGURATION_CHANGED = "configuration.changed"

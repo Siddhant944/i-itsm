@@ -17,6 +17,8 @@ from app.api.schemas.incidents import (
     CandidateScoreResponse,
     CategoryOverrideRequest,
     ClassifyRequest,
+    ConfirmDuplicateRequest,
+    DuplicateCheckResponse,
     IncidentResponse,
     IncidentSummaryResponse,
     NoteRequest,
@@ -27,8 +29,11 @@ from app.api.schemas.incidents import (
     ReportedIncidentResponse,
     ReportIncidentRequest,
     ResolveRequest,
+    SimilarRequest,
     SuggestionResponse,
     detail_of,
+    linked,
+    similar_of,
     summary_of,
 )
 from app.domain.assignment import CandidateScore
@@ -41,6 +46,8 @@ router = APIRouter(prefix="/incidents", tags=["incidents"])
 Reporter = Annotated[User, Depends(requires(Permission.INCIDENT_CREATE))]
 Worker = Annotated[User, Depends(requires(Permission.INCIDENT_WORK))]
 MAX_PAGE = 200
+#: How many possible duplicates one answer shows (§6.2: a hint, not a search).
+MAX_HINTS = 3
 
 
 # ---------------------------------------------------------------- reporting
@@ -60,6 +67,7 @@ def report(
         impact=payload.impact,
         urgency=payload.urgency,
         category_id=payload.category_id,
+        follow=payload.follow,
     )
     return ReportedIncidentResponse(
         incident=detail_of(result.incident, services.clock),
@@ -67,6 +75,8 @@ def report(
         assignment=None if result.assignment is None else _score(result.assignment),
         queued_for_team_lead=result.queued_for_team_lead,
         needs_triage=result.needs_triage,
+        possible_duplicates=[similar_of(c) for c in result.possible_duplicates],
+        followed=None if result.followed is None else linked(result.followed),
     )
 
 
@@ -76,6 +86,26 @@ def classify(
 ) -> SuggestionResponse | None:
     """Suggest a category for what the reporter has typed. Advice only (§6.1)."""
     return _suggestion(incidents.classify_text(payload.text))
+
+
+@router.post("/similar", response_model=DuplicateCheckResponse)
+def similar(
+    payload: SimilarRequest, user: Reporter, incidents: IncidentsDep
+) -> DuplicateCheckResponse:
+    """Open incidents that look like what is being typed (§6.2, BR-09). Advice only.
+
+    Only an incident's id, title and status are shown, so the reporter can follow it instead
+    of filing the same problem again.
+    """
+    check = incidents.similar_incidents(
+        user,
+        title=payload.title,
+        description=payload.description,
+        service_id=payload.service_id,
+    )
+    return DuplicateCheckResponse(
+        provider=check.provider, candidates=[similar_of(c) for c in check.candidates[:MAX_HINTS]]
+    )
 
 
 # ---------------------------------------------------------------- reading
@@ -103,7 +133,22 @@ def detail(
     incident_id: str, user: CurrentUser, incidents: IncidentsDep, services: ServicesDep
 ) -> IncidentResponse:
     """One incident, if the caller may see it (BR-01). 403 otherwise, never a leak."""
-    return detail_of(incidents.get(user, incident_id), services.clock)
+    incident = incidents.get(user, incident_id)
+    parent, count = incidents.duplicate_links(incident)
+    return detail_of(incident, services.clock, duplicate_of=parent, duplicate_count=count)
+
+
+@router.get("/{incident_id}/possible-duplicates", response_model=DuplicateCheckResponse)
+def possible_duplicates(
+    incident_id: str,
+    user: Annotated[User, Depends(requires(Permission.INCIDENT_CONFIRM_DUPLICATE))],
+    incidents: IncidentsDep,
+) -> DuplicateCheckResponse:
+    """What this incident may be a duplicate of, for the technician to confirm (§6.2)."""
+    check = incidents.possible_duplicates(user, incident_id)
+    return DuplicateCheckResponse(
+        provider=check.provider, candidates=[similar_of(c) for c in check.candidates[:MAX_HINTS]]
+    )
 
 
 @router.get("/{incident_id}/assignment-advice", response_model=AssignmentAdviceResponse)
@@ -224,6 +269,20 @@ def override_category(
     return detail_of(
         incidents.override_category(user, incident_id, payload.category_id), services.clock
     )
+
+
+@router.post("/{incident_id}/confirm-duplicate", response_model=IncidentResponse)
+def confirm_duplicate(
+    incident_id: str,
+    payload: ConfirmDuplicateRequest,
+    user: Annotated[User, Depends(requires(Permission.INCIDENT_CONFIRM_DUPLICATE))],
+    incidents: IncidentsDep,
+    services: ServicesDep,
+) -> IncidentResponse:
+    """BR-09: cancel this incident as a duplicate; its reporter then follows the parent."""
+    incident = incidents.confirm_duplicate(user, incident_id, payload.parent_id)
+    parent, count = incidents.duplicate_links(incident)
+    return detail_of(incident, services.clock, duplicate_of=parent, duplicate_count=count)
 
 
 # ---------------------------------------------------------------- reporter actions

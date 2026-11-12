@@ -5,7 +5,7 @@ that the caller is writing the object the repository already holds.
 """
 
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -37,6 +37,7 @@ from app.domain.repositories import (
     AuditRepository,
     CatalogueRepository,
     CredentialsRepository,
+    EmbeddingRepository,
     IncidentRepository,
     NotificationRepository,
     SettingsRepository,
@@ -45,6 +46,7 @@ from app.domain.repositories import (
     UserRepository,
 )
 from app.domain.search import AWAITING_ASSIGNMENT, IncidentQuery, Page, SortField
+from app.domain.similarity import StoredEmbedding
 from app.domain.sla import (
     SLAPolicyBook,
     SLAStatus,
@@ -144,6 +146,10 @@ class InMemoryIncidentRepository(IncidentRepository):
         self.__sequences[year] += 1
         return self.__sequences[year]
 
+    def duplicates_of(self, parent_id: str) -> tuple[Incident, ...]:
+        found = [i for i in self.__items.values() if i.parent_id == parent_id]
+        return tuple(sorted(found, key=lambda i: (i.created_at, i.id)))
+
 
 def sla_status_of(incident: Incident, now: datetime) -> SLAStatus | None:
     """The worse of the two SLA statuses, or None before the incident was prioritised."""
@@ -196,6 +202,25 @@ def _sort_key(field: SortField) -> "Callable[[Incident], Any]":
     if field is SortField.ID:
         return lambda i: i.id
     return lambda i: (i.created_at, i.id)
+
+
+class InMemoryEmbeddingRepository(EmbeddingRepository):
+    def __init__(self) -> None:
+        self.__items: dict[str, StoredEmbedding] = {}
+
+    def put(self, embedding: StoredEmbedding) -> None:
+        self.__items[embedding.incident_id] = embedding
+
+    def get_many(
+        self, incident_ids: Sequence[str], *, provider: str, model: str
+    ) -> Mapping[str, tuple[float, ...]]:
+        return {
+            incident_id: stored.vector
+            for incident_id in incident_ids
+            if (stored := self.__items.get(incident_id)) is not None
+            and stored.provider == provider
+            and stored.model == model
+        }
 
 
 class InMemoryUserRepository(UserRepository):
@@ -604,6 +629,7 @@ class InMemoryUnitOfWork(UnitOfWork):
         self.analytics = InMemoryAnalyticsRepository(self.incidents, self.users, self.catalogue)
         self.violations = InMemorySLAViolationRepository()
         self.settings = InMemorySettingsRepository()
+        self.embeddings = InMemoryEmbeddingRepository()
         self.committed = 0
 
     def commit(self) -> None:

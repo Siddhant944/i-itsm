@@ -152,6 +152,8 @@ export function incident(
     cancel_reason: null,
     escalation_level: 0,
     reopen_count: 0,
+    duplicate_of: null,
+    duplicate_count: 0,
     created_at: "2026-11-11T04:00:00Z",
     acknowledged_at: null,
     resolved_at: null,

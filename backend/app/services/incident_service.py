@@ -34,6 +34,7 @@ from app.domain.assignment import (
 from app.domain.audit import AuditAction
 from app.domain.catalogue import Category, ITService, required_skills_for
 from app.domain.errors import (
+    DuplicateIncidentError,
     InvalidUserInputError,
     ServiceNotFoundError,
     TechnicianUnavailableError,
@@ -52,9 +53,16 @@ from app.domain.permissions import Permission
 from app.domain.ports import AIAdvisor, CategoryInfo, Classification
 from app.domain.priority import Priority, PriorityStrategy, WeightedProductPriorityStrategy
 from app.domain.repositories import UnitOfWork
+from app.domain.states import IncidentStatus
 from app.domain.users import Technician, User
 from app.services.audit import AuditService
 from app.services.dispatcher import PostCommitDispatcher
+from app.services.duplicates import (
+    COMPARABLE_STATUSES,
+    DuplicateCandidate,
+    DuplicateCheck,
+    DuplicateDetector,
+)
 
 #: A change applied to a loaded incident, once the caller has been allowed to make it.
 Change = Callable[[Incident], object]
@@ -94,6 +102,10 @@ class ReportedIncident:
     queued_for_team_lead: bool = False
     #: Nobody could say which category it belongs to, so a human classifies it first (§4).
     needs_triage: bool = False
+    #: Open incidents this one resembles (§6.2); the technician confirms or ignores them.
+    possible_duplicates: tuple[DuplicateCandidate, ...] = ()
+    #: The incident the reporter chose to follow instead; this one is then its duplicate.
+    followed: Incident | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +132,7 @@ class IncidentService:
         advisor: AIAdvisor | None = None,
         priority_strategy: PriorityStrategy | None = None,
         assignment_strategy: AssignmentStrategy | None = None,
+        duplicates: DuplicateDetector | None = None,
     ) -> None:
         self.__uow = uow
         self.__clock = clock
@@ -128,6 +141,7 @@ class IncidentService:
         self.__priority = priority_strategy or WeightedProductPriorityStrategy()
         self.__assignment = assignment_strategy or SmartStrategy()
         self.__audit = AuditService(uow.audit, clock)
+        self.__duplicates = duplicates or DuplicateDetector(uow, clock)
 
     # ------------------------------------------------------------ reading
     def get(self, actor: User, incident_id: str) -> Incident:
@@ -146,12 +160,64 @@ class IncidentService:
             raise UnauthorizedOperationError("Your role has no incident queue.")
         return self.__uow.incidents.list_for_assignee(actor.id)
 
+    def duplicate_links(self, incident: Incident) -> tuple[Incident | None, int]:
+        """The incident this one was linked to as a duplicate, and how many are linked to it.
+
+        D-005: the link is the subscription, so the reporter of a duplicate may see where
+        their report went and how it stands — its id, title and status, nothing more.
+        """
+        parent = None
+        if incident.parent_id is not None and incident.cancel_reason is CancelReason.DUPLICATE:
+            parent = self.__uow.incidents.get(incident.parent_id)
+        return parent, len(self.__uow.incidents.duplicates_of(incident.id))
+
     # ------------------------------------------------------------ reporting
     def classify_text(self, text: str) -> Classification | None:
         """The category suggestion shown while the reporter types (§6.1); never applied alone."""
         if self.__advisor is None:
             return None
         return self.__advisor.classify(text, self.__category_infos())
+
+    def similar_incidents(
+        self, actor: User, *, title: str, description: str, service_id: int | None
+    ) -> DuplicateCheck:
+        """Open incidents that look like what the reporter is typing (§6.2). Advice only."""
+        self.__require(actor, Permission.INCIDENT_CREATE)
+        return self.__duplicates.check(
+            title=title,
+            description=description,
+            service_id=service_id,
+            reported_at=self.__clock.now(),
+        )
+
+    def possible_duplicates(self, actor: User, incident_id: str) -> DuplicateCheck:
+        """What an open incident may be a duplicate of, for the technician to confirm (§6.2)."""
+        self.__require(actor, Permission.INCIDENT_CONFIRM_DUPLICATE)
+        incident = self.get(actor, incident_id)
+        if incident.status not in COMPARABLE_STATUSES:
+            return DuplicateCheck((), "")
+        return self.__duplicates.check(
+            title=incident.title,
+            description=incident.description,
+            service_id=incident.service_id,
+            reported_at=incident.created_at,
+            exclude_id=incident.id,
+        )
+
+    def confirm_duplicate(self, actor: User, incident_id: str, parent_id: str) -> Incident:
+        """BR-09: cancel ``incident_id`` as a duplicate of ``parent_id``.
+
+        Its reporter is from then on told about the parent (D-005). Whoever may work the
+        incident may confirm it; the parent only has to exist and still be open, because the
+        "possible duplicate" panel has already shown its id and title.
+        """
+        self.__require(actor, Permission.INCIDENT_CONFIRM_DUPLICATE)
+
+        def change(incident: Incident) -> None:
+            parent = self.__duplicate_parent(incident, parent_id)
+            incident.cancel(actor.id, self.__clock, CancelReason.DUPLICATE, parent.id)
+
+        return self.__work(actor, incident_id, change)
 
     def report(
         self,
@@ -163,15 +229,35 @@ class IncidentService:
         impact: int,
         urgency: int,
         category_id: int | None = None,
+        follow: str | None = None,
     ) -> ReportedIncident:
         """Report an incident, then classify, prioritise, set its SLA and assign it.
 
         ``category_id`` is the reporter's or the AI's choice, confirmed by the caller. When it
         is omitted the advisor suggests one and the suggestion is applied, with its confidence
         kept so the UI can show what happened and let a technician override it.
+
+        BR-09: the same reporter's near-identical report within 30 minutes is refused with
+        ``DuplicateIncidentError``. ``follow`` names an open incident the form suggested;
+        the report is then recorded and at once linked to it as a duplicate, which is what
+        subscribes the reporter to it (D-005).
         """
         self.__require(actor, Permission.INCIDENT_CREATE)
         service = self.__service(service_id, offered=True)
+        # Bad input is refused as bad input before anything is compared with anything.
+        category = None if category_id is None else self.__category(category_id, offered=True)
+        check = self.__duplicates.check(
+            title=title,
+            description=description,
+            service_id=service_id,
+            reported_at=self.__clock.now(),
+        )
+        for candidate in check.candidates:
+            if candidate.incident.reporter_id == actor.id and self.__duplicates.thresholds.rejects(
+                candidate.score, candidate.gap
+            ):
+                raise DuplicateIncidentError(candidate.incident.id)
+        followed = None if follow is None else self.__followed(check, follow)
 
         incident = IncidentFactory.create(
             sequence=self.__uow.incidents.next_sequence(self.__clock.now().year),
@@ -187,12 +273,30 @@ class IncidentService:
         # The row must exist before anything audits it: audit_log.incident_id is a real
         # foreign key, and §4's opening steps all write audit records about this incident.
         self.__uow.incidents.add(incident)
+        self.__duplicates.remember(incident.id, check)
+        if check.candidates:
+            # §6.1: every AI decision is audited, including one nobody acts on.
+            self.__audit.record(
+                AuditAction.DUPLICATE_SUGGESTED,
+                incident_id=incident.id,
+                details={
+                    "provider": check.provider,
+                    "candidates": [
+                        {"id": c.incident.id, "score": round(c.score.total, 3)}
+                        for c in check.candidates
+                    ],
+                },
+            )
+        if followed is not None:
+            incident.cancel(actor.id, self.__clock, CancelReason.DUPLICATE, followed.id)
+            self.__uow.incidents.save(incident)
+            self.__commit(incident)
+            return ReportedIncident(
+                incident, None, None, possible_duplicates=check.candidates, followed=followed
+            )
 
         suggestion = None
-        category = None
-        if category_id is not None:
-            category = self.__category(category_id, offered=True)
-        else:
+        if category is None:
             suggestion = self.classify_text(f"{title}\n{description}")
             if suggestion is not None and suggestion.category_id is not None:
                 category = self.__category(suggestion.category_id)
@@ -214,7 +318,14 @@ class IncidentService:
 
         self.__uow.incidents.save(incident)
         self.__commit(incident)
-        return ReportedIncident(incident, suggestion, chosen, queued, needs_triage=category is None)
+        return ReportedIncident(
+            incident,
+            suggestion,
+            chosen,
+            queued,
+            needs_triage=category is None,
+            possible_duplicates=check.candidates,
+        )
 
     # ------------------------------------------------------------ technician actions
     def acknowledge(self, actor: User, incident_id: str) -> Incident:
@@ -318,7 +429,7 @@ class IncidentService:
             # 404 rather than a dangling link, and BR-01 rather than a link into someone
             # else's incident: D-005 makes parent_id the subscription, so a link the caller
             # may not see would become a read path in P4.1.
-            parent = self.__uow.incidents.get(duplicate_of)
+            parent = self.__duplicate_parent(incident, duplicate_of)
             ensure_can_view(actor, parent, self.__team_of(actor))
         incident.cancel(actor.id, self.__clock, reason, duplicate_of)
         return self.__save(incident)
@@ -429,6 +540,39 @@ class IncidentService:
             return None, True
         incident.assign(chosen.technician_id, None, self.__clock)
         return chosen, False
+
+    def __duplicate_parent(self, incident: Incident, parent_id: str) -> Incident:
+        """The incident ``incident`` may be linked to, or the reason it may not (BR-09)."""
+        parent = self.__uow.incidents.get(parent_id)
+        problem = None
+        if parent.id == incident.id:
+            problem = "An incident cannot be a duplicate of itself."
+        elif parent.parent_id is not None and parent.cancel_reason is CancelReason.DUPLICATE:
+            problem = f"{parent.id} is itself a duplicate of {parent.parent_id}; link to that."
+        elif parent.status is IncidentStatus.CANCELLED:
+            problem = f"{parent.id} was cancelled, so nothing can be linked to it."
+        elif self.__uow.incidents.duplicates_of(incident.id):
+            problem = (
+                f"Other reports are already linked to {incident.id}; link {parent.id} to it "
+                "instead."
+            )
+        if problem is not None:
+            raise InvalidUserInputError({"duplicate_of": problem})
+        return parent
+
+    @staticmethod
+    def __followed(check: DuplicateCheck, incident_id: str) -> Incident:
+        """The suggested incident the reporter chose to follow; only a suggestion will do.
+
+        Following is how an employee comes to hear about someone else's incident, so it is
+        limited to the ones the similarity check itself put in front of them (BR-01).
+        """
+        for candidate in check.candidates:
+            if candidate.incident.id == incident_id:
+                return candidate.incident
+        raise InvalidUserInputError(
+            {"follow": f"{incident_id} is not an open incident similar to this report."}
+        )
 
     def __candidates(self, service_id: int) -> tuple[Candidate, ...]:
         loads = self.__uow.incidents.workloads()

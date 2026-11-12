@@ -478,7 +478,7 @@ def test_cancelling_a_duplicate_needs_a_real_parent(
     service: IncidentService, uow: InMemoryUnitOfWork
 ) -> None:
     first = report(service, uow)
-    second = report(service, uow)
+    second = report(service, uow, title="Projector is dim", description="Hall F-105, yellow")
     with pytest.raises(IncidentNotFoundError):
         service.cancel(
             who(uow, ADMIN), second, CancelReason.DUPLICATE, duplicate_of="INC-2026-9999"
