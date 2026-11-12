@@ -827,3 +827,17 @@ def test_resolution_durations_exclude_paused_time_and_unfinished_work(
     assert uow.incidents.resolution_durations(1, Priority.P2, limit=1) == (timedelta(minutes=90),)
     assert uow.incidents.resolution_durations(1, Priority.P3) == (timedelta(minutes=10),)
     assert uow.incidents.resolution_durations(2, Priority.P2) == ()
+
+
+def test_a_linked_telegram_chat_round_trips(backend: Backend, uow: UnitOfWork) -> None:
+    reporter(uow)
+    user = uow.users.get(1)
+    user.link_telegram("-100200300")
+    uow.users.save(user)
+    uow.commit()
+    assert uow.users.get(1).telegram_chat_id == "-100200300"
+    again = uow.users.get(1)
+    again.unlink_telegram()
+    uow.users.save(again)
+    uow.commit()
+    assert uow.users.get(1).telegram_chat_id is None

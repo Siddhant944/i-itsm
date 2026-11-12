@@ -7,14 +7,16 @@ the ones it declares.
 
 from fastapi import APIRouter, status
 
-from app.api.deps import AuthDep, CurrentUser
+from app.api.deps import AuthDep, CurrentUser, NotificationsDep, ServicesDep
 from app.api.schemas.auth import (
     LoginRequest,
     MeResponse,
     RegisterRequest,
     TechnicianProfileResponse,
+    TelegramLinkRequest,
     TokenResponse,
 )
+from app.domain.notifications import ChannelName
 from app.domain.permissions import Permission, portal_for
 from app.domain.users import Technician, User
 from app.services.auth_service import AccessToken
@@ -36,9 +38,29 @@ def login(payload: LoginRequest, auth: AuthDep) -> TokenResponse:
 
 
 @router.get("/me", response_model=MeResponse)
-def me(user: CurrentUser, auth: AuthDep) -> MeResponse:
+def me(user: CurrentUser, auth: AuthDep, services: ServicesDep) -> MeResponse:
     """The signed-in user, their portal and their permissions."""
-    return _me(user, auth)
+    return _me(user, auth, services)
+
+
+@router.put("/me/telegram", response_model=MeResponse)
+def link_telegram(
+    payload: TelegramLinkRequest, user: CurrentUser, auth: AuthDep, services: ServicesDep
+) -> MeResponse:
+    """Send my P1/P2 alerts to this Telegram chat (§5.4). Audited."""
+    return _me(auth.link_telegram(user, payload.chat_id), auth, services)
+
+
+@router.delete("/me/telegram", response_model=MeResponse)
+def unlink_telegram(user: CurrentUser, auth: AuthDep, services: ServicesDep) -> MeResponse:
+    """Stop sending my alerts to Telegram."""
+    return _me(auth.unlink_telegram(user), auth, services)
+
+
+@router.post("/me/telegram/test", status_code=status.HTTP_204_NO_CONTENT)
+def test_telegram(user: CurrentUser, notifications: NotificationsDep) -> None:
+    """Send a test message to my linked chat; 503 if Telegram is down or not set up."""
+    notifications.send_test(user, ChannelName.TELEGRAM)
 
 
 def _token(issued: AccessToken) -> TokenResponse:
@@ -52,7 +74,7 @@ def _token(issued: AccessToken) -> TokenResponse:
     )
 
 
-def _me(user: User, auth: AuthDep) -> MeResponse:
+def _me(user: User, auth: AuthDep, services: ServicesDep) -> MeResponse:
     profile = (
         TechnicianProfileResponse(
             skills=list(user.skills.names),
@@ -73,4 +95,6 @@ def _me(user: User, auth: AuthDep) -> MeResponse:
         escalation_level=user.escalation_level,
         permissions=[Permission(name) for name in auth.permissions(user)],
         technician=profile,
+        telegram_chat_id=user.telegram_chat_id,
+        telegram_available=services.telegram is not None,
     )

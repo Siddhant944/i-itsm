@@ -567,3 +567,23 @@ export function useRunMonitor() {
     },
   });
 }
+
+// ------------------------------------------------------------------ Telegram alerts (P4.9)
+export function useTelegramLink() {
+  const client = useQueryClient();
+  const refreshMe = () => void client.invalidateQueries({ queryKey: ["me"] });
+  return {
+    link: useMutation({
+      mutationFn: (chatId: string) =>
+        unwrap(api.PUT("/auth/me/telegram", { body: { chat_id: chatId } })),
+      onSuccess: refreshMe,
+    }),
+    unlink: useMutation({
+      mutationFn: () => unwrap(api.DELETE("/auth/me/telegram")),
+      onSuccess: refreshMe,
+    }),
+    test: useMutation({
+      mutationFn: () => unwrap(api.POST("/auth/me/telegram/test")),
+    }),
+  };
+}

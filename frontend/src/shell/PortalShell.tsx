@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Navigate, NavLink, Outlet, useNavigate } from "react-router";
 
 import { useAuth } from "../auth/AuthContext";
@@ -9,6 +10,7 @@ import { roleLabel } from "../lib/format";
 import { incidentPath, NAVIGATION, PORTAL_HOME, PORTAL_TITLE, type NavItem } from "./nav";
 import { useLive } from "../api/useLive";
 import { useLiveState } from "../lib/live";
+import { TelegramSettings } from "../components/TelegramSettings";
 
 function useVisibleNav(portal: Portal): NavItem[] {
   const { can } = useAuth();
@@ -18,6 +20,7 @@ function useVisibleNav(portal: Portal): NavItem[] {
 function UserMenu() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [telegram, setTelegram] = useState(false);
   if (user === null) return null;
   return (
     <div className="flex items-center gap-3 text-sm">
@@ -27,6 +30,21 @@ function UserMenu() {
         </p>
         <p className="text-xs opacity-75">{roleLabel(user.role)}</p>
       </div>
+      <Button
+        small
+        onClick={() => {
+          setTelegram(true);
+        }}
+      >
+        Telegram alerts
+      </Button>
+      {telegram && (
+        <TelegramSettings
+          onClose={() => {
+            setTelegram(false);
+          }}
+        />
+      )}
       <Button
         small
         onClick={() => {

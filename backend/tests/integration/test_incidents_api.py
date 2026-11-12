@@ -798,3 +798,25 @@ def test_the_reporter_and_the_admin_hear_about_a_change_after_it_commits(
         assert watching.receive_json()["incident_id"] == incident_id
         # Only the id and status travel; the content is read through the API (BR-01).
         assert set(pushed) == {"type", "incident_id", "status"}
+
+
+# ---------------------------------------------------------------- Telegram linking (P4.9)
+def test_a_user_links_and_unlinks_telegram_and_without_a_bot_a_test_is_503(
+    api: TestClient, reporter: dict[str, str]
+) -> None:
+    me = api.get("/auth/me", headers=reporter).json()
+    assert (me["telegram_chat_id"], me["telegram_available"]) == (None, False)
+
+    assert (
+        api.put("/auth/me/telegram", json={"chat_id": "@me"}, headers=reporter).status_code == 422
+    )
+    linked = api.put("/auth/me/telegram", json={"chat_id": "123456789"}, headers=reporter)
+    assert linked.status_code == 200
+    assert linked.json()["telegram_chat_id"] == "123456789"
+    assert api.get("/auth/me", headers=reporter).json()["telegram_chat_id"] == "123456789"
+
+    refused = api.post("/auth/me/telegram/test", headers=reporter)
+    assert refused.status_code == 503
+    assert refused.json()["error"]["code"] == "network_failure"
+
+    assert api.delete("/auth/me/telegram", headers=reporter).json()["telegram_chat_id"] is None

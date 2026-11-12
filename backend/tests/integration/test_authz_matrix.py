@@ -110,6 +110,9 @@ MATRIX: tuple[Operation, ...] = (
     ),
     # --- everyone signed in
     Operation("GET", "/auth/me", EVERYONE),
+    Operation("PUT", "/auth/me/telegram", EVERYONE, body={"chat_id": "123456789"}),
+    Operation("DELETE", "/auth/me/telegram", EVERYONE),
+    Operation("POST", "/auth/me/telegram/test", EVERYONE, notes="P4.9; 503 without a bot"),
     Operation("GET", "/catalogue/services", EVERYONE),
     Operation("GET", "/catalogue/categories", EVERYONE),
     Operation("GET", "/catalogue/skills", EVERYONE),

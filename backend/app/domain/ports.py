@@ -82,6 +82,16 @@ class EmailSender(ABC):
         """Deliver, or raise NetworkFailureError so the caller can retry."""
 
 
+class ChatSender(ABC):
+    """Hands one message to a chat service: the Telegram Bot API, or a fake (§5.4, P4.9)."""
+
+    name: str
+
+    @abstractmethod
+    def send(self, chat_id: str, text: str) -> None:
+        """Deliver, or raise NetworkFailureError so the caller can retry."""
+
+
 class NotificationChannel(ABC):
     """In-app, email or Telegram delivery; a new channel is one class (blueprint §5.4)."""
 

@@ -18,6 +18,7 @@ from app import __version__
 from app.adapters.gemini_advisor import gemini_advisor, gemini_summarizer
 from app.adapters.gemini_embeddings import gemini_embeddings
 from app.adapters.smtp_email import EmailSettings, email_sender_for
+from app.adapters.telegram import telegram_sender
 from app.api import health
 from app.api.deps import Services
 from app.api.errors import register_error_handlers
@@ -37,7 +38,7 @@ from app.core.config import ClockMode, Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.security import Argon2PasswordHasher, JwtTokenService
 from app.domain.errors import ITSMError
-from app.domain.ports import AIAdvisor, EmbeddingProvider, ResolutionSummarizer
+from app.domain.ports import AIAdvisor, ChatSender, EmbeddingProvider, ResolutionSummarizer
 from app.domain.repositories import UnitOfWork
 from app.domain.rule_advisor import FallbackAdvisor, RuleBasedAdvisor
 from app.domain.similarity import TfIdfEmbeddings
@@ -46,6 +47,7 @@ from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session
 from app.services.auth_service import AuthPolicy
 from app.services.live import LiveHub, LivePublisher
 from app.services.notifications import EmailChannel, default_factory
+from app.services.notifications.channels import TelegramChannel
 from app.services.notifications.service import NotificationService
 from app.services.scheduler import MonitorScheduler
 from app.services.sla_monitor import SLAMonitor, TickReport
@@ -82,6 +84,12 @@ def classifier(settings: Settings) -> AIAdvisor:
     if key and settings.gemini_model:
         return FallbackAdvisor(gemini_advisor(key, settings.gemini_model), RuleBasedAdvisor())
     return RuleBasedAdvisor()
+
+
+def chat_sender(settings: Settings) -> ChatSender | None:
+    """§5.4: Telegram alerts when TELEGRAM_BOT_TOKEN is set; without it, no Telegram channel."""
+    token = settings.telegram_bot_token.get_secret_value() if settings.telegram_bot_token else ""
+    return telegram_sender(token) if token else None
 
 
 def summarizer(settings: Settings) -> ResolutionSummarizer | None:
@@ -166,6 +174,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         advisor=classifier(settings),
         embeddings=embedding_provider(settings),
         summarizer=summarizer(settings),
+        telegram=chat_sender(settings),
     )
     app.state.db_probe = lambda: ping(engine)
     app.state.settings = settings
@@ -207,12 +216,16 @@ def _schedule_monitor(
         return None
 
     email = email_sender_for(email_settings(settings))
+    chat = chat_sender(settings)
 
     def tick() -> TickReport:
         uow = SqlAlchemyUnitOfWork(sessions, clock)
         try:
             channels = default_factory(
-                email=EmailChannel(email, lambda user_id: _address(uow, user_id))
+                email=EmailChannel(email, lambda user_id: _address(uow, user_id)),
+                telegram=None
+                if chat is None
+                else TelegramChannel(chat, lambda user_id: _chat_of(uow, user_id)),
             )
             notifications = NotificationService(uow, clock, channels)
             report = SLAMonitor(uow, clock, notify=notifications.notify).tick()
@@ -222,6 +235,13 @@ def _schedule_monitor(
             uow.close()
 
     return MonitorScheduler(tick, clock, timedelta(seconds=settings.sla_tick_seconds))
+
+
+def _chat_of(uow: UnitOfWork, user_id: int) -> str | None:
+    try:
+        return uow.users.get(user_id).telegram_chat_id
+    except ITSMError:
+        return None
 
 
 def _address(uow: UnitOfWork, user_id: int) -> str | None:

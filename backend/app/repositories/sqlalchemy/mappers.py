@@ -57,6 +57,7 @@ def user_to_row(user: User, row: UserRow) -> UserRow:
     row.full_name = user.full_name
     row.role = user.role
     row.active = user.active
+    row.telegram_chat_id = user.telegram_chat_id
     return row
 
 
@@ -74,6 +75,15 @@ def row_to_user(
     row: UserRow, profile: TechnicianProfileRow | None = None, skills: SkillSet | None = None
 ) -> User:
     """Rebuild the right User subclass for the stored role (blueprint §3)."""
+    user = _row_to_user(row, profile, skills)
+    if row.telegram_chat_id:
+        user.link_telegram(row.telegram_chat_id)
+    return user
+
+
+def _row_to_user(
+    row: UserRow, profile: TechnicianProfileRow | None, skills: SkillSet | None
+) -> User:
     if not UserFactory.is_support_role(row.role):
         return UserFactory.create(
             row.role,

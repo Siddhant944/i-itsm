@@ -85,6 +85,50 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/auth/me/telegram": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Link Telegram
+     * @description Send my P1/P2 alerts to this Telegram chat (§5.4). Audited.
+     */
+    put: operations["link_telegram_auth_me_telegram_put"];
+    post?: never;
+    /**
+     * Unlink Telegram
+     * @description Stop sending my alerts to Telegram.
+     */
+    delete: operations["unlink_telegram_auth_me_telegram_delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/auth/me/telegram/test": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Test Telegram
+     * @description Send a test message to my linked chat; 503 if Telegram is down or not set up.
+     */
+    post: operations["test_telegram_auth_me_telegram_test_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/auth/register": {
     parameters: {
       query?: never;
@@ -1610,6 +1654,13 @@ export interface components {
       portal: string;
       role: components["schemas"]["Role"];
       technician?: components["schemas"]["TechnicianProfileResponse"] | null;
+      /**
+       * Telegram Available
+       * @default false
+       */
+      telegram_available: boolean;
+      /** Telegram Chat Id */
+      telegram_chat_id?: string | null;
     };
     /**
      * MetricsResponse
@@ -2191,6 +2242,14 @@ export interface components {
       team_id: number | null;
     };
     /**
+     * TelegramLinkRequest
+     * @description The chat to send P1/P2 alerts to; the user finds it by messaging the bot (§5.4).
+     */
+    TelegramLinkRequest: {
+      /** Chat Id */
+      chat_id: string;
+    };
+    /**
      * TickResponse
      * @description What one monitor run did; the demo and the tests read this.
      */
@@ -2446,6 +2505,89 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["MeResponse"];
         };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  link_telegram_auth_me_telegram_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TelegramLinkRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MeResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  unlink_telegram_auth_me_telegram_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MeResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  test_telegram_auth_me_telegram_test_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description Validation error */
       422: {

@@ -11,7 +11,11 @@ import pytest
 
 from app.core.clock import FakeClock
 from app.domain.catalogue import Category, ITService, Skill, Team
-from app.domain.errors import NetworkFailureError, UnauthorizedOperationError
+from app.domain.errors import (
+    InvalidUserInputError,
+    NetworkFailureError,
+    UnauthorizedOperationError,
+)
 from app.domain.notifications import (
     MAX_SEND_ATTEMPTS,
     ChannelName,
@@ -20,7 +24,7 @@ from app.domain.notifications import (
     NotificationEvent,
 )
 from app.domain.permissions import Role
-from app.domain.ports import EmailSender, NotificationChannel, OutgoingMessage
+from app.domain.ports import ChatSender, EmailSender, NotificationChannel, OutgoingMessage
 from app.domain.priority import Priority
 from app.domain.rule_advisor import RuleBasedAdvisor
 from app.domain.sla import default_policies
@@ -29,7 +33,13 @@ from app.domain.value_objects import SkillSet
 from app.repositories.memory import InMemoryUnitOfWork
 from app.services.dispatcher import PostCommitDispatcher
 from app.services.incident_service import IncidentService
-from app.services.notifications import ChannelFactory, EmailChannel, InAppChannel
+from app.services.notifications import (
+    ChannelFactory,
+    EmailChannel,
+    InAppChannel,
+    default_factory,
+)
+from app.services.notifications.channels import TelegramChannel
 from app.services.notifications.service import NotificationService
 from app.services.sla_monitor import AUTO_CLOSE_AFTER, SLAMonitor
 
@@ -511,3 +521,66 @@ def test_a_notification_failure_never_reaches_the_caller(
     )
     incident_id = report_low(incidents, uow)
     assert uow.incidents.get(incident_id).assignee_id is not None
+
+
+# ---------------------------------------------------------------- Telegram (P4.9)
+class RecordingChat(ChatSender):
+    name = "fake-telegram"
+
+    def __init__(self) -> None:
+        self.sent: list[tuple[str, str]] = []
+
+    def send(self, chat_id: str, text: str) -> None:
+        self.sent.append((chat_id, text))
+
+
+def test_a_p1_reaches_linked_telegram_chats_and_skips_unlinked_people(
+    uow: InMemoryUnitOfWork, clock: FakeClock, mailer: RecordingEmailSender
+) -> None:
+    chat = RecordingChat()
+    lead = next(u for u in uow.users.all() if u.role is Role.TEAM_LEAD)
+    lead.link_telegram("555000111")
+    uow.users.save(lead)
+    notifier = NotificationService(
+        uow,
+        clock,
+        default_factory(
+            email=EmailChannel(mailer, lambda user_id: _address(uow, user_id)),
+            telegram=TelegramChannel(chat, lambda user_id: uow.users.get(user_id).telegram_chat_id),
+        ),
+    )
+    incidents = IncidentService(
+        uow, clock, dispatcher=PostCommitDispatcher([notifier.on_event]), advisor=RuleBasedAdvisor()
+    )
+
+    report_low(incidents, uow)
+    assert chat.sent == []  # §5.4: Telegram only for P1 and P2
+
+    incident_id = report_high(incidents, uow)
+    assert chat.sent, "the linked Team Lead should hear about a new P1"
+    assert {chat_id for chat_id, _ in chat.sent} == {"555000111"}
+    assert all(incident_id in text for _, text in chat.sent)
+    # Unlinked recipients are skipped quietly rather than failed and retried.
+    telegram = [n for n in _all(uow) if n.channel is ChannelName.TELEGRAM]
+    assert all(n.status is DeliveryStatus.SENT for n in telegram)
+
+
+def test_a_test_message_needs_a_linked_chat_and_a_configured_bot(
+    uow: InMemoryUnitOfWork, clock: FakeClock, notifier: NotificationService
+) -> None:
+    reporter = who(uow, REPORTER)
+    with pytest.raises(NetworkFailureError):  # this deployment has no Telegram channel
+        notifier.send_test(reporter, ChannelName.TELEGRAM)
+
+    chat = RecordingChat()
+    with_bot = NotificationService(
+        uow,
+        clock,
+        default_factory(telegram=TelegramChannel(chat, lambda _: reporter.telegram_chat_id)),
+    )
+    with pytest.raises(InvalidUserInputError):
+        with_bot.send_test(reporter, ChannelName.TELEGRAM)
+    reporter.link_telegram("42")
+    with_bot.send_test(reporter, ChannelName.TELEGRAM)
+    assert chat.sent == [("42", chat.sent[0][1])]
+    assert "I-ITSM test message" in chat.sent[0][1]

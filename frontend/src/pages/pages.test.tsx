@@ -14,6 +14,7 @@ import { RegisterPage } from "./auth/RegisterPage";
 import { MyIncidentsPage } from "./employee/MyIncidentsPage";
 import { ReportPage } from "./employee/ReportPage";
 import { IncidentDetailPage } from "./incident/IncidentDetailPage";
+import { TelegramSettings } from "../components/TelegramSettings";
 import { QueuePage } from "./technician/QueuePage";
 
 const TOKEN = {
@@ -902,5 +903,43 @@ describe("suggested resolution (§6.1)", () => {
     });
     expect(await screen.findByText("Wi-Fi down")).toBeInTheDocument();
     expect(calls.some((c) => c.path.endsWith("/suggested-resolution"))).toBe(false);
+  });
+});
+
+describe("Telegram alerts (P4.9)", () => {
+  it("links a chat, then offers a test and unlinking", async () => {
+    let linked: string | null = null;
+    const { calls } = renderPage(<TelegramSettings onClose={() => undefined} />, {
+      user: me("technician", 3),
+      routes: {
+        "GET /auth/me": () => ({
+          ...me("technician", 3),
+          telegram_chat_id: linked,
+          telegram_available: true,
+        }),
+        "PUT /auth/me/telegram": (body: unknown) => {
+          linked = (body as { chat_id: string }).chat_id;
+          return { ...me("technician", 3), telegram_chat_id: linked, telegram_available: true };
+        },
+        "POST /auth/me/telegram/test": () => new Response(null, { status: 204 }),
+      },
+    });
+    await userEvent.type(await screen.findByLabelText("Telegram chat ID"), "123456789");
+    await userEvent.click(screen.getByRole("button", { name: "Link" }));
+    await waitFor(() => {
+      expect(calls.find((c) => c.method === "PUT")?.body).toEqual({ chat_id: "123456789" });
+    });
+    const linkedRow = await screen.findByTestId("telegram-linked");
+    expect(linkedRow).toHaveTextContent("Alerts go to chat 123456789.");
+    await userEvent.click(within(linkedRow).getByRole("button", { name: "Send a test" }));
+    expect(await screen.findByText("Test message sent. Check Telegram.")).toBeInTheDocument();
+  });
+
+  it("says when the deployment has no bot, and keeps the chat for later", async () => {
+    renderPage(<TelegramSettings onClose={() => undefined} />, {
+      user: { ...me("employee"), telegram_chat_id: "42", telegram_available: false },
+    });
+    expect(await screen.findByText(/no Telegram bot set up yet/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send a test" })).toBeDisabled();
   });
 });

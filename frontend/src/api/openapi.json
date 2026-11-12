@@ -1174,6 +1174,22 @@
                 "type": "null"
               }
             ]
+          },
+          "telegram_available": {
+            "default": false,
+            "title": "Telegram Available",
+            "type": "boolean"
+          },
+          "telegram_chat_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Chat Id"
           }
         },
         "required": [
@@ -2619,6 +2635,22 @@
         "title": "TechnicianProfileResponse",
         "type": "object"
       },
+      "TelegramLinkRequest": {
+        "description": "The chat to send P1/P2 alerts to; the user finds it by messaging the bot (\u00a75.4).",
+        "properties": {
+          "chat_id": {
+            "maxLength": 21,
+            "minLength": 1,
+            "title": "Chat Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chat_id"
+        ],
+        "title": "TelegramLinkRequest",
+        "type": "object"
+      },
       "TickResponse": {
         "description": "What one monitor run did; the demo and the tests read this.",
         "properties": {
@@ -3157,6 +3189,97 @@
           }
         ],
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me/telegram": {
+      "delete": {
+        "description": "Stop sending my alerts to Telegram.",
+        "operationId": "unlink_telegram_auth_me_telegram_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Unlink Telegram",
+        "tags": [
+          "auth"
+        ]
+      },
+      "put": {
+        "description": "Send my P1/P2 alerts to this Telegram chat (\u00a75.4). Audited.",
+        "operationId": "link_telegram_auth_me_telegram_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Link Telegram",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me/telegram/test": {
+      "post": {
+        "description": "Send a test message to my linked chat; 503 if Telegram is down or not set up.",
+        "operationId": "test_telegram_auth_me_telegram_test_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Test Telegram",
         "tags": [
           "auth"
         ]

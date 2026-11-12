@@ -18,7 +18,13 @@ from app.core.clock import Clock
 from app.core.security import PasswordHasher, TokenService
 from app.domain.errors import InvalidLoginError, ITSMError
 from app.domain.permissions import Permission
-from app.domain.ports import AIAdvisor, EmailSender, EmbeddingProvider, ResolutionSummarizer
+from app.domain.ports import (
+    AIAdvisor,
+    ChatSender,
+    EmailSender,
+    EmbeddingProvider,
+    ResolutionSummarizer,
+)
 from app.domain.repositories import UnitOfWork
 from app.domain.similarity import TfIdfEmbeddings
 from app.domain.users import User
@@ -31,6 +37,7 @@ from app.services.duplicates import DuplicateDetector
 from app.services.incident_service import IncidentService
 from app.services.live import LiveHub, LivePublisher
 from app.services.notifications import EmailChannel, default_factory
+from app.services.notifications.channels import TelegramChannel
 from app.services.notifications.service import NotificationService
 from app.services.resolution_advisor import ResolutionAdvisor
 from app.services.search import SearchService
@@ -58,6 +65,8 @@ class Services:
     summarizer: ResolutionSummarizer | None = None
     #: P4.8: the open WebSockets; one per process.
     live: LiveHub = field(default_factory=LiveHub)
+    #: P4.9: the Telegram Bot API when TELEGRAM_BOT_TOKEN is set; otherwise no Telegram channel.
+    telegram: ChatSender | None = None
 
 
 def get_services(request: Request) -> Services:
@@ -98,7 +107,10 @@ AuditDep = Annotated[AuditService, Depends(get_audit_service)]
 def get_notification_service(services: ServicesDep, uow: UowDep) -> NotificationService:
     """The notification service for this request, with the channels this deployment has."""
     channels = default_factory(
-        email=EmailChannel(services.email, lambda user_id: _address(uow, user_id))
+        email=EmailChannel(services.email, lambda user_id: _address(uow, user_id)),
+        telegram=None
+        if services.telegram is None
+        else TelegramChannel(services.telegram, lambda user_id: _chat(uow, user_id)),
     )
     return NotificationService(uow, services.clock, channels)
 
@@ -110,6 +122,14 @@ def _address(uow: UnitOfWork, user_id: int) -> str | None:
     """A recipient's email, or None when the account has gone."""
     try:
         return str(uow.users.get(user_id).email)
+    except ITSMError:
+        return None
+
+
+def _chat(uow: UnitOfWork, user_id: int) -> str | None:
+    """A recipient's linked Telegram chat, or None."""
+    try:
+        return uow.users.get(user_id).telegram_chat_id
     except ITSMError:
         return None
 

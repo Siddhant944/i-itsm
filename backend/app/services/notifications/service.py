@@ -13,7 +13,12 @@ from collections.abc import Iterable, Sequence
 
 from app.core.clock import Clock
 from app.domain.catalogue import fallback_lead
-from app.domain.errors import ITSMError, UnauthorizedOperationError
+from app.domain.errors import (
+    InvalidUserInputError,
+    ITSMError,
+    NetworkFailureError,
+    UnauthorizedOperationError,
+)
 from app.domain.events import (
     CategoryChanged,
     DomainEvent,
@@ -167,6 +172,24 @@ class NotificationService:
         self.__uow.notifications.save(notification)
         self.__uow.commit()
         return notification
+
+    def send_test(self, user: User, channel_name: ChannelName) -> None:
+        """Send ``user`` a test message now, so they can see a linked channel works (P4.9).
+
+        Unlike an alert this does raise: the person pressing "send a test" wants to know.
+        """
+        channel = self.__channels.get(channel_name)
+        if channel is None:
+            raise NetworkFailureError(f"{channel_name.value} is not set up on this deployment.")
+        if channel_name is ChannelName.TELEGRAM and user.telegram_chat_id is None:
+            raise InvalidUserInputError({"chat_id": "Link a Telegram chat first."})
+        channel.send(
+            OutgoingMessage(
+                recipient_id=user.id,
+                subject="I-ITSM test message",
+                body="Your alerts for critical and high-priority incidents will arrive here.",
+            )
+        )
 
     # ------------------------------------------------------------ internals
     def __handle(self, event: DomainEvent) -> None:

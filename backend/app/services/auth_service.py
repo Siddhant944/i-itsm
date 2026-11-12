@@ -76,6 +76,24 @@ class AuthService:
         self.__policy = policy or AuthPolicy()
         self.__audit = AuditService(uow.audit, clock)
 
+    # ------------------------------------------------------------ the caller's own profile
+    def link_telegram(self, user: User, chat_id: str) -> User:
+        """Send this user's P1/P2 alerts to a Telegram chat (§5.4, P4.9); audited."""
+        user.link_telegram(chat_id)
+        return self.__save_profile(user, {"telegram": "linked"})
+
+    def unlink_telegram(self, user: User) -> User:
+        user.unlink_telegram()
+        return self.__save_profile(user, {"telegram": "unlinked"})
+
+    def __save_profile(self, user: User, details: dict[str, object]) -> User:
+        self.__uow.users.save(user)
+        self.__audit.record(
+            AuditAction.USER_MANAGED, actor_id=user.id, details={"user_id": user.id, **details}
+        )
+        self.__uow.commit()
+        return user
+
     # ------------------------------------------------------------ registration
     def register(self, email: str, full_name: str, password: str) -> User:
         """Create an Employee account. Commits, so the caller can sign in straight away."""
