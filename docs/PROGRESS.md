@@ -2,34 +2,89 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P4 Intelligence and integrations — in progress (12 Nov, checkpoint)
+## Status: P4 Intelligence and integrations — packages done, phase review in progress (12 Nov)
 
-On `claude/awesome-brahmagupta-65bn2j`, cut from main after the P3 PR merged. `make verify`
-passes: 1000 backend tests, 94 frontend tests; Playwright WF1, WF2 and WF3 pass.
+On `claude/awesome-brahmagupta-65bn2j`, cut from main after the P3 PR merged. Every P4 package
+still in scope after D-027 is done. `make verify` passes: 1048 backend tests and 103 frontend
+tests. Playwright passes WF1, WF2, the new WF3 and a live-update spec (`make e2e`, 5 specs).
 
-### Done so far
-- **P4.1 Duplicates (BR-09).** Hybrid score of §6.2 (TF-IDF offline, Gemini embeddings when
-  configured, stored per incident); θ = 0.49 and θ-high = 0.89 tuned on 52 labelled pairs
-  (`docs/testing/duplicates.md`: F1 0.92 and 1.00; text alone at 60 % gets F1 0.68). While
-  typing the form offers open look-alikes and "Follow this instead"; the same reporter's
-  near-identical report within 30 min is 409 with a link; staff confirm a possible duplicate
-  in two clicks; followers are told when the parent is resolved (D-005, D-030, D-031).
-- **P4.2 Correlation.** BFS over `depends_on`; the incident page names the likely root cause
-  ("Likely related to INC-… (Database Cluster): possible root cause.") and what an outage
-  may be causing. Staff only.
-- **P4.3 WF3 in Playwright.** Database P1 → three payment tickets → one followed, one
-  confirmed → root cause shown → escalation to levels 1 and 2 on the fake clock.
-- **P4.4 Gemini classifier** behind the rules (FallbackAdvisor); every AI classification is
-  audited with source and confidence. Wired only when `GEMINI_API_KEY` and `GEMINI_MODEL`
-  are set; untested against the real API until someone provides a key.
-- **P4.5 Predictive SLA risk (§6.3)** with the 75 % fallback below ten samples; staff see a
-  chip and the reason. Scope in D-032 (needs the team's confirmation).
-- **P4.6** was already done in P3 (top three with reasons; WF1 asserts them).
-- **P4.7 Suggested resolution.** Three most similar past fixes; a Gemini summary may cite
-  only those (checked); "Use this fix…" copies into the resolve box to edit.
+**Back on plan, a day ahead of the freeze.** P4 was planned for 11-14 Nov and finished on the
+12th. The feature freeze is on the 16th.
+
+### Done
+- **P4.1 Duplicates (BR-09, §6.2).** `domain/similarity.py` has the hybrid score
+  0.6·cos + 0.25·same service + 0.15·e^(−Δt/2 h) over a pure-Python TF-IDF, or over Gemini
+  embeddings when configured (stored per incident, tagged with their model; D-030).
+  θ = 0.49 and θ-high = 0.89 maximise F1 on 52 hand-labelled pairs; `scripts/tune_duplicates.py`
+  writes `docs/testing/duplicates.md` (F1 0.92 and 1.00; text alone at 60 % gets 0.68 and misses
+  the brief's own INC101-INC103), and a test fails if the constants drift. While typing, the
+  report form lists open look-alikes with their score and reasons and offers "Follow this
+  instead"; the same reporter's near-identical report within 30 minutes is a 409 that links
+  to the first; whoever works an incident sees possible duplicates and confirms one in two
+  clicks. Followers see what their report is linked to (id, title, status: BR-01 still
+  applies) and are told when it is resolved (D-005, D-031).
+- **P4.2 Correlation (§6.2).** BFS over `depends_on` both ways. A live P1/P2 on a service an
+  incident depends on is its possible root cause, nearest then most urgent then closest in
+  time; staff see "Likely related to INC-… (Database Cluster): possible root cause." and the
+  path of services, plus what an outage may be causing.
+- **P4.3 Workflow 3 in Playwright.** A Database P1, then the brief's three payment tickets
+  from three people: one submits anyway, one follows, the assignee confirms the duplicate,
+  the admin sees two linked reports and the root cause, and moving the fake clock escalates
+  the P1 to levels 1 and 2 (BR-08). It found a real ranking bug, fixed in P4.2.
+- **P4.4 Gemini classifier (§6.1).** Prompt built from the live category list, ticket
+  delimited as data, JSON schema, 8 s timeout and one retry, answer checked against the real
+  category ids; `FallbackAdvisor` answers with the keyword rules on any outage or bad answer.
+  Every AI classification is audited with its source and confidence.
+- **P4.5 Predictive SLA risk (§6.3).** P(breach) = |T>R| / |T>e| over comparable resolved
+  incidents, AT_RISK at 0.5, the 75 % rule below ten samples, with a plain-words reason. Staff
+  see a chip; the stored SLA status keeps the 75 % rule (D-032, needs confirming).
+- **P4.6** was done in P3: the top three technicians with reasons (WF1 asserts them).
+- **P4.7 Suggested resolution (§6.1).** The three most similar resolved incidents; a Gemini
+  summary that may cite only those ids (checked in its citation list and its text, refused
+  otherwise). "Use this fix…" copies into the resolve box to edit; nothing is applied.
+- **P4.8 WebSockets (§6.4).** `/ws`, token in the first message, pushes of an incident id and
+  status only, after the commit, to the reporter, the assignee and leads and admins; the
+  browser refetches through the API. Polling drops to 60 s while live and returns to 10 s,
+  with a banner, while reconnecting (D-033; replaces D-024).
+- **P4.9 Telegram alerts (§5.4).** Bot API adapter whose errors never carry the token;
+  P1/P2 alerts to users who linked a chat ("Telegram alerts" in the user menu); a test
+  message button (D-034).
+- **P4.10 Google Sign-In (§8).** ID token checked against Google's keys, audience, issuer,
+  expiry on the injected Clock and `email_verified`; `hd` must be the campus domain (D-008);
+  the first sign-in creates an Employee, an existing account is linked by verified email
+  and never to a second Google account (D-035).
+- **Every feature degrades with its service off** (P4.14): no Gemini key → keyword rules,
+  TF-IDF, a fix list without a summary; Gemini down or answering nonsense → the same, logged;
+  no bot token → no Telegram channel; no Google settings → no button and a 503; socket down
+  → polling. Each path has a test.
+- Also fixed along the way: incident responses after an action now carry their duplicate
+  links; `live` tests are actually skipped unless `RUN_LIVE_TESTS=1`.
+
+### Phase review
+A fresh-context review of the whole phase diff is under way; its findings and fixes are recorded here before the PR opens.
 
 ### Next
-- P4.8 WebSockets, P4.9 Telegram alerts, P4.10 Google Sign-In, P4.14 phase close.
+- **P5 Hardening** (15-16 Nov): production settings and CORS on the host (P5.1), coverage
+  gate (P5.3), all three workflows in CI (P5.4), `make demo-reset` (P5.5, see below), UX pass
+  (P5.6). Restore cut items only if time remains, in D-027's reverse order.
+- For **P5.5**, still: the seeded history was never watched by the monitor, so the first tick
+  after a seed records ~170 breaches and ~60 escalations at once (visible in the e2e log).
+- For **P5.6**: sidebar portals below ~900 px, and splitting the bundle by portal.
+
+### Needs a human
+1. **Review and merge this PR.** Add the `e2e` label so Playwright runs in CI.
+2. **Keys, for the features to run for real** (all go into the host's secrets, never the repo):
+   `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_EMBEDDING_MODEL`; `TELEGRAM_BOT_TOKEN`;
+   `GOOGLE_CLIENT_ID`, `GOOGLE_HD_DOMAIN` and `VITE_GOOGLE_CLIENT_ID`. Nothing has been tried
+   against the real Gemini, Telegram or Google APIs yet. With a key, `RUN_LIVE_TESTS=1 make test`
+   runs the live Gemini test.
+3. **Re-tune θ with Gemini.** The thresholds are tuned for TF-IDF. Once a key exists, run
+   `scripts/tune_duplicates.py` with the Gemini provider before the demo, or keep TF-IDF.
+4. **Confirm D-032** (predictive risk shown on the incident; search, dashboard and monitor
+   keep the 75 % rule) and **D-028** from P3 (any Team Lead may pick up an unassigned incident).
+5. **Review the 52 labelled duplicate pairs** in `backend/tests/fixtures/duplicate_pairs.json`.
+6. Still open from P3: create the Render and Neon accounts and deploy (docs/DEPLOY.md), dry
+   run 2 on 15 Nov, and confirm the video file-name year with the IC.
 
 ## Previous: P3 Frontend MVP and first deployment (merged 11 Nov, PR #4)
 
