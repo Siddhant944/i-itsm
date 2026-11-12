@@ -51,7 +51,11 @@ test("WF1: a reported incident is classified, prioritised, put on an SLA and ass
   await expect(
     page.getByRole("heading", { name: "Wifi keeps dropping" }),
   ).toBeVisible();
-  await expect(page.getByText("Assigned", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByTestId("incident-status-bar")
+      .getByText("Assigned", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText(/^P[12] /)).toBeVisible();
   await expect(page.getByTestId("sla-chip")).toContainText("Response due in");
   await expect.poll(() => detail(page, "Category")).toBe("Network");

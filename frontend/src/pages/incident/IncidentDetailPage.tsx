@@ -589,7 +589,7 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
         <Link to={PORTAL_HOME[portal]} className="text-sm text-muted underline">
           ← Back to the list
         </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div data-testid="incident-status-bar" className="mt-2 flex flex-wrap items-center gap-2">
           <span className="font-mono text-sm text-muted">{incident.id}</span>
           <StatusBadge status={incident.status} />
           <PriorityBadge priority={incident.priority} />

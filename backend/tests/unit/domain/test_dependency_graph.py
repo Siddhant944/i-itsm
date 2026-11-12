@@ -133,6 +133,18 @@ def test_the_nearest_then_the_most_urgent_cause_comes_first(
     assert [c.incident.id for c in causes] == [database_p1.id, identity_p2.id, network.id]
 
 
+def test_between_equals_the_outage_reported_closest_in_time_wins(
+    graph: DependencyGraph, clock: FakeClock
+) -> None:
+    """An old open P1 on a sibling dependency should not mask the one that just started."""
+    stale = incident(clock, IDENTITY, Priority.P1)
+    clock.advance(timedelta(days=3))
+    fresh = incident(clock, DATABASE, Priority.P1)
+    fees = incident(clock, FEES)
+    causes = correlate(fees, graph, [stale, fresh]).root_causes
+    assert [c.incident.id for c in causes] == [fresh.id, stale.id]
+
+
 def test_no_hint_from_minor_unrelated_or_finished_incidents(
     graph: DependencyGraph, clock: FakeClock
 ) -> None:

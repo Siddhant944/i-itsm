@@ -10,7 +10,7 @@ Pure: the caller hands in the services and the open incidents; nothing here read
 """
 
 from collections import deque
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from app.domain.catalogue import ITService
@@ -100,7 +100,8 @@ class Correlation:
 class CorrelationReport:
     """What the graph says about one incident (§6.2)."""
 
-    #: Open P1/P2 incidents on services this one depends on, nearest and most urgent first.
+    #: Open P1/P2 incidents on services this one depends on: nearest, most urgent, then
+    #: closest in time first.
     root_causes: tuple[Correlation, ...]
     #: Open incidents on services that depend on this one's service.
     impacted: tuple[Correlation, ...]
@@ -114,10 +115,21 @@ def _is_live(incident: Incident) -> bool:
     return incident.status in LIVE_STATUSES
 
 
-def _urgency(correlation: Correlation) -> tuple[int, str, str]:
-    priority = correlation.incident.priority
-    rank = priority.rank if priority is not None else len(Priority) + 1
-    return (rank, correlation.incident.created_at.isoformat(), correlation.incident.id)
+def _ordering(incident: Incident) -> Callable[[Correlation], tuple[int, int, float, str]]:
+    """Nearest in the graph, then most urgent, then reported closest in time to ``incident``.
+
+    Closeness in time breaks the tie because an outage reported minutes before is far more
+    likely to be the cause than one that has been open for days (§6.2 weighs time for
+    duplicates for the same reason).
+    """
+
+    def key(correlation: Correlation) -> tuple[int, int, float, str]:
+        other = correlation.incident
+        rank = other.priority.rank if other.priority is not None else len(Priority) + 1
+        gap = abs((other.created_at - incident.created_at).total_seconds())
+        return (correlation.reach.hops, rank, gap, other.id)
+
+    return key
 
 
 def correlate(
@@ -141,8 +153,8 @@ def correlate(
             causes.append(Correlation(other, upstream[other.service_id]))
         elif other.service_id in downstream:
             impacted.append(Correlation(other, downstream[other.service_id]))
-    causes.sort(key=lambda c: (c.reach.hops, *_urgency(c)))
-    impacted.sort(key=lambda c: (c.reach.hops, *_urgency(c)))
+    causes.sort(key=_ordering(incident))
+    impacted.sort(key=_ordering(incident))
     return CorrelationReport(tuple(causes), tuple(impacted))
 
 

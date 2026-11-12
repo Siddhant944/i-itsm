@@ -96,3 +96,30 @@ export async function assigneeName(page: Page): Promise<string> {
     .toMatch(/^(?!Unassigned$|…$|User \d+$).+/);
   return detail(page, "Assigned to");
 }
+
+/** A bearer token for ``email``, for the few steps a person would not click (moving time). */
+export async function tokenFor(page: Page, email: string): Promise<string> {
+  const login = await page.request.post(`${API}/auth/login`, {
+    data: { email, password: PASSWORD },
+  });
+  expect(login.ok()).toBeTruthy();
+  const { access_token: token } = (await login.json()) as {
+    access_token: string;
+  };
+  return token;
+}
+
+/** D-009: move the fake clock forward and run the SLA monitor, as the scheduler would. */
+export async function advanceClock(
+  page: Page,
+  token: string,
+  seconds: number,
+): Promise<{ escalated: string[] }> {
+  const moved = await page.request.post(`${API}/dev/clock/advance`, {
+    data: { seconds, tick: true },
+    headers: { Authorization: `Bearer ${token}` },
+    timeout: 120_000,
+  });
+  expect(moved.ok(), await moved.text()).toBeTruthy();
+  return (await moved.json()) as { escalated: string[] };
+}
