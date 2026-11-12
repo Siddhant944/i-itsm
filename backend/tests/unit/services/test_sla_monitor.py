@@ -519,3 +519,40 @@ def test_escalation_stops_when_nobody_is_left_above_the_current_owner(
     assert report.escalations == ()
     assert uow.incidents.get(incident.id).assignee_id == MANAGER
     assert uow.incidents.get(incident.id).escalation_level == 3
+
+
+def test_an_unclassified_incident_is_not_asked_about_escalation(
+    monitor: SLAMonitor,
+    uow: InMemoryUnitOfWork,
+    clock: FakeClock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """§4 has no NEW → ASSIGNED move, so a NEW incident cannot be escalated (issue #6).
+
+    The monitor used to try, fail and log a warning on every tick for the life of the row;
+    eight of the seeded incidents are NEW, so that was a warning every three real seconds in
+    the demo. The breach itself is still recorded.
+    """
+    incident = IncidentFactory.create(
+        sequence=1,
+        clock=clock,
+        reporter_id=REPORTER,
+        title="Wi-Fi down across campus",
+        description="No wifi anywhere",
+        service_id=WIFI,
+        impact=3,
+        urgency=3,
+    )
+    incident.prioritise(PriorityAssessment(Priority.P1, 27, "fixture"), clock)
+    incident.apply_sla(P1_TARGET)
+    incident.pull_events()
+    uow.incidents.add(incident)
+    clock.advance(timedelta(minutes=16))
+
+    with caplog.at_level("WARNING", logger="app.services.sla_monitor"):
+        report = monitor.tick()
+
+    assert report.escalations == ()
+    assert ViolationKind.RESPONSE_BREACH in kinds(uow, incident.id)
+    assert uow.incidents.get(incident.id).status is S.NEW
+    assert caplog.records == []
