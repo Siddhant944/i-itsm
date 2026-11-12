@@ -155,6 +155,7 @@ describe("the employee portal", () => {
         impact: 1,
         urgency: 3,
         category_id: null,
+        follow: null,
       });
     });
     expect(await screen.findByText(/INC-2026-0001 reported as P2/)).toBeInTheDocument();
@@ -613,5 +614,140 @@ describe("the admin portal", () => {
       },
     });
     expect(await screen.findByText("No incidents match these filters")).toBeInTheDocument();
+  });
+});
+
+describe("duplicates (§6.2, BR-09)", () => {
+  const lookalike = {
+    id: "INC-2026-0040",
+    title: "Fee portal down",
+    status: "ASSIGNED",
+    created_at: "2026-11-06T08:50:00Z",
+    score: 0.81,
+    reasons: ["text 64 % alike", "same service", "reported close together"],
+  };
+
+  it("offers a similar open incident while typing, and follows it only when asked", async () => {
+    const { calls } = renderPage(<ReportPage />, {
+      user: me("employee"),
+      routes: {
+        "POST /incidents/classify": apiError(503, "Classifier unavailable."),
+        "POST /incidents/similar": { provider: "tfidf", candidates: [lookalike] },
+        "POST /incidents": {
+          incident: incident({ status: "CANCELLED", cancel_reason: "duplicate" }),
+          suggestion: null,
+          assignment: null,
+          needs_triage: false,
+          queued_for_team_lead: false,
+          possible_duplicates: [lookalike],
+          followed: { id: "INC-2026-0040", title: "Fee portal down", status: "ASSIGNED" },
+        },
+      },
+    });
+    await userEvent.type(await screen.findByLabelText(/one line/), "Fee payment portal error");
+    const hint = await screen.findByTestId("similar-incidents", {}, { timeout: 3000 });
+    expect(hint).toHaveTextContent("INC-2026-0040");
+    expect(hint).toHaveTextContent("81% match");
+    expect(hint).toHaveTextContent("same service");
+
+    await userEvent.type(screen.getByLabelText("What happened?"), "Cannot pay");
+    await userEvent.selectOptions(screen.getByLabelText(/Which service/), "1");
+    await userEvent.click(screen.getByLabelText("Just me"));
+    await userEvent.click(screen.getByLabelText("I am blocked"));
+    // Typing changed the text, so the hint is recomputed for it before it can be followed.
+    const fresh = await screen.findByTestId("similar-incidents", {}, { timeout: 3000 });
+    await userEvent.click(within(fresh).getByRole("button", { name: "Follow this instead" }));
+    await userEvent.click(screen.getByRole("button", { name: "Follow INC-2026-0040" }));
+
+    await waitFor(() => {
+      const sent = calls.find((c) => c.method === "POST" && c.path === "/incidents")?.body;
+      expect(sent).toMatchObject({ follow: "INC-2026-0040" });
+    });
+    expect(await screen.findByText(/You are following INC-2026-0040/)).toBeInTheDocument();
+  });
+
+  it("explains a refused repeat and links to the first report", async () => {
+    renderPage(<ReportPage />, {
+      user: me("employee"),
+      routes: {
+        "POST /incidents/classify": apiError(503, "Classifier unavailable."),
+        "POST /incidents": () =>
+          new Response(
+            JSON.stringify({
+              error: {
+                code: "duplicate_incident",
+                message: "This looks like INC-2026-0040, which you reported recently.",
+                details: { existing_incident_id: "INC-2026-0040" },
+              },
+            }),
+            { status: 409, headers: { "Content-Type": "application/json" } },
+          ),
+      },
+    });
+    await userEvent.type(await screen.findByLabelText(/one line/), "Fee portal down");
+    await userEvent.type(screen.getByLabelText("What happened?"), "Error 503");
+    await userEvent.selectOptions(screen.getByLabelText(/Which service/), "1");
+    await userEvent.click(screen.getByLabelText("Just me"));
+    await userEvent.click(screen.getByLabelText("I am blocked"));
+    await userEvent.click(screen.getByRole("button", { name: "Submit incident" }));
+    const refused = await screen.findByTestId("repeat-report");
+    expect(refused).toHaveTextContent("You reported this a few minutes ago.");
+    expect(within(refused).getByRole("link", { name: "INC-2026-0040" })).toHaveAttribute(
+      "href",
+      "/employee/incidents/INC-2026-0040",
+    );
+  });
+
+  it("lets the technician confirm a possible duplicate, in two clicks", async () => {
+    const { calls } = renderRoutes(
+      [{ path: "/technician/incidents/:id", element: <IncidentDetailPage /> }],
+      {
+        path: "/technician/incidents/INC-2026-0001",
+        user: me("technician", 3),
+        routes: {
+          "GET /incidents/INC-2026-0001": incident(),
+          "GET /incidents/INC-2026-0001/possible-duplicates": {
+            provider: "tfidf",
+            candidates: [lookalike],
+          },
+          "POST /incidents/INC-2026-0001/confirm-duplicate": incident({
+            status: "CANCELLED",
+            cancel_reason: "duplicate",
+            parent_id: "INC-2026-0040",
+          }),
+        },
+      },
+    );
+    const found = await screen.findByTestId("possible-duplicate");
+    expect(found).toHaveTextContent("Fee portal down");
+    expect(found).toHaveTextContent("81% match");
+    await userEvent.click(within(found).getByRole("button", { name: "Confirm duplicate…" }));
+    await userEvent.click(
+      within(found).getByRole("button", { name: "Cancel INC-2026-0001 as its duplicate" }),
+    );
+    await waitFor(() => {
+      expect(calls.find((c) => c.path.endsWith("/confirm-duplicate"))?.body).toEqual({
+        parent_id: "INC-2026-0040",
+      });
+    });
+  });
+
+  it("tells a follower what their report is linked to, without a link they cannot open", async () => {
+    detail({
+      user: me("employee", 1),
+      routes: {
+        "GET /incidents/INC-2026-0001": incident({
+          status: "CANCELLED",
+          cancel_reason: "duplicate",
+          parent_id: "INC-2026-0040",
+          duplicate_of: { id: "INC-2026-0040", title: "Fee portal down", status: "IN_PROGRESS" },
+        }),
+      },
+    });
+    const banner = await screen.findByTestId("linked-duplicate");
+    expect(banner).toHaveTextContent("same problem as INC-2026-0040 (Fee portal down)");
+    expect(banner).toHaveTextContent("we will tell you when it is fixed");
+    expect(screen.queryByRole("link", { name: "INC-2026-0040" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Possible duplicates")).not.toBeInTheDocument();
   });
 });

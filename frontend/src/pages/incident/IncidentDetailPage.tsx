@@ -9,6 +9,7 @@ import {
   useIncident,
   useIncidentAction,
   useNames,
+  usePossibleDuplicates,
   useTeams,
   type Incident,
   type IncidentAction,
@@ -359,6 +360,98 @@ function AssignmentPanel({
   );
 }
 
+/**
+ * §6.2, BR-09: open incidents this one resembles. Confirming one cancels this incident as its
+ * duplicate and its reporter then follows the other (D-005). Nothing happens without a click.
+ */
+function DuplicatePanel({
+  incident,
+  busy,
+  onConfirm,
+}: {
+  incident: Incident;
+  busy: boolean;
+  onConfirm: (parentId: string) => void;
+}) {
+  const portal = usePortal();
+  const found = usePossibleDuplicates(incident.id, true);
+  const [chosen, setChosen] = useState<string | null>(null);
+  return (
+    <Card title="Possible duplicates">
+      {found.isPending && <Skeleton rows={2} label="Comparing with open incidents" />}
+      {found.isError && <ErrorState error={found.error} />}
+      {found.data !== undefined && found.data.candidates.length === 0 && (
+        <p className="text-sm text-muted">No open incident looks like this one.</p>
+      )}
+      {found.data !== undefined && found.data.candidates.length > 0 && (
+        <>
+          <p className="mb-3 text-xs text-muted">
+            Compared by text, service and time (
+            {found.data.provider === "tfidf" ? "offline TF-IDF" : found.data.provider}).
+          </p>
+          <ul className="space-y-2">
+            {found.data.candidates.map((candidate) => (
+              <li
+                key={candidate.id}
+                data-testid="possible-duplicate"
+                className="rounded-md border border-line px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <Link
+                    className="text-sm font-medium underline"
+                    to={incidentPath(portal, candidate.id)}
+                  >
+                    {candidate.id}
+                  </Link>
+                  <StatusBadge status={candidate.status} />
+                </div>
+                <p className="mt-1 text-sm">{candidate.title}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {String(Math.round(candidate.score * 100))}% match ·{" "}
+                  {candidate.reasons.join(" · ")}
+                </p>
+                <div className="mt-2 flex justify-end">
+                  {chosen === candidate.id ? (
+                    <span className="flex gap-2">
+                      <Button
+                        small
+                        onClick={() => {
+                          setChosen(null);
+                        }}
+                      >
+                        Not this one
+                      </Button>
+                      <Button
+                        small
+                        variant="danger"
+                        busy={busy}
+                        onClick={() => {
+                          onConfirm(candidate.id);
+                        }}
+                      >
+                        Cancel {incident.id} as its duplicate
+                      </Button>
+                    </span>
+                  ) : (
+                    <Button
+                      small
+                      onClick={() => {
+                        setChosen(candidate.id);
+                      }}
+                    >
+                      Confirm duplicate…
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
+  );
+}
+
 /** The incident's hash-chained audit records (BR-10), for roles that may read the log. */
 function AuditTrail({ incidentId }: { incidentId: string }) {
   const audit = useAudit(0, 50, incidentId);
@@ -480,6 +573,29 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
             </Button>
           </div>
         </div>
+      )}
+
+      {incident.duplicate_of !== null && incident.duplicate_of !== undefined && (
+        <div
+          role="status"
+          data-testid="linked-duplicate"
+          className="rounded-lg border border-line bg-raised px-4 py-3 text-sm"
+        >
+          <p className="font-medium">
+            This is the same problem as {incident.duplicate_of.id} ({incident.duplicate_of.title}).
+          </p>
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+            That incident is <StatusBadge status={incident.duplicate_of.status} /> and we will tell
+            you when it is fixed.
+          </p>
+        </div>
+      )}
+      {incident.duplicate_count > 0 && (
+        <p className="text-sm text-muted" data-testid="duplicate-count">
+          {incident.duplicate_count === 1
+            ? "1 other report is linked to this incident as a duplicate."
+            : `${String(incident.duplicate_count)} other reports are linked to this incident as duplicates.`}
+        </p>
       )}
 
       <div className="grid gap-5 lg:grid-cols-3">
@@ -683,13 +799,31 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
               )}
               {incident.parent_id !== null && (
                 <Fact label="Duplicate of">
-                  <Link className="underline" to={incidentPath(portal, incident.parent_id)}>
-                    {incident.parent_id}
-                  </Link>
+                  {/* BR-01: a reporter may not open someone else's incident, so no link. */}
+                  {portal === "employee" ? (
+                    incident.parent_id
+                  ) : (
+                    <Link className="underline" to={incidentPath(portal, incident.parent_id)}>
+                      {incident.parent_id}
+                    </Link>
+                  )}
                 </Fact>
               )}
             </dl>
           </Card>
+
+          {allowed.confirmDuplicate && (
+            <DuplicatePanel
+              incident={incident}
+              busy={busy}
+              onConfirm={(parentId) => {
+                run(
+                  { kind: "confirm-duplicate", parentId },
+                  `${incident.id} cancelled as a duplicate of ${parentId}; its reporter now follows ${parentId}.`,
+                );
+              }}
+            />
+          )}
 
           {allowed.reassign && (
             <AssignmentPanel

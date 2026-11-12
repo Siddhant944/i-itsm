@@ -19,6 +19,7 @@ export interface Available {
   provideInformation: boolean;
   verify: boolean;
   cancel: boolean;
+  confirmDuplicate: boolean;
 }
 
 const OPEN: readonly Status[] = [
@@ -71,6 +72,8 @@ export function availableActions(
     provideInformation: isReporter && can("incident:add_info") && open,
     verify: isReporter && can("incident:verify") && status === "RESOLVED",
     cancel: open && ((isReporter && can("incident:cancel_own")) || can("incident:cancel_any")),
+    // BR-09: whoever may work it confirms; a duplicate only of something still open.
+    confirmDuplicate: can("incident:confirm_duplicate") && works && open,
   };
 }
 

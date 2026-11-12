@@ -77,6 +77,7 @@ const PERMISSIONS: Record<Schemas["Role"], Schemas["Permission"][]> = {
     "incident:work",
     "incident:override_priority",
     "incident:override_category",
+    "incident:confirm_duplicate",
     "workload:view_own",
   ],
   team_lead: [],
@@ -175,6 +176,9 @@ export function incident(
 
 /** The reads nearly every screen makes; tests add their own on top. */
 export const BASE_ROUTES: Record<string, Handler> = {
+  // §6.2: nothing looks like a duplicate unless a test says otherwise.
+  "POST /incidents/similar": { provider: "tfidf", candidates: [] },
+  "GET /incidents/INC-2026-0001/possible-duplicates": { provider: "tfidf", candidates: [] },
   "GET /catalogue/services": [
     {
       id: 1,

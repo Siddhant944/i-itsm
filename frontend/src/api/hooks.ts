@@ -164,6 +164,28 @@ export function useReportIncident() {
   });
 }
 
+/** §6.2: open incidents like the one being typed. Advice only; never links anything. */
+export function useSimilar() {
+  return useMutation({
+    mutationFn: (body: Schemas["SimilarRequest"]) =>
+      unwrap(api.POST("/incidents/similar", { body })),
+  });
+}
+
+/** §6.2: what an open incident may duplicate, for the technician to confirm. */
+export function usePossibleDuplicates(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["incident", id, "duplicates"],
+    queryFn: () =>
+      unwrap(
+        api.GET("/incidents/{incident_id}/possible-duplicates", {
+          params: { path: { incident_id: id } },
+        }),
+      ),
+    enabled,
+  });
+}
+
 export function useClassify() {
   return useMutation({
     mutationFn: (text: string) => unwrap(api.POST("/incidents/classify", { body: { text } })),
@@ -180,7 +202,8 @@ export type IncidentAction =
   | { kind: "cancel" }
   | { kind: "reassign"; technicianId: number }
   | { kind: "priority"; priority: Schemas["Priority"]; reason: string }
-  | { kind: "category"; categoryId: number };
+  | { kind: "category"; categoryId: number }
+  | { kind: "confirm-duplicate"; parentId: string };
 
 function perform(id: string, action: IncidentAction): Promise<Incident> {
   const params = { path: { incident_id: id } };
@@ -248,6 +271,13 @@ function perform(id: string, action: IncidentAction): Promise<Incident> {
           body: { category_id: action.categoryId },
         }),
       );
+    case "confirm-duplicate":
+      return unwrap(
+        api.POST("/incidents/{incident_id}/confirm-duplicate", {
+          params,
+          body: { parent_id: action.parentId },
+        }),
+      );
   }
 }
 
@@ -258,6 +288,7 @@ export function useIncidentAction(id: string) {
     onSuccess: (incident) => {
       refreshIncidents(client, incident);
       void client.invalidateQueries({ queryKey: ["incident", id, "advice"] });
+      void client.invalidateQueries({ queryKey: ["incident", id, "duplicates"] });
       void client.invalidateQueries({ queryKey: ["violations"] });
     },
   });
