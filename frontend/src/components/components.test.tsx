@@ -95,6 +95,70 @@ describe("DataTable", () => {
   });
 });
 
+describe("DataTable sorting", () => {
+  const rows = [
+    { id: 1, name: "Chen", due: 30 },
+    { id: 2, name: "Asha", due: null },
+    { id: 3, name: "Bala", due: 10 },
+  ];
+  const columns = [
+    {
+      key: "name",
+      header: "Name",
+      cell: (row: (typeof rows)[number]) => row.name,
+      sortValue: (row: (typeof rows)[number]) => row.name,
+    },
+    {
+      key: "due",
+      header: "Due",
+      cell: (row: (typeof rows)[number]) => String(row.due),
+      sortValue: (row: (typeof rows)[number]) => row.due,
+    },
+  ];
+  const names = () =>
+    screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.querySelector("td")?.textContent);
+
+  it("sorts on a header click, reverses, then returns to the page's order", async () => {
+    render(<DataTable caption="People" rows={rows} rowKey={(row) => row.id} columns={columns} />);
+    const header = screen.getByRole("columnheader", { name: /Name/ });
+    expect(header).toHaveAttribute("aria-sort", "none");
+    await userEvent.click(within(header).getByRole("button"));
+    expect(names()).toEqual(["Asha", "Bala", "Chen"]);
+    expect(header).toHaveAttribute("aria-sort", "ascending");
+    await userEvent.click(within(header).getByRole("button"));
+    expect(names()).toEqual(["Chen", "Bala", "Asha"]);
+    expect(header).toHaveAttribute("aria-sort", "descending");
+    await userEvent.click(within(header).getByRole("button"));
+    expect(names()).toEqual(["Chen", "Asha", "Bala"]);
+  });
+
+  it("puts rows without a value last in both directions", async () => {
+    render(<DataTable caption="People" rows={rows} rowKey={(row) => row.id} columns={columns} />);
+    const sortByDue = within(screen.getByRole("columnheader", { name: /Due/ })).getByRole("button");
+    await userEvent.click(sortByDue);
+    expect(names()).toEqual(["Bala", "Chen", "Asha"]);
+    await userEvent.click(sortByDue);
+    expect(names()).toEqual(["Chen", "Bala", "Asha"]);
+  });
+
+  it("leaves a header without a sort value as plain text", () => {
+    render(
+      <DataTable
+        caption="People"
+        rows={rows}
+        rowKey={(row) => row.id}
+        columns={[{ key: "name", header: "Name", cell: (row) => row.name }]}
+      />,
+    );
+    const header = screen.getByRole("columnheader", { name: "Name" });
+    expect(header).not.toHaveAttribute("aria-sort");
+    expect(within(header).queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
 describe("fields", () => {
   it("ties a label, a hint and an error to the input", () => {
     const { rerender } = render(<TextField label="Email" hint="Campus address" />);

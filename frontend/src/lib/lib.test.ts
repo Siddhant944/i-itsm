@@ -15,7 +15,7 @@ import {
   titleCase,
 } from "./format";
 import { resetServerTime, serverNow, syncServerTime } from "./serverTime";
-import { describeSla } from "./sla";
+import { describeSla, slaDueAt } from "./sla";
 import { byUrgency } from "./sort";
 
 afterEach(() => {
@@ -84,6 +84,23 @@ describe("the application clock", () => {
     syncServerTime(null, null);
     vi.advanceTimersByTime(60_000);
     expect(serverNow()).toBe(Date.parse("2026-11-11T04:00:00Z"));
+  });
+});
+
+describe("slaDueAt", () => {
+  const sla = incident().sla;
+  if (sla === null) throw new Error("fixture has an SLA");
+
+  it("is the deadline of the clock that is running", () => {
+    expect(slaDueAt(sla, "ASSIGNED")).toBe(Date.parse(sla.response_deadline));
+    const responded = { ...sla, responded_at: "2026-11-11T04:05:00Z" };
+    expect(slaDueAt(responded, "IN_PROGRESS")).toBe(Date.parse(sla.resolution_deadline));
+  });
+
+  it("is null when no clock runs, so those incidents sort last", () => {
+    expect(slaDueAt(null, "NEW")).toBeNull();
+    expect(slaDueAt({ ...sla, paused: true }, "ON_HOLD")).toBeNull();
+    expect(slaDueAt(sla, "RESOLVED")).toBeNull();
   });
 });
 
