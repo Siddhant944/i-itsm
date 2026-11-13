@@ -124,6 +124,8 @@ SECTIONS: tuple[tuple[str, tuple[Row, ...]], ...] = (
             Row("Vite", ("npm:vite",), "Development server and production build."),
             Row("Tailwind CSS", ("npm:tailwindcss",), "Styling and the three portal themes."),
             Row("Recharts", ("npm:recharts",), "Dashboard charts."),
+            Row("React Flow", ("npm:@xyflow/react",), "The live service health map."),
+            Row("Web Speech API", ("browser",), "Voice input on the report form."),
         ),
     ),
     (

@@ -978,6 +978,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/reports/service-health": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Service Health
+     * @description The live service health map (P4.11): each service's state and the dependency edges.
+     */
+    get: operations["service_health_reports_service_health_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/reports/services": {
     parameters: {
       query?: never;
@@ -2101,6 +2121,44 @@ export interface components {
       statuses?: components["schemas"]["IncidentStatus"][];
       /** Text */
       text?: string | null;
+    };
+    /** ServiceHealthEdge */
+    ServiceHealthEdge: {
+      /** Depends On */
+      depends_on: number;
+      /** Service Id */
+      service_id: number;
+    };
+    /** ServiceHealthNode */
+    ServiceHealthNode: {
+      /** Caused By */
+      caused_by: number[];
+      /** Criticality */
+      criticality: number;
+      /** Name */
+      name: string;
+      /** Open Incidents */
+      open_incidents: number;
+      /** Open P1 */
+      open_p1: number;
+      /** Open P2 */
+      open_p2: number;
+      /** Service Id */
+      service_id: number;
+      /** Sla Tier */
+      sla_tier: string;
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "outage" | "degraded" | "impacted" | "ok";
+    };
+    /** ServiceHealthResponse */
+    ServiceHealthResponse: {
+      /** Edges */
+      edges: components["schemas"]["ServiceHealthEdge"][];
+      /** Services */
+      services: components["schemas"]["ServiceHealthNode"][];
     };
     /** ServiceRequest */
     ServiceRequest: {
@@ -4015,6 +4073,33 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["OverviewResponse"];
+        };
+      };
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  service_health_reports_service_health_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ServiceHealthResponse"];
         };
       };
       /** @description Validation error */

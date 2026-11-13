@@ -892,3 +892,41 @@ def test_a_socket_closes_with_4401_once_its_token_has_expired(
         with pytest.raises(WebSocketDisconnect) as closed:
             socket.receive_json()
         assert closed.value.code == 4401
+
+
+def test_the_health_map_shows_the_outage_and_what_it_takes_down(
+    api: TestClient, engine: Engine, reporter: dict[str, str], admin: dict[str, str]
+) -> None:
+    """P4.11: a P1 on the database marks it as an outage and the portal on it as impacted."""
+    uow = SqlAlchemyUnitOfWork(make_session_factory(engine))
+    try:
+        uow.catalogue.save_service(ITService(4, "Database Cluster", criticality=3))
+        portal = uow.catalogue.get_service(PORTAL)
+        portal.add_dependency(4)
+        uow.catalogue.save_service(portal)
+        uow.commit()
+    finally:
+        uow.close()
+    before = api.get("/reports/service-health", headers=admin).json()
+    assert {node["state"] for node in before["services"]} == {"ok"}
+    assert {"service_id": PORTAL, "depends_on": 4} in before["edges"]
+
+    database = report(
+        api,
+        reporter,
+        title="Database cluster unreachable",
+        description="Every network query times out",
+        service_id=4,
+        impact=3,
+        urgency=3,
+    )["incident"]
+    after = {
+        node["service_id"]: node
+        for node in api.get("/reports/service-health", headers=admin).json()["services"]
+    }
+    expected = "outage" if database["priority"] == "P1" else "degraded"
+    assert after[4]["state"] == expected
+    assert after[4]["open_incidents"] == 1
+    assert after[PORTAL]["state"] == "impacted"
+    assert after[PORTAL]["caused_by"] == [4]
+    assert api.get("/reports/service-health", headers=reporter).status_code == 403

@@ -27,6 +27,7 @@ const CategoriesPage = page(() => import("./pages/admin/config/CategoriesPage"),
 const ServicesPage = page(() => import("./pages/admin/config/ServicesPage"), "ServicesPage");
 const SLAPage = page(() => import("./pages/admin/config/SLAPage"), "SLAPage");
 const DashboardPage = page(() => import("./pages/admin/DashboardPage"), "DashboardPage");
+const HealthMapPage = page(() => import("./pages/admin/HealthMapPage"), "HealthMapPage");
 const SearchPage = page(() => import("./pages/admin/SearchPage"), "SearchPage");
 const UsersPage = page(() => import("./pages/admin/UsersPage"), "UsersPage");
 const ViolationsPage = page(() => import("./pages/admin/ViolationsPage"), "ViolationsPage");
@@ -77,6 +78,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to="dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
+      { path: "health", element: <HealthMapPage /> },
       { path: "incidents", element: <SearchPage /> },
       { path: "incidents/:id", element: <IncidentDetailPage /> },
       { path: "violations", element: <ViolationsPage /> },

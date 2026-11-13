@@ -28,6 +28,7 @@ export const NAVIGATION: Record<Portal, readonly NavItem[]> = {
   ],
   admin: [
     { label: "Dashboard", to: "/admin/dashboard", group: "Operations" },
+    { label: "Service health", to: "/admin/health", group: "Operations" },
     { label: "Incidents", to: "/admin/incidents", group: "Operations" },
     { label: "SLA violations", to: "/admin/violations", group: "Operations" },
     { label: "Audit log", to: "/admin/audit", group: "Operations" },

@@ -18,6 +18,9 @@ from app.api.schemas.reports import (
     MetricsResponse,
     OverviewResponse,
     SearchFilters,
+    ServiceHealthEdge,
+    ServiceHealthNode,
+    ServiceHealthResponse,
     ServiceRowResponse,
     TrendPointResponse,
     Window,
@@ -31,6 +34,7 @@ from app.domain.analytics import (
     TechnicianWorkload,
     TrendPoint,
 )
+from app.domain.dependency_graph import HealthMap
 from app.domain.permissions import Permission
 from app.domain.search import IncidentQuery
 from app.domain.users import User
@@ -140,6 +144,15 @@ def services(
     return [_service_row(row) for row in analytics.by_service(user, window_days)]
 
 
+@router.get("/reports/service-health", response_model=ServiceHealthResponse)
+def service_health(
+    user: Annotated[User, Depends(requires(Permission.REPORTS_VIEW))],
+    analytics: AnalyticsDep,
+) -> ServiceHealthResponse:
+    """The live service health map (P4.11): each service's state and the dependency edges."""
+    return _health(analytics.service_health(user))
+
+
 @router.get("/reports/trend", response_model=list[TrendPointResponse])
 def trend(
     user: Annotated[User, Depends(requires(Permission.REPORTS_VIEW))],
@@ -232,6 +245,26 @@ def _service_row(row: ServiceMetrics) -> ServiceRowResponse:
         breached=row.breached,
         breach_share=row.breach_share,
         mttr_hours=row.resolution.mean_hours,
+    )
+
+
+def _health(found: HealthMap) -> ServiceHealthResponse:
+    return ServiceHealthResponse(
+        services=[
+            ServiceHealthNode(
+                service_id=node.service.id,
+                name=node.service.name,
+                criticality=node.service.criticality,
+                sla_tier=node.service.sla_tier.value,
+                state=node.state.value,
+                open_incidents=node.open_incidents,
+                open_p1=node.open_p1,
+                open_p2=node.open_p2,
+                caused_by=list(node.caused_by),
+            )
+            for node in found.services
+        ],
+        edges=[ServiceHealthEdge(service_id=a, depends_on=b) for a, b in found.edges],
     )
 
 

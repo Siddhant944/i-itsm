@@ -290,6 +290,7 @@ MATRIX: tuple[Operation, ...] = (
     Operation("GET", "/reports/overview", ADMINS),
     Operation("GET", "/reports/metrics", ADMINS),
     Operation("GET", "/reports/services", ADMINS),
+    Operation("GET", "/reports/service-health", ADMINS),
     Operation("GET", "/reports/services/export", ADMINS),
     Operation("GET", "/reports/trend", ADMINS),
     # --- the bell: your own notification only, so the matrix covers it elsewhere
