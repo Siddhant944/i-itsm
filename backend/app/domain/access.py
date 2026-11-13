@@ -7,6 +7,7 @@ permissions plus the incident's own reporter, assignee and team.
 """
 
 from collections.abc import Collection
+from typing import TypedDict
 
 from app.domain.errors import UnauthorizedOperationError
 from app.domain.incident import Incident
@@ -79,26 +80,50 @@ def can_cancel(user: User, incident: Incident) -> bool:
     return incident.reporter_id == user.id and user.can(Permission.INCIDENT_CANCEL_OWN)
 
 
+class _Refusal(TypedDict):
+    actor_id: int
+    incident_id: str
+    audit_details: dict[str, object]
+
+
+def _refusal(user: User, incident: Incident, check: str) -> _Refusal:
+    """Who was refused what, for the audit trail (§8: every 403 is audited)."""
+    return {
+        "actor_id": user.id,
+        "incident_id": incident.id,
+        "audit_details": {"check": check, "role": user.role.value},
+    }
+
+
 def ensure_can_view(
     user: User, incident: Incident, team_member_ids: Collection[int] = NO_TEAM
 ) -> None:
     if not can_view(user, incident, team_member_ids):
-        raise UnauthorizedOperationError(f"You may not view {incident.id}.")
+        raise UnauthorizedOperationError(
+            f"You may not view {incident.id}.", **_refusal(user, incident, "view")
+        )
 
 
 def ensure_can_work(
     user: User, incident: Incident, team_member_ids: Collection[int] = NO_TEAM
 ) -> None:
     if not can_work(user, incident, team_member_ids):
-        raise UnauthorizedOperationError(f"You may not work on {incident.id}.")
+        raise UnauthorizedOperationError(
+            f"You may not work on {incident.id}.", **_refusal(user, incident, "work")
+        )
 
 
 def ensure_can_cancel(user: User, incident: Incident) -> None:
     if not can_cancel(user, incident):
-        raise UnauthorizedOperationError(f"You may not cancel {incident.id}.")
+        raise UnauthorizedOperationError(
+            f"You may not cancel {incident.id}.", **_refusal(user, incident, "cancel")
+        )
 
 
 def ensure_is_reporter(user: User, incident: Incident) -> None:
     """BR-03: only the reporter verifies or rejects a fix."""
     if user.id != incident.reporter_id:
-        raise UnauthorizedOperationError("Only the person who reported it can verify the fix.")
+        raise UnauthorizedOperationError(
+            "Only the person who reported it can verify the fix.",
+            **_refusal(user, incident, "verify"),
+        )

@@ -1,5 +1,112 @@
 \chapter{Security Considerations}\label{ch:security}
-% Owner: M3 (Shri Krishna P). Drafted in P6 (see docs/PLAN.md).
+% Owner: M3 (Shri Krishna P). Draft 1, 12 Nov 2026; sources: blueprint §8, app/core/security.py,
+% app/api/deps.py, app/domain/access.py, app/domain/credentials.py, docs/DECISIONS.md.
+
+Every control is enforced on the server; the frontend hides buttons a role cannot use, but
+never relies on that. The requirements' six minimum controls map as follows.
 
 \section{Controls}
-\emph{To be written.}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{12.2cm}@{}}
+\toprule
+\textbf{Requirement} & \textbf{How I-ITSM meets it} \\
+\midrule
+\endhead
+Authentication & Email and password, or Google Sign-In. A successful sign-in returns a
+  signed JWT (HS256) that expires after 30 minutes of clock time; every request after that
+  carries it as a bearer token. Expiry is judged by the injected clock, so it is tested
+  exactly. The WebSocket authenticates with the same token in its first message and is
+  closed (4401) without one or when it expires (D-033). \\
+Google Sign-In & The browser obtains an ID token from Google Identity Services; the server
+  verifies its RS256 signature against Google's published keys, the audience, issuer and
+  expiry, and the \code{hd} claim against the campus domain (D-035). A first sign-in creates an
+  Employee; only an administrator grants any other role. \\
+Password protection & Argon2 hashes (never stored or logged in clear), 8--128 characters.
+  Five failed sign-ins lock the account for 15 minutes. Every failure --- unknown email,
+  wrong password, locked or deactivated account --- returns the same answer, so the endpoint
+  reveals nothing about which accounts exist; the real reason goes to the audit trail
+  (D-019). \\
+Role-based authorisation & Five roles map to sets of permissions (\code{Role} $\rightarrow$
+  \code{frozenset[Permission]}); code asks \code{user.can(permission)}, never ``is this a
+  Technician?''. A FastAPI dependency checks the permission on every route. Nobody can create,
+  change or deactivate an account above their own level (D-029). \\
+Protection against unauthorised operations & Ownership is checked per incident, in the
+  domain (\code{app/domain/access.py}), for every read and action: an employee sees and acts
+  only on their own incidents (BR-01); only the assignee, the escalation owner, the team's
+  lead or an administrator works one (BR-02); only the reporter verifies or rejects a fix
+  (BR-03). A refusal is a 403 and is audited. An integration test calls every endpoint as
+  every role and checks the answer against the authorisation matrix. \\
+Input validation & Pydantic validates every request body, query and path parameter at the
+  boundary (types, lengths, ranges, enums); the domain validates again what only it can know
+  (a blank resolution summary, a rating outside 1--5). Errors are 422 with field-level
+  messages. Every query goes through the ORM, which binds parameters, so no SQL is built
+  from strings. CSV exports neutralise cells that a spreadsheet would run as formulas. \\
+Secure API access & In production the API refuses to start with a weak signing secret, a fake
+  clock or a CORS policy other than the web app's own \code{https://} origin (D-037); the
+  hosts terminate HTTPS. The developer-only clock endpoints do not exist outside the test and
+  demo environments (D-009). \\
+\bottomrule
+\end{longtable}
+
+\section{Integrity and accountability}
+\begin{itemize}
+  \item \textbf{Hash-chained audit trail.} Each record stores the hash of the one before it:
+    \[ h_i = \mathrm{SHA256}\left(h_{i-1} \,\|\, \mathrm{record}_i\right) \]
+    Changing, deleting or reordering any record breaks the chain from that point. Appends
+    lock the head of the chain so concurrent writers cannot fork it, and the administrator's
+    ``verify integrity'' action recomputes it and names the first broken record (BR-10;
+    tested by tampering with a row directly in the database).
+  \item \textbf{What is audited:} every state change, assignment, escalation, priority
+    override (with its reason), AI decision (with its source and confidence), sign-in and
+    failed sign-in, and configuration change. Audit records are written in the same
+    transaction as the change, so a change cannot exist without its record.
+  \item \textbf{Nothing is hard-deleted:} incidents end CLOSED or CANCELLED; users are
+    deactivated.
+\end{itemize}
+
+\section{Errors that reveal nothing}
+All failures are subclasses of one hierarchy, mapped once to HTTP codes; a global handler turns
+anything unexpected into a plain 500 and logs it on the server.
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lXl@{}}
+\toprule
+\textbf{Group} & \textbf{Specific errors} & \textbf{HTTP} \\
+\midrule
+AuthenticationError & InvalidLoginError & 401 \\
+AuthorizationError & UnauthorizedOperationError & 403 \\
+ValidationError & InvalidUserInputError, InvalidIncidentError & 422 \\
+NotFoundError & ServiceNotFoundError, IncidentNotFoundError & 404 \\
+ConflictError & InvalidStateTransitionError, DuplicateIncidentError,
+  ConcurrentModificationError & 409 \\
+AssignmentError & TechnicianUnavailableError, WorkloadExceededError & 409 \\
+ConfigurationError & MissingSLAConfigurationError (falls back to the strictest default and
+  records the fallback in the audit log) & 503 \\
+InfrastructureError & DatabaseFailureError, NetworkFailureError (rollback; the frontend shows
+  its reconnecting banner and retries) & 503 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+A test sends failing requests of every kind and checks that no response contains a stack trace,
+a password hash or a driver's error text.
+
+\section{Secrets and the supply chain}
+\begin{itemize}
+  \item Settings come from environment variables; \code{.env} is ignored by git and
+    \code{.env.example} lists every variable without values. Keys for Gemini, Telegram and
+    Google live only in the host's secret store.
+  \item gitleaks scans every commit (pre-commit hook) and every pull request (CI).
+  \item Adapters never put a key into an error message or a log line (a test checks that a
+    Telegram failure does not carry the bot token).
+  \item Dependencies are pinned in lock files, and the access token lives in the browser
+    tab's \code{sessionStorage} rather than \code{localStorage}, so it ends with the tab (D-022).
+\end{itemize}
+
+\section{Known limitations}
+\begin{itemize}
+  \item There is no rate limiting beyond the per-account lockout; a public deployment should
+    add it at the proxy.
+  \item Tokens are not stored, so a stolen one stays valid until it expires (30 minutes).
+    Every request re-reads the user, though, so a deactivated account, or one whose role has
+    changed since the token was issued, is refused at once.
+  \item The seeded demo accounts share a published password; they are for evaluation only and
+    are to be deactivated afterwards.
+\end{itemize}

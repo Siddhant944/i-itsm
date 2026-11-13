@@ -13,6 +13,7 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
+backend/.test-report/
 
 # node
 node_modules/
@@ -31,6 +32,7 @@ e2e/playwright-report/
 
 # report and tools
 report/build/
+docs/diagrams/**/*.png
 tools/
 
 # editors / OS
@@ -39,3 +41,4 @@ tools/
 !.vscode/extensions.json
 .DS_Store
 Thumbs.db
+.neon

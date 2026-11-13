@@ -253,6 +253,25 @@ def test_BR01_another_employee_gets_403_not_the_incident(
     assert api.get(f"/incidents/{incident_id}", headers=reporter).status_code == 200
 
 
+def test_BR01_every_refusal_is_on_the_audit_trail(
+    api: TestClient, reporter: dict[str, str], admin: dict[str, str]
+) -> None:
+    """§8: a 403 is audited, though the request that caused it rolls back (issue #8).
+
+    Both kinds: a role without the permission, and a user who does not own the incident.
+    """
+    incident_id = report(api, reporter)["incident"]["id"]
+    other = token_for(api, "other@campus.edu")
+    assert api.get("/audit", headers=reporter).status_code == 403  # the role refuses
+    assert api.get(f"/incidents/{incident_id}", headers=other).status_code == 403  # ownership
+
+    page = api.get("/audit", params={"limit": 100}, headers=admin).json()
+    refused = [r for r in page["items"] if r["action"] == "authorization.refused"]
+    assert len(refused) == 2
+    assert {r["incident_id"] for r in refused} == {None, incident_id}
+    assert api.post("/audit/verify", headers=admin).json()["intact"] is True
+
+
 def test_BR01_mine_lists_only_my_own(api: TestClient, reporter: dict[str, str]) -> None:
     incident_id = report(api, reporter)["incident"]["id"]
     other = token_for(api, "other@campus.edu")

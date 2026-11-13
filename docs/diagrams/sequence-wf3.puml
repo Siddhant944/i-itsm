@@ -1,0 +1,63 @@
+@startuml sequence-wf3
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+title Workflow 3: several reports -> duplicates and related incidents found -> correlated and escalated
+
+actor "Employee A" as A
+actor "Employee B" as B
+actor "Employee C" as C
+participant "IncidentService\n<<Facade>>" as SVC
+participant "DuplicateDetector\n(TF-IDF or Gemini embeddings\n+ hybrid score)" as DUP
+participant "DependencyGraph\n(BFS over depends_on)" as GRAPH
+participant "SLAMonitor" as MON
+participant "EscalationHandler chain\n<<Chain of Responsibility>>" as CHAIN
+participant "NotificationService" as NOTIF
+actor Technician
+actor "Team Lead" as LEAD
+actor Administrator as ADMIN
+
+== The shared service fails first ==
+A -> SVC : report "Database cluster down" (P1, Gold: respond in 5 min)
+SVC --> A : INC-1 ASSIGNED to a database technician
+
+== Three payment reports ==
+B -> SVC : report "Fee portal payment fails" (INC101)
+SVC -> DUP : check(): no open look-alike
+SVC --> B : INC101 assigned
+C -> SVC : POST /incidents/similar while typing
+SVC -> DUP : check(title, description, service)
+DUP --> C : INC101, score 0.8 >= threshold (shown, never forced)
+C -> SVC : report anyway (INC102)
+SVC --> C : INC102 assigned; DUPLICATE_SUGGESTED audited
+A -> SVC : report with follow = INC101 (INC103)
+SVC -> SVC : record INC103, cancel it at once as DUPLICATE of INC101 (D-031)
+SVC --> A : "You are now following INC101"
+
+== Technician confirms a duplicate ==
+Technician -> SVC : POST /incidents/INC102/confirm-duplicate {INC101}
+SVC -> SVC : INC102 -> CANCELLED (duplicate), parent_id = INC101 (D-005)
+SVC -> NOTIF : (after commit)
+NOTIF -> C : "Your report was linked to INC101"
+
+== Correlation ==
+ADMIN -> SVC : GET /incidents/INC101/correlation
+SVC -> GRAPH : reach(Fee Payment Portal)
+GRAPH --> SVC : Fee Payment Portal depends on Database Cluster
+SVC --> ADMIN : 2 reports linked; "likely related to INC-1 (open P1 on\nDatabase Cluster): possible root cause"
+
+== Escalation when nobody acknowledges the P1 ==
+loop every 30 s of clock time (3 real s at x10)
+  MON -> MON : tick(): response target missed?
+  MON -> CHAIN : decide_escalation(missed targets)
+  CHAIN --> MON : level 1 Team Lead (just after 5 min),\nlevel 2 Administrator (10 min),\nlevel 3 IT Manager (15 min) (BR-08)
+  MON -> MON : incident.escalate(owner, level) -> ASSIGNED; save + audit
+  MON -> NOTIF : "SLA violated" (assignee, Team Lead, admins)\nand "Escalated" (the new owner)
+  NOTIF -> LEAD : in-app, email, Telegram
+end
+note over SVC, NOTIF
+  Every step above is a hash-chained audit record (BR-10);
+  the admin's integrity check recomputes the chain.
+end note
+@enduml

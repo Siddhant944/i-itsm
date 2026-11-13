@@ -52,8 +52,7 @@ jobs:
             curl -fsSL -o tools/plantuml.jar \
               "https://repo1.maven.org/maven2/net/sourceforge/plantuml/plantuml/${PLANTUML_VERSION}/plantuml-${PLANTUML_VERSION}.jar"
           fi
-      - run: uv run scripts/dev.py diagrams
-      - run: uv run scripts/dev.py report
+      - run: uv run scripts/dev.py report # renders the diagrams first
       - uses: actions/upload-artifact@v4
         with:
           name: report-pdf

@@ -1,0 +1,54 @@
+@startuml deployment
+!pragma layout smetana
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+title I-ITSM deployment: one command locally, free-tier hosts in the cloud
+
+node "Developer machine (Windows, macOS, Linux)" as DEV {
+  node "Docker Compose  (docker compose up)" as COMPOSE {
+    node "web  :8080" as WEB_C {
+      artifact "nginx + built React app\n(/api proxied to api)" as NGINX
+    }
+    node "api  :8000" as API_C {
+      artifact "uvicorn + FastAPI\n(alembic upgrade head on start)" as UVI
+    }
+    database "postgres:16-alpine\nvolume pgdata" as PG_C
+  }
+  node "Without Docker  (make dev)" as LOCAL {
+    artifact "Vite dev server :5173" as VITE
+    artifact "uvicorn --reload :8000" as UV_L
+    database "SQLite file\n(WAL, foreign_keys=ON)" as SQLITE
+  }
+}
+
+cloud "Render (free plan, render.yaml)" as RENDER {
+  node "i-itsm-web\nstatic site, HTTPS" as R_WEB {
+    artifact "vite build -> dist/" as DIST
+  }
+  node "i-itsm-api\nDocker web service, HTTPS\nAPP_ENV=prod" as R_API {
+    artifact "backend/Dockerfile image\nAPI + SLA monitor (APScheduler)" as IMG
+  }
+}
+cloud "Neon (free plan)" as NEON {
+  database "PostgreSQL 16" as PG_N
+}
+cloud "External services (optional; each has a fallback)" as EXT {
+  component "Gemini API" as GEM
+  component "Telegram Bot API" as TG
+  component "Google Identity" as GID
+}
+node "GitHub" as GH {
+  component "Actions CI: lint, types,\ntests on SQLite + PostgreSQL,\nE2E and report on labelled PRs" as CI
+}
+
+NGINX --> UVI : HTTP /api, /api/ws
+UVI --> PG_C : SQL
+VITE --> UV_L : proxy /api
+UV_L --> SQLITE
+DIST --> IMG : HTTPS JSON + WebSocket\n(CORS locked to the web origin)
+IMG --> PG_N : TLS
+IMG --> GEM : HTTPS
+IMG --> TG : HTTPS
+IMG --> GID : HTTPS (keys)
+GH --> RENDER : auto-deploy main
+@enduml

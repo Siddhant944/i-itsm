@@ -1,8 +1,127 @@
 \chapter{OOP Concepts and Design Patterns}\label{ch:oop}
-% Owner: M1 (Tushar B). Drafted in P6 (see docs/PLAN.md).
+% Owner: M1 (Tushar B). Draft 1, 12 Nov 2026. The two evidence tables are generated from the
+% code by backend/scripts/gen_pattern_table.py; the excerpts are copied from backend/app.
+
+The object model is the centre of the system and the part the rest depends on (Chapter~3). This
+chapter shows each object-oriented concept and each design pattern with the classes that
+realise it. The two tables are generated from the source code when the report is built, so the
+numbers and file references are those of the submitted version.
+
+\lstset{language=Python,basicstyle=\ttfamily\small,columns=fullflexible,frame=single,
+  keywordstyle=\bfseries,showstringspaces=false,xleftmargin=4pt,xrightmargin=4pt}
 
 \section{OOP concepts with evidence}
-\emph{To be written.}
+\input{generated/oop-evidence}
+
+\subsection*{Encapsulation}
+State lives in private, name-mangled fields and is read through read-only properties; it changes
+only through methods that say what is happening and enforce the rules on the way. There is not
+a single property setter in the backend. \code{Incident.resolve} is typical: the current state
+decides whether resolving is legal, the method checks BR-04, records the resolution, stops the
+SLA clock and emits an event.
+\begin{lstlisting}
+def resolve(self, actor_id: int, clock: Clock, summary: str) -> None:
+    """Resolving requires a resolution summary (BR-04)."""
+    target = self.__state.resolve()          # raises unless the state allows it
+    if not summary.strip():
+        raise InvalidIncidentError("A resolution summary is required.")
+    self.__resolution = Resolution(actor_id, clock.now(), summary.strip())
+    self.__resolved_at = clock.now()
+    self._stop_sla(clock)
+    self._move(target, actor_id, clock, "Resolution provided")
+\end{lstlisting}
+Collections are handed out as tuples or frozensets (\code{incident.notes}, \code{skills.names}),
+so a caller cannot change the aggregate behind its back; value objects such as
+\code{SLATarget}, \code{EmailAddress}, \code{CandidateScore} and every domain event are frozen
+dataclasses. Python cannot enforce privacy, so we enforce it with \code{mypy --strict}, the
+name mangling and review rather than claim the language does.
+
+\subsection*{Abstraction and interfaces}
+Every interface is an abstract base class in the domain: the repositories and
+\code{UnitOfWork}, \code{AIAdvisor}, \code{EmbeddingProvider}, \code{EmailSender},
+\code{ChatSender}, \code{NotificationChannel}, \code{IdentityVerifier}, \code{Clock}, and the
+strategy bases. Callers depend on them; \code{IncidentService} never names SQLAlchemy, Gemini
+or SMTP.
+
+\subsection*{Inheritance, only for is-a}
+\code{User} is abstract; \code{Employee}, \code{Technician} and \code{Administrator} extend it,
+\code{TeamLead} extends \code{Technician} and \code{ITManager} extends \code{Administrator}. A Team
+Lead \emph{is} a technician (with a team queue); an IT Manager \emph{is} an administrator (who may
+also manage administrators). What each may do is \emph{not} inherited behaviour: it is data, a
+\code{Role} $\rightarrow$ \code{frozenset[Permission]} map, and code asks
+\code{user.can(permission)} rather than testing the class. The ten state classes and the error
+hierarchy (8 groups, 14 specific errors) are the other two trees.
+
+\subsection*{Polymorphism}
+The same call does different things depending on the object behind it, chosen at runtime:
+\code{state.resolve()} returns RESOLVED for an incident in progress and raises for any other;
+\code{strategy.rank()} orders technicians by skills, by load or by a weighted score; the admin
+switches the strategy in the portal without a restart. \code{channel.send()} writes an in-app
+row, an email or a Telegram message; \code{clock.now()} is real time, accelerated time or a
+test's frozen time.
+
+\subsection*{Composition, aggregation and association}
+An \code{Incident} \emph{owns} its \code{SLAClock}, work notes, resolution and feedback: they are
+created by it, saved and loaded with it, and mean nothing without it (composition). It
+\emph{aggregates} a shared, stateless \code{IncidentState}. It is \emph{associated} with its
+reporter, assignee, service and category by identity, which keeps the aggregate small and
+loadable on its own. A \code{FallbackAdvisor} aggregates a primary and a fallback advisor; an
+\code{EscalationHandler} is associated with its successor.
+
+\subsection*{Exception handling}
+One hierarchy, \code{ITSMError}, with a stable code per error and one HTTP status per group
+(Chapter~\ref{ch:security}). The domain raises intention-revealing errors
+(\code{InvalidStateTransitionError("ASSIGNED", "RESOLVED")}); the API maps them once. Exceptions are
+caught in one deliberate place only: the post-commit notification boundary, where a failing
+email or push is logged rather than undoing a change that has already committed.
+
+\subsection*{Collections}
+\code{frozenset} skills make ``does this technician cover the required skills'' a set
+intersection; \code{dict} registries map statuses to state objects, names to strategies and
+channels; the dependency graph is searched breadth-first with a \code{deque} and a visited
+\code{set}; tuples are the read-only views.
 
 \section{Design patterns with evidence}
-\emph{To be written.}
+Every class or module that implements a pattern says so in its docstring, with the problem it
+solves (\code{Pattern: X. Problem solved: Y.}); the table below is read from those docstrings.
+
+\input{generated/patterns}
+
+\subsection*{Three patterns in detail}
+\paragraph{State.} Each lifecycle status is a class. The abstract base refuses every trigger; a
+concrete state overrides only what it allows, so an illegal transition cannot be written by
+mistake --- there is no \code{if status == ...} anywhere in the incident.
+\begin{lstlisting}
+class InProgressState(_Reassignable):        # inherits assign() and cancel()
+    status = S.IN_PROGRESS
+    def hold(self) -> S:
+        return S.ON_HOLD
+    def resolve(self) -> S:
+        return S.RESOLVED
+\end{lstlisting}
+
+\paragraph{Template Method with Strategy.} Every assignment strategy must apply the same
+eligibility rules before ranking. The base class fixes that algorithm and leaves one step open:
+\begin{lstlisting}
+def select(self, request, candidates) -> tuple[CandidateScore, ...]:
+    cost = WORKLOAD_COST[request.priority]
+    eligible = [c for c in candidates
+                if c.technician.available and c.technician.active
+                and c.load + cost <= MAX_LOAD]       # BR-06
+    if not eligible:
+        raise TechnicianUnavailableError
+    return tuple(self.rank(request, eligible))      # the strategy's own step
+
+@abstractmethod
+def rank(self, request, eligible) -> list[CandidateScore]: ...
+\end{lstlisting}
+
+\paragraph{Chain of Responsibility.} Escalation passes a request up Technician $\rightarrow$
+Team Lead $\rightarrow$ Administrator $\rightarrow$ IT Manager until a handler covers the level
+needed; adding a level is one more link, not a change to the others.
+\begin{lstlisting}
+def handle(self, required_level: int, reason: str) -> EscalationDecision:
+    if required_level <= self.__level or self.__successor is None:
+        return EscalationDecision(self.__level, self.__role, reason)
+    return self.__successor.handle(required_level, reason)
+\end{lstlisting}

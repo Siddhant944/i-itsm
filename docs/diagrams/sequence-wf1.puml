@@ -1,0 +1,68 @@
+@startuml sequence-wf1
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+title Workflow 1: employee reports -> system prioritises -> technician assigned -> notification generated
+
+actor Employee
+participant "Employee portal" as UI
+participant "incidents router\n+ deps (JWT, role)" as API
+participant "IncidentService\n<<Facade>>" as SVC
+participant "DuplicateDetector" as DUP
+participant "AIAdvisor\n(Gemini -> rules fallback)" as AI
+participant "IncidentFactory\n+ Incident <<State>>" as INC
+participant "PriorityStrategy\n<<Strategy>>" as PRIO
+participant "SLAPolicyBook" as SLA
+participant "AssignmentStrategy\n<<Template Method>>" as ASSIGN
+participant "UnitOfWork\n+ AuditService" as UOW
+participant "PostCommitDispatcher\n<<Observer>>" as DISP
+participant "NotificationService\n(in-app, email, Telegram)" as NOTIF
+participant "LivePublisher\n-> WebSocket" as LIVE
+actor Technician
+
+Employee -> UI : types title and description
+UI -> API : POST /incidents/similar
+API -> SVC : similar_incidents()
+SVC -> DUP : check(text, service)
+DUP --> UI : open look-alikes with scores (advice only)
+UI -> API : POST /incidents/classify
+API -> SVC : classify_text()
+SVC -> AI : classify(text, categories)
+AI --> UI : category + confidence (shown, overridable)
+
+Employee -> UI : Submit (service, impact, urgency, category)
+UI -> API : POST /incidents
+API -> SVC : report(actor, ...)
+SVC -> DUP : check(); same reporter, near-identical in 30 min?
+alt repeat report (BR-09)
+  SVC --> API : DuplicateIncidentError
+  API --> UI : 409 with a link to the existing incident
+else new report
+  SVC -> INC : IncidentFactory.create() -> INC-2026-NNNN in NEW
+  SVC -> PRIO : assess(impact, urgency, criticality, category floor)
+  PRIO --> SVC : P1..P4 with explanation (BR-05)
+  SVC -> SLA : target_or_default(tier, priority)
+  SVC -> INC : prioritise(); apply_sla() starts the SLAClock
+  SVC -> INC : classify() -> CLASSIFIED
+  SVC -> ASSIGN : select(request, candidates)
+  note right of ASSIGN
+    filters: available, active,
+    load + cost <= L_max (BR-06);
+    rank(): skills, load, experience
+    (Skill / Load / Smart)
+  end note
+  ASSIGN --> SVC : best CandidateScore with reasons
+  SVC -> INC : assign(technician) -> ASSIGNED
+  SVC -> UOW : save; audit every event (same transaction, hash chain)
+  SVC -> UOW : commit()
+  SVC -> DISP : enqueue(events); dispatch()  (after commit)
+  DISP -> NOTIF : on_event(IncidentStateChanged)
+  NOTIF -> Employee : "Created" and "Assigned" (in-app, email)
+  NOTIF -> Technician : "Assigned to you" (in-app, email; Telegram for P1/P2)\nTeam Lead also hears of a new P1/P2
+  DISP -> LIVE : on_event()
+  LIVE -> Technician : push: queue refreshes, bell counts up
+  SVC --> API : ReportedIncident
+  API --> UI : 201: id, priority, SLA deadlines, assignee
+end
+@enduml

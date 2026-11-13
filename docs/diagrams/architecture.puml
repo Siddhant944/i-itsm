@@ -1,0 +1,117 @@
+@startuml architecture
+!pragma layout smetana
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam componentStyle rectangle
+title I-ITSM architecture: five layers, every dependency points inward to the domain
+
+package "Browser (React + TypeScript PWA)" as FE {
+  [Employee portal] as EP
+  [Technician portal] as TP
+  [Admin portal] as AP
+  [Typed API client\n(generated from OpenAPI)] as CLIENT
+  [useLive (WebSocket)] as LIVE_C
+}
+
+package "API layer  backend/app/api" as API {
+  [Routers (thin):\nauth, incidents, catalogue,\nconfig, reports, audit, users] as ROUTERS
+  [deps.py: JWT auth,\nrole (permission) checks] as DEPS
+  [errors.py: ITSMError -> HTTP code] as ERR
+  [ws.py: /ws live channel] as WS
+}
+
+package "Service layer  backend/app/services" as SVC {
+  [IncidentService\n(Facade)] as FACADE
+  [AuthService] as AUTH
+  [SLAMonitor + MonitorScheduler\n(APScheduler)] as MON
+  [NotificationService\n(+ ChannelFactory)] as NOTIF
+  [AuditService\n(hash chain)] as AUDIT
+  [DuplicateDetector,\nResolutionAdvisor] as AI
+  [Search, Analytics,\nConfiguration, UserAdmin] as OPS
+  [PostCommitDispatcher,\nLiveHub] as DISP
+}
+
+package "Domain layer  backend/app/domain  (no framework imports)" as DOM {
+  [Incident aggregate +\n10 State classes] as INC
+  [Priority, Assignment,\nSLA, Escalation engines] as ENG
+  [Users, permissions, ownership\nrules (BR-01..03), value objects] as USERS
+  [Similarity, dependency graph,\nrisk estimator] as INTEL
+  [Repository ports\n(IncidentRepository,\nUnitOfWork, ...)] <<interface>> as REPO_PORT
+  [Service ports\n(AIAdvisor, EmbeddingProvider,\nEmailSender, ChatSender,\nIdentityVerifier)] <<interface>> as SVC_PORT
+}
+
+package "Core  backend/app/core" as CORE {
+  [Clock (System / Fake / Accelerated)] as CLOCK
+  [Settings, security, logging] as CONF
+}
+
+package "Persistence  backend/app/repositories" as PERS {
+  [SQLAlchemy repositories\n+ Unit of Work] as SQLREPO
+  [In-memory repositories\n(unit tests)] as MEMREPO
+  [Alembic migrations] as ALEMBIC
+}
+
+package "Adapters  backend/app/adapters" as ADP {
+  [GeminiAdvisor,\nGeminiEmbeddings,\nGeminiSummarizer] as GEMA
+  [SmtpEmailSender /\nConsoleEmailSender] as SMTPA
+  [TelegramBotSender] as TGA
+  [GoogleIdTokenVerifier] as GOOA
+}
+
+database "SQLite (dev)\nPostgreSQL (Docker, cloud)" as DB
+cloud "Gemini API" as GEMINI
+cloud "SMTP server" as SMTP
+cloud "Telegram Bot API" as TELEGRAM
+cloud "Google Identity" as GOOGLE
+
+EP --> CLIENT
+TP --> CLIENT
+AP --> CLIENT
+CLIENT --> ROUTERS : HTTPS JSON\n/api/...
+LIVE_C --> WS : WebSocket
+
+ROUTERS --> DEPS
+ROUTERS --> FACADE
+ROUTERS --> AUTH
+ROUTERS --> OPS
+ROUTERS ..> ERR
+WS --> DISP
+
+FACADE --> INC
+FACADE --> ENG
+FACADE --> AUDIT
+FACADE --> AI
+FACADE --> DISP
+MON --> ENG
+MON --> AUDIT
+DISP --> NOTIF
+AUTH --> USERS
+AI --> INTEL
+
+INC --> CLOCK
+FACADE --> REPO_PORT
+NOTIF --> SVC_PORT
+AI --> SVC_PORT
+AUTH --> SVC_PORT
+
+SQLREPO ..|> REPO_PORT
+MEMREPO ..|> REPO_PORT
+GEMA ..|> SVC_PORT
+SMTPA ..|> SVC_PORT
+TGA ..|> SVC_PORT
+GOOA ..|> SVC_PORT
+
+SQLREPO --> DB
+ALEMBIC --> DB
+GEMA --> GEMINI
+SMTPA --> SMTP
+TGA --> TELEGRAM
+GOOA --> GOOGLE
+
+note bottom of DOM
+  Enforced by import-linter in `make verify` and CI:
+  domain imports only core; services import domain and core;
+  persistence and adapters implement the domain's ports.
+  app/main.py is the composition root that wires them together.
+end note
+@enduml

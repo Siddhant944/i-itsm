@@ -1,8 +1,83 @@
-\chapter{Source Code Repository}
-% Owner: M3 (Shri Krishna P). Drafted in P6 (see docs/PLAN.md).
+\chapter{Source Code Repository}\label{ch:repository}
+% Owner: M3 (Shri Krishna P). Draft 1, 12 Nov 2026; sources: README.md, AGENTS.md, scripts/dev.py,
+% .github/workflows/.
 
 \section{Repository link}
-\emph{To be written.}
+The complete source code, history, issues and pull requests are on GitHub:
+\begin{center}\url{\repourl}\end{center}
+The \code{main} branch holds the submitted version. Every phase was built on its own branch and
+merged through a reviewed pull request; bugs found after a merge are GitHub issues with a
+regression test and a fix commit that references them (for example issue \#6, the SLA monitor
+trying to escalate NEW incidents).
 
-\section{Structure and how to run}
-\emph{To be written.}
+\section{Structure}
+\begin{lstlisting}[basicstyle=\ttfamily\small,columns=fullflexible]
+backend/
+  app/
+    api/            routers, request/response schemas, auth dependencies, error mapping
+    services/       IncidentService facade, SLA monitor, notifications, audit, search, ...
+    domain/         entities, State classes, strategies, rules, ports (no frameworks)
+    repositories/   SQLAlchemy repositories + unit of work; in-memory twins
+    adapters/       Gemini, SMTP, Telegram, Google Identity
+    core/           settings, security, Clock, logging
+    seed/           campus catalogue, demo accounts, 420 historical incidents
+    main.py         composition root; demo.py: `make demo-reset`
+  alembic/          database migrations
+  tests/            unit/, contract/, integration/
+  scripts/          OpenAPI export, diagram, report and test-report generators
+frontend/src/
+  api/              generated OpenAPI types and client
+  components/       shared design system (badges, SLA chip, tables, modals, toasts)
+  pages/            employee/, technician/, admin/ (one folder per portal)
+e2e/tests/          Playwright: the three workflows, live updates, accessibility
+docs/               blueprint, plan, decisions, progress, diagrams/, testing/
+report/             this report (LaTeX); generated/ is written by scripts
+scripts/dev.py      cross-platform task runner behind the Makefile
+\end{lstlisting}
+
+\section{How to run it}
+The only prerequisites are Python's \code{uv}, Node.js~22 and, optionally, Docker. Every
+\code{make} target is a thin wrapper over \code{scripts/dev.py}, so on Windows without
+\code{make} the same commands run as \code{uv run scripts/dev.py <target>}.
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}lX@{}}
+\toprule
+\textrm{\textbf{Command}} & \textbf{What it does} \\
+\midrule
+make setup & Installs the backend (uv), frontend and end-to-end (npm) dependencies and the git hooks. \\
+make migrate, make seed & Create the schema and load the campus data and demo accounts
+  (SQLite by default, or the \code{DATABASE\_URL} database). \\
+make dev & Serves the API on :8000 and the web app on :5173, reloading on changes. \\
+docker compose up & The same on PostgreSQL, with nginx serving the built app on :8080. \\
+make demo-reset & Wipes and reseeds, stages the demo incidents, and serves both apps on the
+  $\times$10 clock. \\
+make verify & Lint, formatting, \code{mypy --strict}, import contracts, client freshness and
+  every unit and integration test with coverage gates. Required before every commit. \\
+make e2e & The Playwright specs against an API and web app it starts on a fresh database. \\
+make diagrams & Regenerates and renders the UML and ER diagrams. \\
+make test-report & Runs the tests and writes Chapter~\ref{ch:testing}'s results. \\
+make report & Builds this PDF. Diagrams and the report also need Java (PlantUML) and
+  tectonic; CI builds the PDF on pull requests labelled \code{report}. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+Demo accounts, all with the password \code{demo1234}, are \code{employee@}, \code{technician@},
+\code{lead@}, \code{admin@} and \code{manager@campus.edu}. Settings come from
+environment variables listed, with comments, in \code{.env.example}; Gemini, SMTP, Telegram and
+Google are optional and the system falls back without them.
+
+\section{Engineering practice}
+\begin{itemize}
+  \item \textbf{Continuous integration.} GitHub Actions runs secret scanning, lint, types,
+    import contracts and the whole backend suite on both SQLite and PostgreSQL, plus the
+    frontend checks and a check that the generated API client matches the API. Playwright and
+    this report's build run on pull requests labelled \code{e2e} and \code{report}.
+  \item \textbf{Commit hooks.} pre-commit runs gitleaks, Ruff, mypy, import-linter, ESLint and
+    Prettier on every commit.
+  \item \textbf{Conventional commits} (\code{feat:}, \code{fix:}, \code{test:}, \code{docs:}),
+    small and reviewed; every design deviation is logged in \code{docs/DECISIONS.md} (D-001 to
+    D-037).
+  \item \textbf{Living documentation.} \code{docs/PLAN.md} (work packages and owners),
+    \code{docs/PROGRESS.md} (what is done, what is next) and \code{AGENTS.md} (the rules every
+    contributor, human or AI, follows).
+\end{itemize}

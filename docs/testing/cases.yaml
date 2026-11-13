@@ -1,0 +1,289 @@
+# Documented test cases (requirements §8 "Testing": at least 15 meaningful cases covering
+# normal operations, boundary conditions, invalid inputs, exceptions, authorisation and
+# business rules). Each case names the automated tests that carry it out; the actual result
+# and the status are NOT written here. `make test-report` (backend/scripts/test_report.py)
+# runs exactly these tests and writes the outcome of that real run into report/generated/.
+#
+# Fields: id, category (normal | boundary | invalid | exception | authorisation | rule),
+# title, requirements (FR/BR ids), preconditions, steps, input, expected, tests (pytest node
+# ids relative to backend/; a test id without [...] covers all its parametrised cases).
+
+cases:
+  - id: TC-01
+    category: normal
+    title: An employee reports an incident and the system classifies, prioritises, sets the SLA and assigns it
+    requirements: [FR-05, FR-06, FR-13, FR-15, FR-16, FR-18, BR-05]
+    preconditions: Seeded catalogue; an Employee is signed in; Gemini is not configured (keyword rules).
+    steps: POST /incidents with a Wi-Fi outage description.
+    input: "title 'Wi-Fi down in library', service Campus Wi-Fi, impact 2, urgency 2"
+    expected: "201; INC-2026-0001 in ASSIGNED, category Network suggested by the rules with a confidence, priority P3, SLA on track with deadlines, assignment reasons listed."
+    tests:
+      - tests/integration/test_incidents_api.py::test_reporting_returns_the_incident_its_sla_and_what_the_system_decided
+
+  - id: TC-02
+    category: normal
+    title: The whole lifecycle runs from NEW to CLOSED with one audited event per transition
+    requirements: [FR-07, FR-08, FR-10, FR-23, BR-10]
+    preconditions: An incident reported by an Employee and assigned to a Technician.
+    steps: acknowledge, start, request information, answer, resolve with a summary, verify with a rating, close.
+    input: "summary 'Replaced the access point', rating 5"
+    expected: Each step moves to the next §4 state; the incident ends CLOSED with times recorded and an event per transition.
+    tests:
+      - tests/integration/test_incidents_api.py::test_the_technician_queue_and_the_whole_lifecycle
+      - tests/unit/domain/test_incident.py::test_full_lifecycle_records_times_and_one_event_per_transition
+
+  - id: TC-03
+    category: normal
+    title: Search applies each of the nine filters alone and in combination
+    requirements: [FR-24]
+    preconditions: Incidents with different statuses, priorities, categories, services, people, dates and SLA states.
+    steps: POST /incidents/search with one filter at a time, then several together.
+    input: "status, priority, category, service, assignee, reporter, date range, SLA status, id fragment"
+    expected: Only matching incidents are returned, newest first, paged; combined filters intersect.
+    tests:
+      - tests/contract/test_search_contract.py::test_filter_by_status_and_priority
+      - tests/contract/test_search_contract.py::test_filter_by_category_service_assignee_and_reporter
+      - tests/contract/test_search_contract.py::test_filter_by_date_range
+      - tests/contract/test_search_contract.py::test_filter_by_sla_status
+      - tests/contract/test_search_contract.py::test_filter_by_id_matches_part_of_it
+      - tests/contract/test_search_contract.py::test_filters_combine
+
+  - id: TC-04
+    category: boundary
+    title: SLA status turns AT_RISK at exactly 75 % of the target, not one microsecond earlier
+    requirements: [FR-17, BR-07]
+    preconditions: A Gold P1 SLA clock (respond 5 min, resolve 30 min) on a FakeClock.
+    steps: Read the status at 22 min 30 s and at 1 µs before; read the response status at 3 min 45 s.
+    input: "elapsed 22:30.000000 and 22:29.999999 of 30:00"
+    expected: AT_RISK at exactly 75 %; ON_TRACK 1 µs before.
+    tests:
+      - tests/unit/domain/test_sla.py::test_BR07_at_risk_from_exactly_75_percent
+
+  - id: TC-05
+    category: boundary
+    title: A breach starts strictly after the deadline
+    requirements: [FR-17, BR-07]
+    preconditions: A Gold P1 SLA clock on a FakeClock.
+    steps: Read the response and resolution status at the deadline and at deadline + 1 µs.
+    input: "t = 5:00 and 5:00.000001 (response); 30:00 and 30:00.000001 (resolution)"
+    expected: Not breached at the deadline; BREACHED 1 µs after it.
+    tests:
+      - tests/unit/domain/test_sla.py::test_BR07_breach_means_strictly_after_the_deadline
+
+  - id: TC-06
+    category: boundary
+    title: The technician capacity cap accepts a load of exactly 10 and refuses 11
+    requirements: [FR-18, BR-06]
+    preconditions: Two available technicians with the needed skill, loads 6 and 7; a P1 costs 4 points.
+    steps: Rank both for a P1 incident.
+    input: "6 + 4 = 10 points, 7 + 4 = 11 points; L_max = 10"
+    expected: Only the technician who would reach exactly 10 is a candidate.
+    tests:
+      - tests/unit/domain/test_assignment.py::test_BR06_capacity_cap_is_inclusive_at_10_points
+
+  - id: TC-07
+    category: boundary
+    title: The fifth failed sign-in locks the account for 15 minutes, then it unlocks
+    requirements: [FR-01, NFR-05]
+    preconditions: A registered Employee.
+    steps: Sign in with a wrong password five times; try the right password; advance the clock 15 minutes; try again.
+    input: "5 x wrong password, then the right one before and after 15 min"
+    expected: 401 each time and the same body as an unknown email (D-019); still 401 while locked; 200 after 15 min.
+    tests:
+      - tests/integration/test_auth_api.py::test_the_fifth_failure_locks_the_account_and_time_unlocks_it
+      - tests/unit/domain/test_credentials.py::test_the_lock_lifts_exactly_when_it_expires
+
+  - id: TC-08
+    category: invalid
+    title: Resolving without a summary is refused and the incident stays IN_PROGRESS
+    requirements: [FR-08, BR-04]
+    preconditions: An incident IN_PROGRESS.
+    steps: POST /incidents/{id}/resolve with an empty and then a blank summary.
+    input: "summary '' and '   '"
+    expected: 422 invalid_incident; status unchanged.
+    tests:
+      - tests/integration/test_incidents_api.py::test_BR04_resolving_without_a_summary_is_422
+
+  - id: TC-09
+    category: invalid
+    title: Malformed input is refused with field-level errors
+    requirements: [NFR-05]
+    preconditions: A signed-in Employee; a RESOLVED incident.
+    steps: Register with a malformed body; verify with rating 9; search with an invalid filter; report against a retired service.
+    input: "rating 9; unknown filter values; missing fields"
+    expected: 422 with the offending fields (404 for the retired service); nothing changes.
+    tests:
+      - tests/integration/test_auth_api.py::test_a_malformed_registration_is_422_from_pydantic
+      - tests/integration/test_incidents_api.py::test_a_rating_outside_one_to_five_is_422
+      - tests/integration/test_reports_api.py::test_an_invalid_search_is_422
+      - tests/integration/test_incidents_api.py::test_a_retired_service_is_404_and_bad_input_is_422
+
+  - id: TC-10
+    category: exception
+    title: An illegal state transition is refused with both states named
+    requirements: [FR-10, BR-04]
+    preconditions: An incident in ASSIGNED.
+    steps: Try every (from, to) pair of the 10 states; resolve an ASSIGNED incident through the API.
+    input: "100 pairs; POST /resolve on an ASSIGNED incident"
+    expected: Exactly 20 pairs succeed and 80 raise InvalidStateTransitionError; the API answers 409 naming ASSIGNED and RESOLVED.
+    tests:
+      - tests/unit/domain/test_states.py::test_transition_matrix
+      - tests/unit/domain/test_states.py::test_there_are_10_states_and_exactly_20_legal_transitions
+      - tests/integration/test_incidents_api.py::test_resolving_too_early_is_409
+
+  - id: TC-11
+    category: exception
+    title: Assignment refuses an unavailable technician or one over capacity
+    requirements: [FR-18, BR-06]
+    preconditions: One technician marked unavailable, one at full load.
+    steps: Auto-assign; reassign manually to each.
+    input: "available = false; load 10 + new P1"
+    expected: Neither is auto-assigned; manual reassignment raises TechnicianUnavailableError or WorkloadExceededError.
+    tests:
+      - tests/unit/domain/test_assignment.py::test_BR06_unavailable_or_inactive_technicians_are_never_auto_assigned
+      - tests/unit/domain/test_assignment.py::test_BR06_manual_assignment_over_capacity_is_refused
+      - tests/unit/services/test_incident_service.py::test_BR06_reassignment_refuses_an_unavailable_technician
+
+  - id: TC-12
+    category: exception
+    title: A database failure becomes a 503 with a rollback, never a stack trace
+    requirements: [NFR-03, NFR-05]
+    preconditions: A unit of work whose commit fails like a dropped connection.
+    steps: Commit; map the error; call the API in several failure modes.
+    input: "OperationalError 'server closed the connection'"
+    expected: DatabaseFailureError (503, code database_failure) without the driver's message; no response contains a stack trace.
+    tests:
+      - tests/integration/test_sqlalchemy_repositories.py::test_a_database_fault_becomes_a_503_not_a_500
+      - tests/integration/test_incidents_api.py::test_no_response_ever_contains_a_stack_trace_or_a_hash
+
+  - id: TC-13
+    category: exception
+    title: A Gemini outage or a malformed answer falls back to the keyword rules
+    requirements: [FR-13, NFR-03]
+    preconditions: The Gemini advisor wrapped in FallbackAdvisor with a fake transport.
+    steps: Classify while the transport times out twice, then while it returns non-JSON.
+    input: "TimeoutError x2; 'not json'"
+    expected: The rules classify the text (source 'rules'); the fallback is logged.
+    tests:
+      - tests/unit/adapters/test_gemini_advisor.py::test_an_outage_or_a_malformed_answer_falls_back_to_the_keyword_rules
+      - tests/unit/adapters/test_gemini_advisor.py::test_an_outage_is_retried_once_and_a_bad_answer_not_at_all
+
+  - id: TC-14
+    category: exception
+    title: A failing notification never undoes the change it reports, and concurrent edits are refused
+    requirements: [NFR-03, NFR-04]
+    preconditions: A dispatcher whose subscriber raises; two writers on the same incident row.
+    steps: Report an incident; save the same incident from two units of work.
+    input: "subscriber raises 'the mail server is down'; stale version"
+    expected: The incident is still ASSIGNED; the second writer gets ConcurrentModificationError (409).
+    tests:
+      - tests/unit/services/test_incident_service.py::test_a_failing_notification_does_not_undo_the_change
+      - tests/integration/test_incident_service_sql.py::test_a_second_writer_is_told_to_reload
+
+  - id: TC-15
+    category: authorisation
+    title: An employee cannot open another employee's incident
+    requirements: [FR-04, BR-01]
+    preconditions: Two Employees; one has reported an incident.
+    steps: The other Employee GETs the incident.
+    input: "GET /incidents/INC-2026-0001 with the other employee's token"
+    expected: 403 unauthorized_operation; the reporter still gets 200.
+    tests:
+      - tests/integration/test_incidents_api.py::test_BR01_another_employee_gets_403_not_the_incident
+      - tests/integration/test_authz_matrix.py::test_BR01_another_employee_is_refused_someone_elses_incident
+
+  - id: TC-16
+    category: authorisation
+    title: Every role gets exactly the answer the authorisation matrix promises on every endpoint
+    requirements: [FR-04, BR-01, BR-02, NFR-05]
+    preconditions: One account per role; every route of the OpenAPI document.
+    steps: Call each endpoint as each role and with no token.
+    input: "5 roles x every endpoint"
+    expected: 401 without a token (except public routes), 403 where the role lacks the permission, success otherwise.
+    tests:
+      - tests/integration/test_authz_matrix.py::test_every_role_gets_the_answer_the_matrix_promises
+      - tests/integration/test_authz_matrix.py::test_everything_but_the_public_endpoints_needs_a_token
+      - tests/integration/test_authz_matrix.py::test_BR02_a_technician_outside_the_incident_is_refused
+
+  - id: TC-17
+    category: authorisation
+    title: Only the reporter verifies or rejects a fix
+    requirements: [FR-04, BR-03]
+    preconditions: A RESOLVED incident.
+    steps: The technician and another employee try to verify; the reporter verifies.
+    input: "POST /verify by three users"
+    expected: 403 for everyone but the reporter.
+    tests:
+      - tests/integration/test_incidents_api.py::test_BR03_only_the_reporter_verifies_or_rejects
+
+  - id: TC-18
+    category: rule
+    title: Priority follows the impact x urgency x criticality table for all 27 combinations
+    requirements: [FR-15, BR-05]
+    preconditions: The weighted-product strategy.
+    steps: Assess every combination of 1-3 for impact, urgency and criticality.
+    input: "27 combinations"
+    expected: P1 x4, P2 x6, P3 x10, P4 x7; a category floor raises but never lowers; an override needs a reason.
+    tests:
+      - tests/unit/domain/test_priority.py::test_BR05_all_27_combinations
+      - tests/unit/domain/test_priority.py::test_BR05_combination_counts_match_the_blueprint_table
+      - tests/unit/domain/test_priority.py::test_BR05_category_floor_raises_but_never_lowers_priority
+      - tests/unit/domain/test_priority.py::test_BR05_override_needs_a_reason
+
+  - id: TC-19
+    category: rule
+    title: An unacknowledged P1 warns, breaches and escalates one level per missed target
+    requirements: [FR-17, FR-20, BR-07, BR-08]
+    preconditions: A P1 reported through the API; the test clock.
+    steps: Tick; advance 230 s and tick; advance 120 s more and tick.
+    input: "+230 s (77 % of 5 min), then +350 s total"
+    expected: Nothing at first; one warning; then a breach and escalation to the Team Lead (level 1).
+    tests:
+      - tests/integration/test_sla_api.py::test_BR08_a_p1_warns_breaches_and_escalates_as_time_moves
+      - tests/unit/domain/test_escalation.py::test_BR08_unacknowledged_p1_escalates_one_level_per_missed_target
+
+  - id: TC-20
+    category: rule
+    title: A near-identical repeat by the same reporter within 30 minutes is refused with a link
+    requirements: [FR-28, BR-09]
+    preconditions: The reporter has reported the fee portal outage.
+    steps: Report it again 10 minutes later; then 31 minutes after the first.
+    input: "same title and description, other impact and urgency"
+    expected: 409 duplicate_incident with existing_incident_id; after 30 min it is accepted and the first is suggested.
+    tests:
+      - tests/integration/test_incidents_api.py::test_BR09_a_repeat_by_the_same_reporter_is_409_with_a_link_to_the_first
+      - tests/unit/domain/test_similarity.py::test_BR09_a_repeat_is_refused_only_when_near_identical_and_within_30_minutes
+
+  - id: TC-21
+    category: rule
+    title: The audit chain verifies, and tampering with one record is detected
+    requirements: [FR-23, BR-10]
+    preconditions: Activity has written audit records.
+    steps: POST /audit/verify; change one record's actor directly in the database; verify again.
+    input: "UPDATE audit_log SET actor_id = NULL on one row"
+    expected: Intact first; then broken at that record.
+    tests:
+      - tests/integration/test_admin_api.py::test_BR10_the_integrity_check_passes_then_fails_after_tampering
+      - tests/integration/test_audit_integrity.py::test_a_tampered_tail_record_is_still_caught_as_a_broken_link
+
+  - id: TC-22
+    category: rule
+    title: A resolved incident nobody verifies closes itself after 72 hours
+    requirements: [FR-11, BR-03]
+    preconditions: A RESOLVED incident; the test clock.
+    steps: Advance the clock past 72 hours and run the monitor.
+    input: "+72 h"
+    expected: CLOSED by the system; the reporter is told.
+    tests:
+      - tests/integration/test_sla_api.py::test_BR03_autoclose_through_the_api
+
+  - id: TC-23
+    category: normal
+    title: Payment tickets point at the database outage as their likely root cause
+    requirements: [FR-29]
+    preconditions: An open P1 on Database Cluster; a Fee Payment Portal incident.
+    steps: GET /incidents/{id}/correlation.
+    input: "Fee Payment Portal depends on Database Cluster"
+    expected: The hint names the database incident as the possible root cause.
+    tests:
+      - tests/integration/test_incidents_api.py::test_the_fee_portal_incident_names_the_database_outage_as_its_likely_root_cause

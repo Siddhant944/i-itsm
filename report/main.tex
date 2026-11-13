@@ -11,7 +11,24 @@
 \usepackage{amsmath}
 \usepackage{xcolor}
 \usepackage{listings}
+\usepackage{array}
+\usepackage{float}
+\usepackage{pdflscape}
 \usepackage[hidelinks]{hyperref}
+
+% Diagrams are rendered to PNG by `make diagrams` (run by `make report`).
+\graphicspath{{../docs/diagrams/}{../docs/diagrams/generated/}}
+% One documented test case (report/generated/test-cases.tex, written by `make test-report`).
+\newenvironment{testcase}[2]
+  {\par\medskip\noindent\minipage{\textwidth}\textbf{#1}\quad\textbf{#2}\par\smallskip
+   \tabularx{\textwidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.6cm}X@{}}\toprule}
+  {\bottomrule\endtabularx\endminipage\par}
+% A full-width diagram with a caption and label.
+\newcommand{\diagram}[3][\textwidth]{%
+  \begin{figure}[H]\centering\includegraphics[width=#1,height=0.82\textheight,keepaspectratio]{#2}%
+  \caption{#3}\label{fig:#2}\end{figure}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\setlength{\emergencystretch}{3em} % let lines with long identifiers break instead of overflowing
 
 \newcommand{\project}{I-ITSM}
 \newcommand{\repourl}{https://github.com/Siddhant944/i-itsm}

@@ -9,6 +9,9 @@ from sqlalchemy.engine.url import make_url
 def make_engine(database_url: str) -> Engine:
     """Create an engine for SQLite or PostgreSQL with the project's connection settings."""
     url = make_url(database_url)
+    if url.drivername in {"postgres", "postgresql"}:
+        # Neon and most hosts hand out plain postgresql:// URLs; our driver is psycopg 3.
+        url = url.set(drivername="postgresql+psycopg")
     if url.get_backend_name() == "sqlite":
         engine = create_engine(url, connect_args={"check_same_thread": False})
         event.listen(engine, "connect", _sqlite_pragmas)

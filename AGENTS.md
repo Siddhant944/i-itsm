@@ -9,7 +9,7 @@ CS F213 group project; submission 21 Nov 2026 (hard deadline 22 Nov).
 - Ask before deviating from the blueprint; log every agreed deviation in DECISIONS.md.
 
 ## Commands
-- make setup · make dev · make test · make e2e · make seed · make demo-reset · make diagrams · make report
+- make setup · make dev · make test · make e2e · make seed · make demo-reset · make diagrams · make test-report · make report
 - make verify = lint + type-check + all tests. It must pass before every commit.
 
 ## Stack

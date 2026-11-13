@@ -2,7 +2,80 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P5 Hardening — done, PR open (12 Nov)
+## Status: P6 Documentation and demo — done, PR open (13 Nov)
+
+On `claude/awesome-fermi-lx7q8c`, cut from main after the P5 PR merged. Every P6 package is done
+and the phase review's findings are fixed. `make verify` passes: 1,128 backend tests (3 skipped by
+design, 97 % coverage) and 106 frontend tests; Playwright passes all 9 specs (`make e2e`).
+`make report` builds the 59-page PDF.
+
+### Done
+- **P6.1 Diagrams.** `make diagrams` regenerates and renders everything; Java is the only
+  requirement (PlantUML's built-in smetana layout, no Graphviz). The state diagram, six class
+  diagrams and the ER diagram are *generated from the code* by `backend/scripts/gen_diagrams.py`
+  (State triggers, class members and bases, SQLAlchemy metadata); a test fails when a committed
+  one is stale. Use case, architecture, deployment and one sequence diagram per workflow are
+  hand-written. Index: `docs/diagrams/README.md`.
+- **P6.3 Test cases.** `docs/testing/cases.yaml`: 23 cases across the six categories of the
+  requirements, each naming its pytest tests. `make test-report` runs the suites once and
+  writes each case's actual result and status, totals, coverage, per-suite counts and the
+  BR-01..BR-10 traceability matrix into `report/generated/` and `docs/testing/test-report.md`.
+  It refuses to report a run that did not finish.
+- **P6.2 Report.** Chapters 3–12 written (architecture, UML, repository, database, testing,
+  security, OOP and patterns, traceability, team and AI use). The pattern table and OOP evidence
+  are read from the code (`gen_pattern_table.py`), chapter 5's versions from the lock files
+  (`gen_versions.py`); `make report` regenerates them. Chapters 1, 2 and 5 no longer describe the
+  cut voice input, health map or load test.
+- **P6.4 README** rewritten: features, one-command start (Linux, Windows, Docker), demo accounts,
+  screenshots of the three portals (`docs/screenshots/`), commands, architecture, tests.
+- **P6.5 `docs/DEMO_SCRIPT.md`:** a 17-minute shot list per member covering the three workflows
+  on the ×10 clock, with setup, timings and a checklist.
+- **Seed data:** each category now has its own fix texts, so the suggested-fix panel shows a
+  Wi-Fi fix for a Wi-Fi ticket in the demo; the rest of the generated history is unchanged.
+- **Bug [#8](https://github.com/Siddhant944/i-itsm/issues/8)** (found by the phase review):
+  refused operations (403) were never on the audit trail, though §8 says they are. The record
+  was rolled back with the request, and ownership refusals were never recorded. The request's
+  unit of work now records and commits the refusal after rolling the request back; a
+  regression test covers both kinds and the chain's integrity.
+
+### Phase review
+A fresh-context subagent reviewed the whole phase diff against the code and the requirements and
+reported 16 findings. It confirmed every Deliverables item is present and no cut feature is
+claimed. All 16 are fixed:
+- **The audit bug above** (the only code bug).
+- **Docs that said more than the code does.** Assignment filters on availability, activity and
+  capacity, and skills only rank. Ownership is checked in the service, not a FastAPI dependency
+  (D-038, *proposed*). Embeddings and violations have their own repositories. A missing SLA
+  policy is audited, not alerted. There are eleven patterns, not nine. The monitor escalates
+  directly. Technicians can override priority and link Telegram. The class diagram showed the
+  test-only `EventBus`; it now shows `PostCommitDispatcher`.
+- **Demo script.** The technician window now signs in as whoever the strategy picked.
+  Workflow 3's P1 is reported just before its escalations are filmed (all three fire within
+  about 90 real seconds).
+- **Test report.** It no longer reuses a previous run's JSON and names the database it ran on.
+- **Windows.** The README and chapter 6 now say that diagrams and the PDF need Java and
+  tectonic, with the CI artifact as the alternative.
+
+### Next
+- Dry run 2 with `make demo-reset` and `docs/DEMO_SCRIPT.md`; adjust the shot list to taste.
+- Each owner reads and edits their chapters (owners are in each chapter's header comment).
+- Record Thu 19 – Fri 20; submit the PDF and video by Sat 21 (hard deadline 22 Nov).
+- Restore cut items only if the team wants them, in D-027's reverse order.
+
+### Needs a human
+1. **Review and merge this PR.** Add the `e2e` and `report` labels so CI runs Playwright and
+   builds the PDF (download it from the run's artifacts).
+2. **Chapter 12, "How AI tools were used":** add, in your own words, what each of you did
+   yourselves (marked `TEAM:` in `report/chapters/12-team-and-ai.tex`). Check the
+   responsibilities table there too.
+3. **Confirm D-038** (where the ownership check lives) or ask for it to be moved into a
+   dependency. If you confirm it, reword AGENTS.md's Security line to match.
+4. **Confirm the video file-name year** (`15_OOP_S1_2025-2026_Project`) with the IC.
+5. Still open from P5: Render and Neon accounts and the deployment (docs/DEPLOY.md); keys
+   (`GEMINI_*`, `TELEGRAM_BOT_TOKEN`, `GOOGLE_*`) on the host; review the 52 labelled duplicate
+   pairs.
+
+## Previous: P5 Hardening (merged 12 Nov, PR #7)
 
 On `claude/gallant-darwin-vrgc1q`, cut from main after the P4 PR merged. Every P5 package still
 in scope after D-027 is done (P5.2, the Locust run, stays cut), and the phase review's findings

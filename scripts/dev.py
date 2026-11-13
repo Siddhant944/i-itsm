@@ -280,25 +280,39 @@ def demo_reset(_: argparse.Namespace) -> None:
 
 
 def diagrams(_: argparse.Namespace) -> None:
-    """Render every PlantUML source under docs/diagrams/ to SVG next to it."""
+    """Regenerate the code-derived diagrams, then render every PlantUML source (P6.1).
+
+    SVG (committed, viewable on GitHub) and PNG (git-ignored, for the PDF report) land next
+    to each source. No Graphviz needed: the sources use PlantUML's built-in smetana layout.
+    """
+    run(["uv", "run", "python", "scripts/gen_diagrams.py"], BACKEND)
     sources = sorted(str(p) for p in DIAGRAMS.rglob("*.puml"))
-    if not sources:
-        print("no diagrams yet (docs/diagrams/**/*.puml)")
-        return
     jar = Path(os.environ.get("PLANTUML_JAR", REPO / "tools" / "plantuml.jar"))
     if not jar.exists():
         raise TaskError(
-            f"PlantUML not found at {jar}; run scripts/cloud-setup.sh or set PLANTUML_JAR"
+            f"PlantUML not found at {jar}; run scripts/cloud-setup.sh (Linux) or set "
+            "PLANTUML_JAR (Windows: see the README)"
         )
-    run(["java", "-jar", str(jar), "-tsvg", *sources], REPO)
+    if shutil.which("java") is None:
+        raise TaskError("Java not found; PlantUML needs Java 17+ (see the README)")
+    for fmt in ("-tsvg", "-tpng"):
+        run(["java", "-jar", str(jar), fmt, *sources], REPO)
+
+
+def write_test_report(_: argparse.Namespace) -> None:
+    """Run every test once and write the documented cases' results into the report (P6.3)."""
+    run(["uv", "run", "python", "scripts/test_report.py"], BACKEND)
 
 
 def report(_: argparse.Namespace) -> None:
-    """Build report/build/main.pdf with tectonic."""
+    """Render the diagrams and the code-derived tables, then build report/build/main.pdf."""
+    diagrams(argparse.Namespace())
+    run(["uv", "run", "python", "scripts/gen_pattern_table.py"], BACKEND)
+    run(["uv", "run", "python", "scripts/gen_versions.py"], BACKEND)
     tectonic = shutil.which("tectonic") or str(REPO / "tools" / "tex" / "bin" / "tectonic")
     if not Path(tectonic).exists():
         raise TaskError(
-            "tectonic not found; run scripts/cloud-setup.sh or see tectonic-typesetting.github.io"
+            "tectonic not found; run scripts/cloud-setup.sh (Linux) or see the README (Windows)"
         )
     (REPORT / "build").mkdir(exist_ok=True)
     run([tectonic, "--outdir", "build", "main.tex"], REPORT)
@@ -322,6 +336,7 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], None]] = {
     "seed": seed,
     "demo-reset": demo_reset,
     "diagrams": diagrams,
+    "test-report": write_test_report,
     "report": report,
 }
 

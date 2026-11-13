@@ -1,11 +1,121 @@
 \chapter{System Architecture}\label{ch:architecture}
-% Owner: M3 (Shri Krishna P). Drafted in P6 (see docs/PLAN.md).
+% Owner: M3 (Shri Krishna P). Draft 1, 12 Nov 2026; sources: blueprint §2, backend/pyproject.toml
+% (import-linter contracts), app/main.py, docker-compose.yml, render.yaml.
+
+I-ITSM is a layered modular monolith: one backend process with five layers, a React single-page
+application with three portals, and one relational database. Every source-code dependency
+points inward, towards a domain model that imports no framework, so the business rules can be
+read, tested and changed without the web server or the database.
 
 \section{Architecture diagram}
-\emph{To be written.}
+\diagram{architecture}{Components and their interactions. Arrows are calls or source
+dependencies; dashed arrows with hollow heads mean ``implements''.}
 
-\section{Layers and dependency rule}
-\emph{To be written.}
+\section{Layers and responsibilities}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{9.2cm}@{}}
+\toprule
+\textbf{Layer} & \textbf{Package} & \textbf{Responsibility} \\
+\midrule
+\endhead
+Presentation & \code{frontend/src} & Employee, Technician and Admin portals; a typed client
+  generated from the API's OpenAPI document; a WebSocket hook for live updates. \\
+API & \code{app/api} & Thin routers: validate the request with Pydantic, resolve the caller
+  and check the role's permission in a FastAPI dependency, call a service, map the result.
+  Ownership (BR-01 to BR-03) needs the incident, so the service checks it through the
+  domain's rules in \code{access.py} once it has loaded it (D-038). \code{errors.py} turns each \code{ITSMError} into one HTTP status and a JSON body,
+  never a stack trace. \\
+Services & \code{app/services} & Use cases. \code{IncidentService} is the facade the routers
+  call for every incident action; the SLA monitor, notifications, audit, search, analytics,
+  configuration and authentication sit beside it. \\
+Domain & \code{app/domain} & The object model and every business rule: the \code{Incident}
+  aggregate and its ten \code{State} objects, users and permissions, the priority,
+  assignment, SLA and escalation engines, similarity and the dependency graph. It also
+  declares the interfaces (ports) that persistence and external services implement. \\
+Persistence & \code{app/repositories} & SQLAlchemy repositories and a unit of work that
+  implement the domain's repository interfaces; in-memory twins for fast unit tests; Alembic
+  migrations. \\
+Adapters & \code{app/adapters} & Gemini, SMTP, Telegram and Google Identity behind the
+  domain's ports, each with a deterministic fallback or fake. \\
+Core & \code{app/core} & Settings, password hashing and tokens, logging, and the injected
+  \code{Clock} (system, fake or accelerated). \\
+\bottomrule
+\end{longtable}
+
+\section{The dependency rule, enforced}
+The rule is not a convention but a check: \code{import-linter} runs in \code{make verify}, the
+pre-commit hook and CI, and the build fails if any of these contracts is broken.
+\begin{itemize}
+  \item The domain depends only on core: it may not import the API, services, persistence,
+    adapters, FastAPI, Starlette, SQLAlchemy, httpx or Uvicorn.
+  \item Services depend only on the domain and core; the API only on services, domain and
+    core; persistence and adapters only on the domain and core, and not on each other.
+  \item Core depends on no application layer, and only the composition roots import the seed
+    data.
+\end{itemize}
+\code{app/main.py} is the composition root: the only module that sees every layer. It reads the
+settings, picks the clock, builds the unit-of-work factory, chooses each adapter or its
+fallback (for example \code{FallbackAdvisor(GeminiAdvisor)} when a Gemini key is set, the
+keyword rules otherwise), wires the notification channels and the live hub, and starts the SLA
+monitor. Tests build the same graph with in-memory repositories and a \code{FakeClock}.
+
+\section{How a request flows}
+Reporting an incident (Workflow~1, Figure~\ref{fig:sequence-wf1}) shows every layer:
+\begin{enumerate}
+  \item The browser posts JSON through the generated client. The router validates it with
+    Pydantic and the \code{deps.py} dependency turns the bearer token into a \code{User}.
+  \item \code{IncidentService.report} checks the permission, looks for duplicates, creates the
+    incident through \code{IncidentFactory}, asks the advisor for a category, computes the
+    priority, starts the SLA clock and runs the assignment strategy.
+  \item Each change is a method on the \code{Incident} aggregate, which delegates to its
+    current \code{State} object and records a domain event.
+  \item The service saves the aggregate and writes one hash-chained audit record per event
+    \emph{in the same transaction}, then commits.
+  \item Only after the commit does the \code{PostCommitDispatcher} hand the events to the
+    notification service (in-app, email, Telegram) and the live publisher (WebSocket). A
+    failing email can therefore never undo the change it reports, and nobody is notified about
+    a change that rolled back.
+\end{enumerate}
+
+\section{Cross-cutting concerns}
+\begin{description}
+  \item[Time.] Nothing calls \code{datetime.now()} (a Ruff rule bans it). The SLA engine, the
+    monitor, tokens and lockouts all read an injected \code{Clock}. The demo runs an
+    \code{AcceleratedClock} at ten times real speed; tests use a \code{FakeClock} they advance by
+    hand; every response carries \code{X-Server-Time} and \code{X-Clock-Rate} so the browser's
+    countdowns follow the server's clock (D-023).
+  \item[Errors.] One hierarchy, \code{ITSMError}, with 8 groups and 14 specific errors
+    (Chapter~\ref{ch:security}); global handlers map each to one status code.
+  \item[Real time.] One authenticated WebSocket per tab; the server pushes ``incident X
+    changed'' and the client re-reads it through the normal API (D-033).
+  \item[Background work.] APScheduler runs the SLA monitor every 30 seconds of clock time
+    (every 3 real seconds at $\times$10, D-003). \code{POST /sla/tick} runs it on demand.
+  \item[Configuration as data.] Categories, services and their dependencies, SLA targets, the
+    assignment strategy and its weights live in the database and are edited in the admin
+    portal; a new category takes effect without a deployment.
+\end{description}
 
 \section{Deployment}
-\emph{To be written.}
+\diagram{deployment}{Deployment: one command locally, free-tier hosts in the cloud.}
+\begin{itemize}
+  \item \textbf{One command locally.} \code{docker compose up} starts PostgreSQL 16, the API
+    (which runs \code{alembic upgrade head} before serving) and nginx serving the built
+    frontend and proxying \code{/api}. Without Docker, \code{make dev} runs the API on SQLite and
+    the Vite dev server; \code{make demo-reset} reseeds and serves the demo at $\times$10.
+  \item \textbf{Cloud.} \code{render.yaml} describes the API as a Docker web service and the web
+    app as a static site on Render's free plan, with PostgreSQL on Neon's free plan (Render's
+    free database is deleted after 30 days). With \code{APP\_ENV=prod} the API refuses a weak
+    signing secret, a fake clock and any CORS origin that is not the web app's \code{https://}
+    address (D-037).
+  \item \textbf{Limits we accept.} A free Render service sleeps after 15 idle minutes, so the
+    scheduler pauses with it and catches up on the next request; free Render blocks SMTP
+    ports, so the deployment sends in-app and Telegram notifications and logs email to the
+    console.
+\end{itemize}
+
+\section{Why this architecture}
+A monolith is the right size for four developers and one campus: one deployable, one
+transaction for a change and its audit record, and no network between the rules. The layers
+give most of what services would: the domain and services are tested in isolation
+(several hundred unit tests that run in seconds), the persistence can be swapped (memory, SQLite and PostgreSQL pass the same contract
+suite), and each external service can fail without taking the system down. Chapter~5 answers
+how the design would grow; the seams are already where a split would happen.

@@ -97,6 +97,34 @@ class UnauthorizedOperationError(AuthorizationError):
     code = "unauthorized_operation"
     default_message = "You are not allowed to perform this operation."
 
+    def __init__(
+        self,
+        message: str | None = None,
+        details: Mapping[str, object] | None = None,
+        *,
+        actor_id: int | None = None,
+        incident_id: str | None = None,
+        audit_details: Mapping[str, object] | None = None,
+    ) -> None:
+        """``actor_id``, ``incident_id`` and ``audit_details`` say who was refused what, for
+        the audit trail (§8); unlike ``details`` they are never sent to the caller."""
+        super().__init__(message, details)
+        self.__actor_id = actor_id
+        self.__incident_id = incident_id
+        self.__audit_details: Mapping[str, object] = MappingProxyType(dict(audit_details or {}))
+
+    @property
+    def actor_id(self) -> int | None:
+        return self.__actor_id
+
+    @property
+    def incident_id(self) -> str | None:
+        return self.__incident_id
+
+    @property
+    def audit_details(self) -> Mapping[str, object]:
+        return self.__audit_details
+
 
 class InvalidUserInputError(ValidationError):
     """One or more fields are invalid."""

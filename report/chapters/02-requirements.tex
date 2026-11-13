@@ -31,7 +31,7 @@ FR-04 & Every action is checked against the user's role and, for incidents, owne
 \textbf{ID} & \textbf{Requirement} & \textbf{Source} \\
 \midrule
 \endhead
-FR-05 & An employee reports an incident by title, description (typed or spoken), affected
+FR-05 & An employee reports an incident by title, description, affected
   service and two plain-language questions (who is affected, can you keep working). &
   R: MVP; B §5.1, §6.1 \\
 FR-06 & Each incident records its ID, reporter, category, description, affected service,
@@ -150,7 +150,8 @@ CLOSED, CANCELLED & none (terminal) \\
 \midrule
 \endhead
 NFR-01 & Performance & Search over 10\,000 incidents answers within 300 ms at the 95th
-  percentile (measured with Locust). \\
+  percentile. A target: queries are indexed and paged, but the load test was cut for time
+  (D-027) and the figure is not measured. \\
 NFR-02 & Timeliness & An SLA breach is detected within one 30-second monitor tick. \\
 NFR-03 & Reliability & When an external service fails, the system falls back (rule-based AI,
   TF-IDF similarity, console email) and never blocks incident creation; a failed notification

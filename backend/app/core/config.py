@@ -14,8 +14,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_JWT_SECRET = "dev-only-insecure-jwt-secret-change-me"  # noqa: S105 - documented dev default
 MIN_PROD_SECRET_LENGTH = 32
-# The one optional .env file, at the repository root (absent inside Docker images).
+# Optional env files at the repository root (absent inside Docker images). `neon init` writes
+# .env.local; it is read after .env, so its values win.
 ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+ENV_LOCAL_FILE = ENV_FILE.with_name(".env.local")
 
 
 class AppEnv(StrEnum):
@@ -40,7 +42,10 @@ class Settings(BaseSettings):
     """Typed settings. Secrets are ``SecretStr`` so they never appear in logs or reprs."""
 
     model_config = SettingsConfigDict(
-        env_file=ENV_FILE, env_file_encoding="utf-8", env_ignore_empty=True, extra="ignore"
+        env_file=(ENV_FILE, ENV_LOCAL_FILE),
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
     )
 
     # --- application

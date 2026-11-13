@@ -1,94 +1,14 @@
 \chapter{Technology Stack}\label{ch:technology}
-% Owner: M2 (Siddhant L Pathak). Draft 1, 3 Nov 2026; source: blueprint §12, uv.lock and
-% package-lock.json. Versions are those locked at the time of writing; P6 regenerates this
-% table from the lock files at feature freeze. Rows marked "planned" are added in later phases.
+% Owner: M2 (Siddhant L Pathak). Draft 2, 12 Nov 2026; source: blueprint §12. The version
+% tables are generated from the lock files (backend/scripts/gen_versions.py).
 
 \section{Technologies, libraries and services}
+Every version below is read from the lock files (\texttt{backend/uv.lock},
+\texttt{frontend/package-lock.json}, \texttt{e2e/package-lock.json}) by
+\texttt{backend/scripts/gen\_versions.py} when the report is built, so the table states what
+the code is really built with.
 
-\subsection*{Backend (Python)}
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{8.4cm}@{}}
-\toprule
-\textbf{Technology} & \textbf{Version} & \textbf{Purpose} \\
-\midrule
-\endhead
-Python & 3.12 & Language for the domain, services and API. \\
-uv & 0.11 & Python version, dependency and virtual-environment management (lock file). \\
-FastAPI & 0.162 & HTTP API, dependency injection, OpenAPI generation, WebSockets. \\
-Starlette & 1.10 & ASGI toolkit under FastAPI (middleware, CORS). \\
-Uvicorn & 0.54 & ASGI server. \\
-Pydantic & 2.14 & Validation of every request and response at the boundary. \\
-pydantic-settings & 2.16 & Typed configuration from the environment. \\
-SQLAlchemy & 2.1 & ORM and query builder behind the repository interfaces. \\
-psycopg & 3.3 & PostgreSQL driver. \\
-Alembic & planned (P2) & Database migrations. \\
-APScheduler & planned (P2) & In-process SLA monitor job. \\
-argon2-cffi, PyJWT & planned (P2) & Password hashing and short-lived access tokens. \\
-Google Gen AI SDK & planned (P4) & Gemini classification, summaries and embeddings. \\
-google-auth & planned (P4) & Verifying Google Sign-In ID tokens and the \texttt{hd} claim. \\
-\bottomrule
-\end{longtable}
-
-\subsection*{Frontend (TypeScript)}
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{8.4cm}@{}}
-\toprule
-\textbf{Technology} & \textbf{Version} & \textbf{Purpose} \\
-\midrule
-\endhead
-Node.js & 22 LTS & Build and test runtime. \\
-TypeScript & 5.9 & Static typing in strict mode. \\
-React & 19.3 & Component-based UI for the three portals. \\
-Vite & 8.3 & Development server and production build. \\
-Tailwind CSS & 4.3 & Utility-first styling and per-portal themes. \\
-React Router & 8.5 & Role-based routing and navigation. \\
-TanStack Query & 5.105 & Server state: caching, loading and error states, retries. \\
-openapi-typescript, openapi-fetch & 7.13, 0.17 & A typed API client generated from the
-  backend's OpenAPI document. \\
-Recharts & planned (P3) & Dashboard charts. \\
-React Flow & planned (P4) & Service dependency health map. \\
-Web Speech API & browser & Voice input for incident reports (Chrome, Edge). \\
-\bottomrule
-\end{longtable}
-
-\subsection*{Data, services and infrastructure}
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{8.4cm}@{}}
-\toprule
-\textbf{Technology} & \textbf{Version} & \textbf{Purpose} \\
-\midrule
-\endhead
-SQLite & 3 & Local development and tests (\texttt{foreign\_keys=ON}, WAL). \\
-PostgreSQL & 16 & Docker and deployment database; CI runs the tests on it too. \\
-Google Gemini API & planned (P4) & AI classification, grounded resolution summaries and
-  embeddings, with rule-based and TF-IDF fallbacks. \\
-SMTP email & planned (P2) & Email notifications (console fallback when unset). \\
-Telegram Bot API & planned (P4) & Urgent alerts to technicians and leads. \\
-Google Identity Services & planned (P4) & Sign-in restricted to the campus domain. \\
-Docker, Docker Compose & 29 & One-command startup of API, web (nginx) and PostgreSQL. \\
-nginx & 1.29 & Serves the built frontend and proxies the API in Docker. \\
-GitHub, GitHub Actions & -- & Version control, issues as the bug log, CI (lint, types, tests
-  on SQLite and PostgreSQL, builds, end-to-end tests, report). \\
-Hosting & to be chosen (P2.10) & Free-tier static host, container host and managed
-  PostgreSQL. \\
-\bottomrule
-\end{longtable}
-
-\subsection*{Quality and documentation tooling}
-\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.6cm}l>{\raggedright\arraybackslash}p{8.4cm}@{}}
-\toprule
-\textbf{Tool} & \textbf{Version} & \textbf{Purpose} \\
-\midrule
-\endhead
-pytest, pytest-cov & 9.2, 7.1 & Backend unit and integration tests with coverage. \\
-Ruff & 0.17 & Python linting (including a ban on wall-clock calls) and formatting. \\
-mypy & 2.4 & Static type checking in \texttt{--strict} mode. \\
-import-linter & 2.15 & Machine-checked layer rules (the domain imports no framework). \\
-ESLint, Prettier & 10.14, 3.9 & TypeScript linting and formatting. \\
-Vitest, Testing Library & 5.1, 16.3 & Frontend component tests. \\
-Playwright & 1.63 & End-to-end tests of the three demo workflows. \\
-Locust & planned (P5) & Load test of the search performance target. \\
-pre-commit, gitleaks & 4.7, 8.30 & Commit-time checks, including secret scanning. \\
-tectonic, PlantUML & 0.17, 1.2026.9 & This report and its UML diagrams, built from sources. \\
-\bottomrule
-\end{longtable}
+\input{generated/versions}
 
 \section{Technology selection: the nine questions}
 
@@ -114,7 +34,7 @@ React with TypeScript and Tailwind CSS, built with Vite.
     the notification bell are written once and reused across the three portals, while each
     portal keeps its own visual identity, as the requirements ask.
   \item The ecosystem provides what our features need: TanStack Query for loading and error
-    states, Recharts for dashboards, React Flow for the dependency map, and support for an
+    states, Recharts for dashboards, and support for an
     installable progressive web app.
   \item Vite gives a fast development loop and a small production build.
 \end{itemize}
@@ -184,8 +104,8 @@ Chapter~\ref{ch:oop} gives the evidence class by class. In short: abstract base 
 the interfaces (strategies, notification channels, AI advisor, embedding provider, clock and
 repositories); inheritance is used only for genuine is-a relationships (users, states,
 exceptions); polymorphism lets strategies, channels, states and clocks be swapped; composition
-ties an incident's SLA clock, notes, resolution and feedback to its lifetime; and nine design
-patterns appear in named classes. Python's encapsulation rests on convention, name mangling and
+ties an incident's SLA clock, notes, resolution and feedback to its lifetime; and the nine
+design patterns of the blueprint (plus Unit of Work and Proxy) appear in named classes. Python's encapsulation rests on convention, name mangling and
 immutability, which we verify with static checks rather than claim the language enforces.
 
 \subsection*{9. How would your system evolve if the number of users increased significantly?}
