@@ -56,6 +56,39 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/**
+ * The facts that decide what happens next, under the title where they are seen first: who has it,
+ * what it affects, and the two SLA deadlines (the highlights strip of the large service desks).
+ * Once the first response is in, its deadline gives way to when it happened.
+ */
+function KeyFacts({ incident }: { incident: Incident }) {
+  const names = useNames();
+  const { sla } = incident;
+  return (
+    <dl
+      data-testid="key-facts"
+      className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-line bg-surface px-4 py-3 sm:grid-cols-4"
+    >
+      <Fact label="Assigned to">
+        {incident.assignee_id === null ? "Not assigned yet" : names.person(incident.assignee_id)}
+      </Fact>
+      <Fact label="Service">{names.service(incident.service_id)}</Fact>
+      {sla === null ? (
+        <Fact label="SLA">Starts once the incident is classified</Fact>
+      ) : (
+        <>
+          {sla.responded_at === null ? (
+            <Fact label="Respond by">{formatDateTime(sla.response_deadline)}</Fact>
+          ) : (
+            <Fact label="Responded">{formatDateTime(sla.responded_at)}</Fact>
+          )}
+          <Fact label="Resolve by">{formatDateTime(sla.resolution_deadline)}</Fact>
+        </>
+      )}
+    </dl>
+  );
+}
+
 function Timeline({ incident }: { incident: Incident }) {
   const names = useNames();
   return (
@@ -690,6 +723,7 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
             {risk.data.reason}
           </p>
         )}
+        <KeyFacts incident={incident} />
       </div>
 
       {question !== null && allowed.provideInformation && (
@@ -937,22 +971,14 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
 
           <Card title="Details">
             <dl className="grid grid-cols-2 gap-3">
-              <Fact label="Service">{names.service(incident.service_id)}</Fact>
               <Fact label="Category">{names.category(incident.category_id)}</Fact>
               <Fact label="Reported by">{names.person(incident.reporter_id)}</Fact>
-              <Fact label="Assigned to">{names.person(incident.assignee_id)}</Fact>
               <Fact label="Impact">{levelLabel(incident.impact)}</Fact>
               <Fact label="Urgency">{levelLabel(incident.urgency)}</Fact>
               <Fact label="Priority score">
                 {incident.priority_score === null ? "—" : String(incident.priority_score)}
               </Fact>
               <Fact label="Reported">{formatDateTime(incident.created_at)}</Fact>
-              {incident.sla !== null && (
-                <>
-                  <Fact label="Respond by">{formatDateTime(incident.sla.response_deadline)}</Fact>
-                  <Fact label="Resolve by">{formatDateTime(incident.sla.resolution_deadline)}</Fact>
-                </>
-              )}
               {incident.parent_id !== null && (
                 <Fact label="Duplicate of">
                   {/* BR-01: a reporter may not open someone else's incident, so no link. */}

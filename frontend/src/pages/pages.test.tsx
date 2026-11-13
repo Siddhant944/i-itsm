@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { formatDateTime } from "../lib/format";
 import { apiError, incident, me, renderPage, renderRoutes } from "../test/utils";
 import { AuditPage } from "./admin/AuditPage";
 import { AssignmentPage } from "./admin/config/AssignmentPage";
@@ -289,6 +290,31 @@ describe("the technician portal", () => {
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows[0]).toHaveTextContent("Portal down");
     expect(rows[1]).toHaveTextContent("Printer jam");
+  });
+
+  it("puts the assignee and both SLA deadlines under the title", async () => {
+    detail({ user: me("technician", 3), routes: { "GET /incidents/INC-2026-0001": incident() } });
+    const facts = await screen.findByTestId("key-facts");
+    expect(within(facts).getByText("Assigned to")).toBeInTheDocument();
+    expect(within(facts).getByText("Respond by")).toBeInTheDocument();
+    expect(facts).toHaveTextContent(formatDateTime("2026-11-11T06:00:00Z"));
+  });
+
+  it("shows when the first response came once it is in", async () => {
+    const base = incident();
+    if (base.sla === null) throw new Error("fixture has an SLA");
+    detail({
+      user: me("technician", 3),
+      routes: {
+        "GET /incidents/INC-2026-0001": incident({
+          status: "ACKNOWLEDGED",
+          sla: { ...base.sla, responded_at: "2026-11-11T04:05:00Z" },
+        }),
+      },
+    });
+    const facts = await screen.findByTestId("key-facts");
+    expect(within(facts).getByText("Responded")).toBeInTheDocument();
+    expect(within(facts).queryByText("Respond by")).not.toBeInTheDocument();
   });
 
   it("hides finished incidents from the queue until asked", async () => {
