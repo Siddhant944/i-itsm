@@ -33,6 +33,7 @@ const UsersPage = page(() => import("./pages/admin/UsersPage"), "UsersPage");
 const ViolationsPage = page(() => import("./pages/admin/ViolationsPage"), "ViolationsPage");
 const MyIncidentsPage = page(() => import("./pages/employee/MyIncidentsPage"), "MyIncidentsPage");
 const ReportPage = page(() => import("./pages/employee/ReportPage"), "ReportPage");
+const ChatReportPage = page(() => import("./pages/employee/ChatReportPage"), "ChatReportPage");
 const IncidentDetailPage = page(
   () => import("./pages/incident/IncidentDetailPage"),
   "IncidentDetailPage",
@@ -55,6 +56,7 @@ export const routes: RouteObject[] = [
       { path: "incidents", element: <MyIncidentsPage /> },
       { path: "incidents/:id", element: <IncidentDetailPage /> },
       { path: "report", element: <ReportPage /> },
+      { path: "chat", element: <ChatReportPage /> },
     ],
   },
   {

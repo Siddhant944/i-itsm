@@ -87,12 +87,13 @@ function TopBarLayout({ portal }: { portal: Portal }) {
   return (
     <div data-portal={portal} className="min-h-screen bg-page text-ink">
       <header className="bg-nav text-nav-ink">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-4 px-4 py-3">
-          <p className="mr-auto text-lg font-semibold sm:mr-0">I-ITSM {PORTAL_TITLE[portal]}</p>
-          {/* P5.6: on a phone the links take a row of their own below the name and the bell. */}
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 py-3">
+          <p className="mr-auto text-lg font-semibold lg:mr-0">I-ITSM {PORTAL_TITLE[portal]}</p>
+          {/* P5.6: below 1024 px the links take a row of their own under the name and the bell,
+              so none of the three is cut off. */}
           <nav
             aria-label="Main"
-            className="order-last flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto sm:flex-1"
+            className="order-last flex w-full flex-wrap gap-1 lg:order-none lg:w-auto lg:flex-1"
           >
             {items.map((item) => (
               <NavLink

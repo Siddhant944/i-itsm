@@ -17,6 +17,7 @@ export const NAVIGATION: Record<Portal, readonly NavItem[]> = {
   employee: [
     { label: "My incidents", to: "/employee/incidents" },
     { label: "Report an incident", to: "/employee/report" },
+    { label: "Report by chat", to: "/employee/chat" },
   ],
   technician: [
     { label: "My queue", to: "/technician/queue" },
