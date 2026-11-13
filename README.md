@@ -24,6 +24,10 @@ CS F213 / MAC F212 Object-Oriented Programming, Semester I 2026–27 · Group 15
   predictive risk estimate from history.
 - **Duplicates and root causes.** Similar open incidents shown while the reporter types,
   confirmed duplicates linked, and incidents on dependent services traced to a likely root cause.
+- **Report by voice or by chat.** Dictate the description (Web Speech API), or answer one
+  question at a time in a chat that files the incident through the same rules as the form.
+- **Live service health map.** Every campus service coloured by its open incidents and by the
+  services it depends on, so an outage shows where it spreads.
 - **Notifications.** In-app with live WebSocket updates, email, and Telegram for urgent events.
 - **Accountability.** A hash-chained audit trail with an integrity check, 9-filter search with
   CSV export, and live dashboards.
@@ -108,6 +112,8 @@ three portals can be open side by side as three different people.
 | ![Technician queue](docs/screenshots/technician-queue.jpg) | ![Search](docs/screenshots/admin-search.jpg) |
 | **Admin: hash-chained audit log** | **Admin: SLA policies per tier and priority** |
 | ![Audit log](docs/screenshots/admin-audit.jpg) | ![SLA policies](docs/screenshots/admin-sla.jpg) |
+| **Admin: live service health map** | **Employee: report by chat** |
+| ![Service health map](docs/screenshots/admin-health-map.jpg) | ![Report by chat](docs/screenshots/employee-chat.jpg) |
 
 ## Commands
 
@@ -167,7 +173,7 @@ make test
 About 1,100 backend tests (97 % coverage) and 106 frontend tests; every business rule BR-01 to
 BR-10 has tests named after it, and time-dependent rules run on a fake clock. The backend suite
 runs on SQLite by default; set `TEST_DATABASE_URL` to a PostgreSQL URL to run it there (CI runs
-both). The 23 documented test cases and their results from the latest run:
+both). The 24 documented test cases and their results from the latest run:
 [docs/testing/test-report.md](docs/testing/test-report.md).
 
 ## Documentation

@@ -287,3 +287,16 @@ cases:
     expected: The hint names the database incident as the possible root cause.
     tests:
       - tests/integration/test_incidents_api.py::test_the_fee_portal_incident_names_the_database_outage_as_its_likely_root_cause
+
+  - id: TC-24
+    category: normal
+    title: The service health map marks an outage and what it takes down
+    requirements: [FR-34, FR-29]
+    preconditions: The Fee Payment Portal depends on the Database Cluster; no open incidents.
+    steps: Read GET /reports/service-health; report a P1 on the Database Cluster; read it again; ask as an employee.
+    input: "impact 3, urgency 3 on the Database Cluster"
+    expected: "All services ok at first; then the database is an outage, the portal impacted with the database as its cause; an employee gets 403."
+    tests:
+      - tests/integration/test_incidents_api.py::test_the_health_map_shows_the_outage_and_what_it_takes_down
+      - tests/unit/domain/test_dependency_graph.py::test_a_database_outage_lights_up_everything_built_on_it
+      - tests/unit/domain/test_dependency_graph.py::test_finished_unprioritised_and_retired_leave_no_mark

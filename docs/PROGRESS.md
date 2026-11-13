@@ -2,7 +2,34 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: P6 Documentation and demo — done, PR open (13 Nov)
+## Status: innovation features restored (13 Nov, after P6)
+
+On `claude/awesome-fermi-lx7q8c`, fast-forwarded to `main` after the P6 PR (#9) merged. Three
+items cut on 11 Nov are back (D-039), each named in the brief's Innovation Challenge list, each
+with tests, a report entry and a demo shot:
+- **Voice input (P4.12).** "Describe it by voice" on the report form and in the chat, using the
+  browser's Web Speech API; hidden where unsupported.
+- **Live service health map (P4.11).** Admin → Service health: React Flow map plus an
+  accessible table; `GET /reports/service-health`; refreshed by live pushes.
+- **Chatbot reporting (P4.13, in-app).** Employee → Report by chat: one question at a time,
+  look-alikes to follow, the AI category with its confidence, filed through `POST /incidents`.
+- Chapter 11 now maps all sixteen Innovation Challenge items (fifteen implemented).
+- `make verify` passes (1,136 backend, 117 frontend tests); Playwright passes all 9 specs and the
+  accessibility scan now covers 18 screens.
+
+Also on 13 Nov: the deployment is live on Render with Neon in Oregon (same region as the API);
+the app reads Neon's `.env.local` and accepts plain `postgresql://` URLs.
+
+### Needs a human
+1. Merge this branch's PR so Render redeploys `main` with the new screens.
+2. **Local `.env.local` points at the production database.** Anyone who runs `neon init` gets
+   it, and `make dev`, `make seed` and `make migrate` then use Neon, not SQLite. `make
+   demo-reset` refuses, as it should. For local work, delete `.env.local` or run with
+   `DATABASE_URL=sqlite:///./itsm.db`.
+3. The seeded history leaves several old P1s open, so the health map starts with five services
+   red. Fine for evaluation; for a cleaner Workflow 3 shot, say so and the seed can close them.
+
+## Previous: P6 Documentation and demo (merged 13 Nov, PR #9)
 
 On `claude/awesome-fermi-lx7q8c`, cut from main after the P5 PR merged. Every P6 package is done
 and the phase review's findings are fixed. `make verify` passes: 1,128 backend tests (3 skipped by

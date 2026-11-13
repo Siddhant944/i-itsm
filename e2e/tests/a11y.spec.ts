@@ -11,7 +11,7 @@ import { ADMIN, EMPLOYEE, signIn } from "./helpers";
 const PORTALS = [
   {
     email: EMPLOYEE,
-    screens: ["/employee/incidents", "/employee/report"],
+    screens: ["/employee/incidents", "/employee/report", "/employee/chat"],
   },
   {
     email: "lead@campus.edu",
@@ -27,6 +27,7 @@ const PORTALS = [
     email: ADMIN,
     screens: [
       "/admin/dashboard",
+      "/admin/health",
       "/admin/incidents",
       "/admin/violations",
       "/admin/audit",
