@@ -63,3 +63,22 @@ def test_status_is_pass_only_when_every_check_passed() -> None:
 
 def test_text_is_escaped_for_latex() -> None:
     assert tex("75 % & ON_HOLD #1 ≥ 10") == r"75 \% \& ON\_HOLD \#1 $\geq$ 10"
+
+
+def test_a_run_that_does_not_finish_reports_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A previous run's results must never be stamped as this run's (P6 review)."""
+    import subprocess
+
+    monkeypatch.setattr(test_report, "RUN_DIR", tmp_path)
+    (tmp_path / "pytest.json").write_text('{"tests": {}}', encoding="utf-8")
+    (tmp_path / "coverage.json").write_text('{"totals": {"percent_covered": 99}}', "utf-8")
+
+    def interrupted(*_: object, **__: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess([], 2)  # pytest: interrupted
+
+    monkeypatch.setattr(subprocess, "run", interrupted)
+    with pytest.raises(test_report.RunError, match="exit code 2"):
+        test_report.run_tests()
+    assert not (tmp_path / "pytest.json").exists()  # the stale file was removed first

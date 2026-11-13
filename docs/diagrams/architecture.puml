@@ -15,7 +15,7 @@ package "Browser (React + TypeScript PWA)" as FE {
 
 package "API layer  backend/app/api" as API {
   [Routers (thin):\nauth, incidents, catalogue,\nconfig, reports, audit, users] as ROUTERS
-  [deps.py: JWT auth,\nrole + ownership checks (BR-01)] as DEPS
+  [deps.py: JWT auth,\nrole (permission) checks] as DEPS
   [errors.py: ITSMError -> HTTP code] as ERR
   [ws.py: /ws live channel] as WS
 }
@@ -34,7 +34,7 @@ package "Service layer  backend/app/services" as SVC {
 package "Domain layer  backend/app/domain  (no framework imports)" as DOM {
   [Incident aggregate +\n10 State classes] as INC
   [Priority, Assignment,\nSLA, Escalation engines] as ENG
-  [Users, permissions,\nvalue objects] as USERS
+  [Users, permissions, ownership\nrules (BR-01..03), value objects] as USERS
   [Similarity, dependency graph,\nrisk estimator] as INTEL
   [Repository ports\n(IncidentRepository,\nUnitOfWork, ...)] <<interface>> as REPO_PORT
   [Service ports\n(AIAdvisor, EmbeddingProvider,\nEmailSender, ChatSender,\nIdentityVerifier)] <<interface>> as SVC_PORT

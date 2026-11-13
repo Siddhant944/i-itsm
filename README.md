@@ -72,7 +72,7 @@ uv run scripts/dev.py setup
 uv run scripts/dev.py demo-reset
 ```
 
-Nothing else is needed: the database is a local SQLite file. The git hook also wants gitleaks
+To run the app nothing else is needed: the database is a local SQLite file. The git hook also wants gitleaks
 (`scoop install gitleaks`).
 
 ### Docker (API, web and PostgreSQL)
@@ -128,6 +128,13 @@ three portals can be open side by side as three different people.
 
 Configuration lives in environment variables; copy `.env.example` to `.env` (never commit it).
 
+`make diagrams` and `make report` also need Java 17+ (for PlantUML) and
+[tectonic](https://tectonic-typesetting.github.io/); on Linux `scripts/cloud-setup.sh` installs
+both into `tools/`. On Windows install a JDK (`winget install EclipseAdoptium.Temurin.21.JDK`) and
+tectonic (`winget install TectonicProject.Tectonic`), download `plantuml.jar` and set
+`PLANTUML_JAR` to its path. Or skip all of it: CI builds the PDF on any pull request labelled
+`report` and attaches it to the run.
+
 ## Architecture
 
 A layered modular monolith; every dependency points inward to a framework-free domain, and
@@ -147,7 +154,7 @@ import-linter fails the build if one does not
   API only through a client generated from the OpenAPI document.
 - **Data:** SQLite locally, PostgreSQL in Docker, CI and the cloud.
 - **Design patterns:** State, Strategy, Template Method, Chain of Responsibility, Observer, Factory,
-  Repository and Unit of Work, Adapter, Facade — each class names its pattern in its docstring.
+  Repository and Unit of Work, Adapter, Facade, Proxy (the AI fallback) — each class names its pattern in its docstring.
 
 UML, ER and sequence diagrams: [docs/diagrams/](docs/diagrams/README.md).
 

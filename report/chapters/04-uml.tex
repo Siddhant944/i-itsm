@@ -41,8 +41,9 @@ Two private helpers (\code{\_Cancellable}, \code{\_Reassignable}) share the comm
 and are omitted.}
 
 \diagram{class-strategies}{Priority and assignment strategies. \code{AssignmentStrategy.select()}
-is a template method that applies the eligibility rules (available, skilled, under the
-10-point cap) and calls the abstract \code{rank()} hook each strategy implements.}
+is a template method that applies the eligibility rules (available, active, under the
+10-point cap) and calls the abstract \code{rank()} hook each strategy implements; skills,
+load and experience only decide the order.}
 
 \diagram{class-sla}{SLA policies, risk estimators and the escalation chain.}
 

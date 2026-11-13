@@ -7,7 +7,7 @@ title Workflow 1: employee reports -> system prioritises -> technician assigned 
 
 actor Employee
 participant "Employee portal" as UI
-participant "incidents router\n+ deps (JWT, BR-01)" as API
+participant "incidents router\n+ deps (JWT, role)" as API
 participant "IncidentService\n<<Facade>>" as SVC
 participant "DuplicateDetector" as DUP
 participant "AIAdvisor\n(Gemini -> rules fallback)" as AI
@@ -47,9 +47,10 @@ else new report
   SVC -> INC : classify() -> CLASSIFIED
   SVC -> ASSIGN : select(request, candidates)
   note right of ASSIGN
-    filters: available, has skills,
+    filters: available, active,
     load + cost <= L_max (BR-06);
-    rank(): Skill / Load / Smart
+    rank(): skills, load, experience
+    (Skill / Load / Smart)
   end note
   ASSIGN --> SVC : best CandidateScore with reasons
   SVC -> INC : assign(technician) -> ASSIGNED

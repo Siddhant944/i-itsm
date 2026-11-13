@@ -225,7 +225,18 @@ def oop_evidence() -> list[Evidence]:
     ]
 
 
-_TEX = {"&": r"\&", "%": r"\%", "_": r"\_", "#": r"\#", "$": r"\$", "{": r"\{", "}": r"\}"}
+_TEX = {
+    "\\": r"\textbackslash{}",
+    "&": r"\&",
+    "%": r"\%",
+    "_": r"\_",
+    "#": r"\#",
+    "$": r"\$",
+    "{": r"\{",
+    "}": r"\}",
+    "~": r"\textasciitilde{}",
+    "^": r"\textasciicircum{}",
+}
 _UNICODE = {"→": r"$\rightarrow$", "×": r"$\times$", "≥": r"$\geq$", "≤": r"$\leq$", "…": "..."}
 
 

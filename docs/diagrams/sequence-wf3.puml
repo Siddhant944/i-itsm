@@ -52,7 +52,7 @@ loop every 30 s of clock time (3 real s at x10)
   MON -> MON : tick(): response target missed?
   MON -> CHAIN : decide_escalation(missed targets)
   CHAIN --> MON : level 1 Team Lead (just after 5 min),\nlevel 2 Administrator (10 min),\nlevel 3 IT Manager (15 min) (BR-08)
-  MON -> SVC : incident.escalate(owner, level) -> ASSIGNED
+  MON -> MON : incident.escalate(owner, level) -> ASSIGNED; save + audit
   MON -> NOTIF : "SLA violated" (assignee, Team Lead, admins)\nand "Escalated" (the new owner)
   NOTIF -> LEAD : in-app, email, Telegram
 end

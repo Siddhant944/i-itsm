@@ -71,8 +71,9 @@ loadable on its own. A \code{FallbackAdvisor} aggregates a primary and a fallbac
 \subsection*{Exception handling}
 One hierarchy, \code{ITSMError}, with a stable code per error and one HTTP status per group
 (Chapter~\ref{ch:security}). The domain raises intention-revealing errors
-(\code{InvalidStateTransitionError("ASSIGNED", "RESOLVED")}); the API maps them once; nothing
-else is caught and swallowed.
+(\code{InvalidStateTransitionError("ASSIGNED", "RESOLVED")}); the API maps them once. Exceptions are
+caught in one deliberate place only: the post-commit notification boundary, where a failing
+email or push is logged rather than undoing a change that has already committed.
 
 \subsection*{Collections}
 \code{frozenset} skills make ``does this technician cover the required skills'' a set

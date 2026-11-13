@@ -64,8 +64,10 @@ marks a NOT NULL column; crow's feet show the many side; a circle means optional
   \item \textbf{Service--Service:} \code{service\_dependencies} forms a directed graph; the
     correlation engine walks it breadth-first to find an open P1 or P2 on a service the
     reported one depends on.
-  \item \textbf{Composition:} work notes, the resolution, feedback, the embedding and SLA
-    violations belong to one incident and are loaded and saved with it by the repository.
+  \item \textbf{Composition:} work notes, the resolution and feedback belong to one
+    incident and are loaded and saved with it by the incident repository. Embeddings and SLA
+    violations also belong to one incident but have repositories of their own, because they
+    are written by the duplicate detector and the monitor, not by the incident.
   \item \textbf{Audit:} \code{audit\_log.incident\_id} is a real foreign key, nullable because
     sign-ins and configuration changes are audited too.
 \end{itemize}
@@ -106,7 +108,8 @@ service dependencies & 20 & & \\
 \end{tabular}
 \end{center}
 The 51 users are 31 employees, 12 technicians, 5 team leads, 2 administrators and an IT
-manager. The incidents span several months, every status and every priority (58 P1, 105 P2, 135 P3,
+manager. The incidents span several months, every status but CLASSIFIED (a moment's state on the way to
+ASSIGNED) and every priority (58 P1, 105 P2, 135 P3,
 122 P4) and include breaches, escalations and reopened fixes, so the dashboards and the
 predictive SLA estimator have history to work from. Examples:
 \begin{center}

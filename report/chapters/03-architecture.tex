@@ -20,8 +20,9 @@ dependencies; dashed arrows with hollow heads mean ``implements''.}
 Presentation & \code{frontend/src} & Employee, Technician and Admin portals; a typed client
   generated from the API's OpenAPI document; a WebSocket hook for live updates. \\
 API & \code{app/api} & Thin routers: validate the request with Pydantic, resolve the caller
-  and check role and ownership in a FastAPI dependency (BR-01), call a service, map the
-  result. \code{errors.py} turns each \code{ITSMError} into one HTTP status and a JSON body,
+  and check the role's permission in a FastAPI dependency, call a service, map the result.
+  Ownership (BR-01 to BR-03) needs the incident, so the service checks it through the
+  domain's rules in \code{access.py} once it has loaded it (D-038). \code{errors.py} turns each \code{ITSMError} into one HTTP status and a JSON body,
   never a stack trace. \\
 Services & \code{app/services} & Use cases. \code{IncidentService} is the facade the routers
   call for every incident action; the SLA monitor, notifications, audit, search, analytics,

@@ -1,9 +1,11 @@
 """Domain events and the in-process event bus.
 
 Pattern: Observer. Problem solved: audit, notifications and real-time pushes must react to
-incident changes without the Incident knowing about them; subscribers register per event type.
-The incident records events; the service layer publishes them (audit inside the transaction,
-notifications after commit; blueprint §5.4).
+incident changes without the Incident knowing about them. The incident records events and
+knows no subscriber; the facade turns them into audit records inside the transaction and hands
+them to ``PostCommitDispatcher`` (services/dispatcher.py), whose subscribers notify and push
+after commit (blueprint §5.4). ``EventBus`` is the synchronous, in-process form of the same
+idea, used where no transaction is involved (the domain's own tests).
 """
 
 from collections import defaultdict

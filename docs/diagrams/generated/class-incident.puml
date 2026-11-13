@@ -109,9 +109,11 @@ class DomainEvent <<value object>> {
   +incident_id : str
   +actor_id : int | None
 }
-class EventBus {
-  +subscribe(event_type, handler)
-  +publish(event)
+class PostCommitDispatcher {
+  +subscribe(subscriber)
+  +enqueue(events)
+  +discard()
+  +dispatch() : int
 }
 Incident *-- "0..1" SLAClock : sla_clock
 Incident *-- "0..*" WorkNote : notes
@@ -120,7 +122,7 @@ Incident *-- "0..1" Feedback : feedback
 Incident o-- "1" IncidentState : state (shared, stateless)
 SLAClock --> "1" SLATarget : target
 Incident ..> DomainEvent : <<emits>>
-EventBus o-- "0..*" DomainEvent : publishes
+PostCommitDispatcher o-- "0..*" DomainEvent : delivers after commit
 IncidentFactory ..> Incident : <<creates>> INC-YYYY-NNNN
 note bottom of IncidentState
   The ten concrete states are drawn in the next

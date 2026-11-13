@@ -290,8 +290,11 @@ def diagrams(_: argparse.Namespace) -> None:
     jar = Path(os.environ.get("PLANTUML_JAR", REPO / "tools" / "plantuml.jar"))
     if not jar.exists():
         raise TaskError(
-            f"PlantUML not found at {jar}; run scripts/cloud-setup.sh or set PLANTUML_JAR"
+            f"PlantUML not found at {jar}; run scripts/cloud-setup.sh (Linux) or set "
+            "PLANTUML_JAR (Windows: see the README)"
         )
+    if shutil.which("java") is None:
+        raise TaskError("Java not found; PlantUML needs Java 17+ (see the README)")
     for fmt in ("-tsvg", "-tpng"):
         run(["java", "-jar", str(jar), fmt, *sources], REPO)
 
@@ -309,7 +312,7 @@ def report(_: argparse.Namespace) -> None:
     tectonic = shutil.which("tectonic") or str(REPO / "tools" / "tex" / "bin" / "tectonic")
     if not Path(tectonic).exists():
         raise TaskError(
-            "tectonic not found; run scripts/cloud-setup.sh or see tectonic-typesetting.github.io"
+            "tectonic not found; run scripts/cloud-setup.sh (Linux) or see the README (Windows)"
         )
     (REPORT / "build").mkdir(exist_ok=True)
     run([tectonic, "--outdir", "build", "main.tex"], REPORT)

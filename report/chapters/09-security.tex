@@ -79,9 +79,9 @@ ConflictError & InvalidStateTransitionError, DuplicateIncidentError,
   ConcurrentModificationError & 409 \\
 AssignmentError & TechnicianUnavailableError, WorkloadExceededError & 409 \\
 ConfigurationError & MissingSLAConfigurationError (falls back to the strictest default and
-  alerts the admins when a policy is missing) & 503 \\
+  records the fallback in the audit log) & 503 \\
 InfrastructureError & DatabaseFailureError, NetworkFailureError (rollback; the frontend shows
-  an offline banner and retries) & 503 \\
+  its reconnecting banner and retries) & 503 \\
 \bottomrule
 \end{tabularx}
 \end{center}

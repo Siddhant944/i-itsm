@@ -375,7 +375,7 @@ CLASS_DIAGRAMS: tuple[ClassDiagram, ...] = (
             ClassSpec(f"{D}.sla.SLATarget"),
             ClassSpec(f"{D}.states.IncidentState", "none"),
             ClassSpec(f"{D}.events.DomainEvent"),
-            ClassSpec(f"{D}.events.EventBus"),
+            ClassSpec("app.services.dispatcher.PostCommitDispatcher", "methods"),
         ),
         relations=(
             'Incident *-- "0..1" SLAClock : sla_clock',
@@ -385,7 +385,7 @@ CLASS_DIAGRAMS: tuple[ClassDiagram, ...] = (
             'Incident o-- "1" IncidentState : state (shared, stateless)',
             'SLAClock --> "1" SLATarget : target',
             "Incident ..> DomainEvent : <<emits>>",
-            'EventBus o-- "0..*" DomainEvent : publishes',
+            'PostCommitDispatcher o-- "0..*" DomainEvent : delivers after commit',
             "IncidentFactory ..> Incident : <<creates>> INC-YYYY-NNNN",
         ),
         notes=(
@@ -446,8 +446,8 @@ CLASS_DIAGRAMS: tuple[ClassDiagram, ...] = (
         ),
         notes=(
             "note right of AssignmentStrategy\n  Template Method: select() filters the candidates\n"
-            "  (available, skilled, under L_max) and calls the\n  abstract rank() hook.\n"
-            "end note",
+            "  (available, active, under L_max) and calls the\n  abstract rank() hook, where"
+            " skills,\n  load and experience decide the order.\nend note",
         ),
     ),
     ClassDiagram(

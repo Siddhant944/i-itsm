@@ -7,7 +7,7 @@ title Workflow 2: technician investigates -> SLA monitored -> incident resolved 
 
 actor Technician
 participant "Technician portal" as TUI
-participant "incidents router\n+ deps (BR-01, BR-02)" as API
+participant "incidents router\n+ deps (JWT, role)" as API
 participant "IncidentService\n<<Facade>>" as SVC
 participant "Incident\n+ IncidentState <<State>>" as INC
 participant "SLAClock" as CLK
@@ -20,6 +20,7 @@ actor Employee
 Technician -> TUI : opens the queue (SLA chips count down)
 TUI -> API : POST /incidents/{id}/acknowledge
 API -> SVC : acknowledge()
+SVC -> SVC : ownership check (BR-02, domain/access.py)
 SVC -> INC : acknowledge() -> ACKNOWLEDGED
 INC -> CLK : respond(now): response target met or missed
 SVC -> UOW : save + audit + commit

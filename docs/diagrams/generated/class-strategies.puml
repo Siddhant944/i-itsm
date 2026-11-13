@@ -69,7 +69,8 @@ AssignmentStrategy ..> Candidate
 AssignmentStrategy ..> CandidateScore : <<returns>>
 note right of AssignmentStrategy
   Template Method: select() filters the candidates
-  (available, skilled, under L_max) and calls the
-  abstract rank() hook.
+  (available, active, under L_max) and calls the
+  abstract rank() hook, where skills,
+  load and experience decide the order.
 end note
 @enduml

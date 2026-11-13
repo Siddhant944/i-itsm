@@ -39,7 +39,7 @@ rectangle "I-ITSM" {
   usecase "Work the team queue;\nreassign within the team" as UC_TEAM
 
   usecase "Assign / reassign with\nranked candidates and reasons" as UC_ASSIGN
-  usecase "Override priority\n(with a reason)" as UC_PRIO
+  usecase "Override priority or category\n(with a reason)" as UC_PRIO
   usecase "Configure categories, services,\ndependencies, SLA grid, strategy" as UC_CONFIG
   usecase "Manage users and technicians" as UC_USERS
   usecase "Search with 9 filters;\nexport CSV" as UC_SEARCH
@@ -71,6 +71,8 @@ TECH --> UC_SUGGEST
 TECH --> UC_DUP
 TECH --> UC_RISK
 TECH --> UC_NOTIFY
+TECH --> UC_PRIO
+TECH --> UC_TG
 LEAD --> UC_TEAM
 
 ADM --> UC_ASSIGN

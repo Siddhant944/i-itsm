@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -66,6 +67,10 @@ BUSINESS_RULES = {
 
 class CaseFileError(ValueError):
     """cases.yaml is malformed or names a test that does not exist."""
+
+
+class RunError(RuntimeError):
+    """A suite did not finish, so there are no results to report."""
 
 
 @dataclass(frozen=True)
@@ -198,9 +203,12 @@ def run_tests() -> dict[str, Any]:
     RUN_DIR.mkdir(exist_ok=True)
     results_json = RUN_DIR / "pytest.json"
     coverage_json = RUN_DIR / "coverage.json"
+    # A previous run's files must never pass for this run's results.
+    for stale in (results_json, coverage_json, RUN_DIR / "vitest.json", RUN_DIR / "run.json"):
+        stale.unlink(missing_ok=True)
     clock = SystemClock()  # when the run happened, for the record only
     started = clock.now()
-    subprocess.run(  # noqa: S603 - fixed arguments
+    pytest_run = subprocess.run(  # noqa: S603 - fixed arguments
         [
             sys.executable,
             "-m",
@@ -216,6 +224,13 @@ def run_tests() -> dict[str, Any]:
         check=False,  # a failing test is a result to report, not a reason to stop
     )
     finished = clock.now()
+    # 0: all passed, 1: some failed. Anything else (interrupted, collection or usage error)
+    # means the suite did not run to the end.
+    if pytest_run.returncode not in (0, 1) or not results_json.exists():
+        msg = f"pytest did not finish (exit code {pytest_run.returncode}); nothing to report"
+        raise RunError(msg)
+    if not coverage_json.exists():
+        raise RunError("pytest wrote no coverage report; nothing to report")
     vitest = _run_vitest()
     pytest_data = json.loads(results_json.read_text(encoding="utf-8"))
     coverage = json.loads(coverage_json.read_text(encoding="utf-8"))["totals"]
@@ -224,6 +239,7 @@ def run_tests() -> dict[str, Any]:
         "seconds": round((finished - started).total_seconds()),
         "commit": _git_commit(),
         "python": sys.version.split()[0],
+        "database": _database_name(),
         "tests": pytest_data["tests"],
         "coverage_percent": round(coverage["percent_covered"], 1),
         "vitest": vitest,
@@ -232,10 +248,18 @@ def run_tests() -> dict[str, Any]:
     return raw
 
 
+def _database_name() -> str:
+    """The database the backend suite ran on (tests/conftest.py reads TEST_DATABASE_URL)."""
+    url = os.environ.get("TEST_DATABASE_URL", "")
+    return "PostgreSQL" if url.startswith("postgres") else "SQLite"
+
+
 def _run_vitest() -> dict[str, int] | None:
+    """Vitest's totals; None only when the frontend is not installed (it is then not run)."""
     npx = shutil.which("npx")
     frontend = REPO / "frontend"
     if npx is None or not (frontend / "node_modules").exists():
+        print("test_report: frontend not installed; Vitest not run")
         return None
     out = RUN_DIR / "vitest.json"
     subprocess.run(  # noqa: S603 - fixed arguments
@@ -245,7 +269,7 @@ def _run_vitest() -> dict[str, int] | None:
         capture_output=True,
     )
     if not out.exists():
-        return None
+        raise RunError("Vitest did not finish; nothing to report")
     data = json.loads(out.read_text(encoding="utf-8"))
     return {
         "total": int(data["numTotalTests"]),
@@ -389,7 +413,7 @@ def summary_tex(raw: dict[str, Any], results: list[CaseResult]) -> str:
         (
             "Run",
             f"{raw['started']} UTC, {raw['seconds']} s, commit {raw['commit']}, "
-            f"Python {raw['python']}, SQLite",
+            f"Python {raw['python']}, {raw.get('database', 'SQLite')}",
         ),
     ]
     body = "\n".join(tex(k) + " & " + tex(v) + r" \\" for k, v in rows)
@@ -458,7 +482,7 @@ def markdown(raw: dict[str, Any], results: list[CaseResult]) -> str:
         "do not edit. The cases themselves live in [cases.yaml](cases.yaml).",
         "",
         f"- Run: {raw['started']} UTC, {raw['seconds']} s, commit `{raw['commit']}`, "
-        f"Python {raw['python']}, SQLite",
+        f"Python {raw['python']}, {raw.get('database', 'SQLite')}",
         f"- Backend: {t.total} tests, {t.passed} passed, {t.failed} failed, "
         f"{t.skipped} skipped; coverage {raw['coverage_percent']} %",
     ]
@@ -511,10 +535,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-run", action="store_true", help="reuse the last run's results")
     args = parser.parse_args(argv)
     cases = load_cases()
-    if args.skip_run:
-        raw = json.loads((RUN_DIR / "run.json").read_text(encoding="utf-8"))
-    else:
-        raw = run_tests()
+    try:
+        if args.skip_run:
+            raw = json.loads((RUN_DIR / "run.json").read_text(encoding="utf-8"))
+        else:
+            raw = run_tests()
+    except (RunError, FileNotFoundError) as error:
+        print(f"test_report: {error}", file=sys.stderr)
+        return 2
     results = evaluate(cases, raw["tests"])
     write_outputs(raw, results)
     failing = [r.case.id for r in results if r.status != "PASS"]
@@ -523,7 +551,8 @@ def main(argv: list[str] | None = None) -> int:
         f"test_report: {len(results)} cases, failing: {failing or 'none'}; "
         f"{t.passed}/{t.total} backend tests passed"
     )
-    return 1 if failing or t.failed else 0
+    vitest_failed = bool(raw.get("vitest") and raw["vitest"]["failed"])
+    return 1 if failing or t.failed or vitest_failed else 0
 
 
 if __name__ == "__main__":

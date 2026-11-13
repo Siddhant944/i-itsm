@@ -56,7 +56,8 @@ make verify & Lint, formatting, \code{mypy --strict}, import contracts, client f
 make e2e & The Playwright specs against an API and web app it starts on a fresh database. \\
 make diagrams & Regenerates and renders the UML and ER diagrams. \\
 make test-report & Runs the tests and writes Chapter~\ref{ch:testing}'s results. \\
-make report & Builds this PDF. \\
+make report & Builds this PDF. Diagrams and the report also need Java (PlantUML) and
+  tectonic; CI builds the PDF on pull requests labelled \code{report}. \\
 \bottomrule
 \end{tabularx}
 \end{center}
