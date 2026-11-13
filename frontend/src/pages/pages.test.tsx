@@ -291,6 +291,34 @@ describe("the technician portal", () => {
     expect(rows[1]).toHaveTextContent("Printer jam");
   });
 
+  it("hides finished incidents from the queue until asked", async () => {
+    const user = userEvent.setup();
+    renderPage(<QueuePage />, {
+      user: me("technician", 3),
+      routes: {
+        "GET /incidents/queue": [
+          incident({ id: "INC-2026-0002", title: "Printer jam", status: "CLOSED" }),
+          incident({ id: "INC-2026-0003", title: "Portal down", status: "RESOLVED" }),
+        ],
+      },
+    });
+    const table = await screen.findByRole("table", { name: "My queue" });
+    expect(within(table).getByText("Portal down")).toBeInTheDocument();
+    expect(within(table).queryByText("Printer jam")).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText(/Show finished incidents \(1/));
+    expect(within(table).getByText("Printer jam")).toBeInTheDocument();
+  });
+
+  it("says so when everything in the queue is finished", async () => {
+    renderPage(<QueuePage />, {
+      user: me("technician", 3),
+      routes: {
+        "GET /incidents/queue": [incident({ id: "INC-2026-0002", status: "VERIFIED" })],
+      },
+    });
+    expect(await screen.findByText("Nothing open right now")).toBeInTheDocument();
+  });
+
   it("offers the assignee the next legal step and shows the API's refusal", async () => {
     const { calls } = detail({
       user: me("technician", 3),
