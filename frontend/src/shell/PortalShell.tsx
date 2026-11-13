@@ -11,25 +11,28 @@ import { incidentPath, NAVIGATION, PORTAL_HOME, PORTAL_TITLE, type NavItem } fro
 import { useLive } from "../api/useLive";
 import { useLiveState } from "../lib/live";
 import { TelegramSettings } from "../components/TelegramSettings";
+import { ThemeSwitch } from "../components/ThemeSwitch";
+import { useDocumentTheme, useTheme, type ThemeState } from "../lib/theme";
 
 function useVisibleNav(portal: Portal): NavItem[] {
   const { can } = useAuth();
   return NAVIGATION[portal].filter((item) => item.permission === undefined || can(item.permission));
 }
 
-function UserMenu() {
+function UserMenu({ theme }: { theme: ThemeState }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [telegram, setTelegram] = useState(false);
   if (user === null) return null;
   return (
-    <div className="flex items-center gap-3 text-sm">
+    <div className="flex flex-wrap items-center gap-3 text-sm">
       <div className="text-right leading-tight">
         <p className="font-medium" data-testid="current-user">
           {user.full_name}
         </p>
         <p className="text-xs opacity-75">{roleLabel(user.role)}</p>
       </div>
+      <ThemeSwitch state={theme} />
       <Button
         small
         onClick={() => {
@@ -65,7 +68,7 @@ export function LiveBanner() {
     <p
       role="status"
       data-testid="live-banner"
-      className="mb-4 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs"
+      className="mb-4 rounded-md border border-warn-line bg-warn-soft px-3 py-2 text-xs text-warn"
     >
       Live updates paused — reconnecting. Screens refresh every few seconds meanwhile.
     </p>
@@ -103,8 +106,10 @@ function SkipLink() {
 /** Employee: a top bar and one centred column. */
 function TopBarLayout({ portal }: { portal: Portal }) {
   const items = useVisibleNav(portal);
+  const theme = useTheme(portal);
+  useDocumentTheme(portal, theme.theme);
   return (
-    <div data-portal={portal} className="min-h-screen bg-page text-ink">
+    <div data-portal={portal} data-theme={theme.theme} className="min-h-screen bg-page text-ink">
       <SkipLink />
       <header className="bg-nav text-nav-ink">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 py-3">
@@ -128,7 +133,7 @@ function TopBarLayout({ portal }: { portal: Portal }) {
             ))}
           </nav>
           <NotificationBell incidentHref={(id) => incidentPath(portal, id)} />
-          <UserMenu />
+          <UserMenu theme={theme} />
         </div>
       </header>
       <main id="main-content" tabIndex={-1} className="mx-auto max-w-4xl px-4 py-8 outline-none">
@@ -145,6 +150,8 @@ function TopBarLayout({ portal }: { portal: Portal }) {
  */
 function SidebarLayout({ portal }: { portal: Portal }) {
   const items = useVisibleNav(portal);
+  const theme = useTheme(portal);
+  useDocumentTheme(portal, theme.theme);
   const groups = [...new Set(items.map((item) => item.group ?? ""))];
   const [menuOpen, setMenuOpen] = useState(false);
   const drawer = useRef<HTMLElement>(null);
@@ -178,7 +185,11 @@ function SidebarLayout({ portal }: { portal: Portal }) {
     setMenuOpen(false);
   };
   return (
-    <div data-portal={portal} className="flex min-h-screen bg-page text-ink">
+    <div
+      data-portal={portal}
+      data-theme={theme.theme}
+      className="flex min-h-screen bg-page text-ink"
+    >
       <SkipLink />
       {menuOpen && (
         <div
@@ -241,7 +252,7 @@ function SidebarLayout({ portal }: { portal: Portal }) {
             Menu
           </button>
           <NotificationBell incidentHref={(id) => incidentPath(portal, id)} />
-          <UserMenu />
+          <UserMenu theme={theme} />
         </header>
         {/* While the drawer is open the page behind it can be neither clicked nor tabbed to. */}
         <main

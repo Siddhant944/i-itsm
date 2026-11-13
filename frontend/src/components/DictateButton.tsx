@@ -21,7 +21,7 @@ export function DictateButton({
         onClick={dictation.listening ? dictation.stop : dictation.start}
         className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent ${
           dictation.listening
-            ? "border-red-600 bg-red-600 text-white"
+            ? "border-danger bg-danger text-white"
             : "border-line bg-surface text-ink hover:bg-raised"
         }`}
       >

@@ -129,6 +129,42 @@ describe("the three portals", () => {
     },
   );
 
+  it("opens each portal in its own theme and remembers a switch (D-040)", async () => {
+    const user = userEvent.setup();
+    const { container, unmount } = renderRoutes(routes, {
+      user: me("technician", 3),
+      routes: QUEUE,
+      path: "/technician/queue",
+    });
+    await screen.findByRole("navigation", { name: "Main" });
+    const frame = container.querySelector("[data-portal]");
+    expect(frame).toHaveAttribute("data-theme", "dark");
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+    const group = screen.getByRole("group", { name: "Colour theme" });
+    expect(within(group).getByRole("radio", { name: "Dark theme" })).toBeChecked();
+
+    await user.click(within(group).getByRole("radio", { name: "Light theme" }));
+    expect(frame).toHaveAttribute("data-theme", "light");
+    expect(document.documentElement).toHaveAttribute("data-portal", "technician");
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+    expect(window.localStorage.getItem("i-itsm.theme.technician")).toBe("light");
+
+    // Signed out of the portal, the page goes back to the system's theme.
+    unmount();
+    expect(document.documentElement).not.toHaveAttribute("data-theme");
+    window.localStorage.removeItem("i-itsm.theme.technician");
+  });
+
+  it("keeps the employee portal light until the employee picks", async () => {
+    const { container } = renderRoutes(routes, {
+      user: me("employee", 1),
+      routes: QUEUE,
+      path: "/employee/incidents",
+    });
+    await screen.findByRole("navigation", { name: "Main" });
+    expect(container.querySelector("[data-portal]")).toHaveAttribute("data-theme", "light");
+  });
+
   it("folds the sidebar into a drawer on narrow screens (P5.6)", async () => {
     const user = userEvent.setup();
     const { router } = renderRoutes(routes, {

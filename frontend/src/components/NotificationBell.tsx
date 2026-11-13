@@ -21,13 +21,13 @@ export function NotificationBell({ incidentHref }: { incidentHref: (id: string) 
         onClick={() => {
           setOpen((value) => !value);
         }}
-        className="relative rounded-md px-2 py-1 text-lg leading-none hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-accent"
+        className="relative rounded-md px-2 py-1 text-lg leading-none hover:bg-current/10 focus-visible:outline-2 focus-visible:outline-accent"
       >
         <span aria-hidden="true">🔔</span>
         {unread > 0 && (
           <span
             data-testid="unread-count"
-            className="absolute -top-1 -right-1 min-w-5 rounded-full bg-red-600 px-1 text-center text-xs font-semibold text-white"
+            className="absolute -top-1 -right-1 min-w-5 rounded-full bg-danger px-1 text-center text-xs font-semibold text-white"
           >
             {unread > 99 ? "99+" : String(unread)}
           </span>

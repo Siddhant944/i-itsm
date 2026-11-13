@@ -1,7 +1,7 @@
 /** Weighted workload against the 10-point cap (blueprint §5.3, BR-06). */
 export function LoadBar({ load, max }: { load: number; max: number }) {
   const share = max <= 0 ? 0 : Math.min(1, load / max);
-  const tone = share >= 1 ? "bg-red-500" : share >= 0.7 ? "bg-amber-500" : "bg-emerald-500";
+  const tone = share >= 1 ? "bg-danger" : share >= 0.7 ? "bg-caution" : "bg-success";
   return (
     <div className="flex items-center gap-2">
       <div

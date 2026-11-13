@@ -49,7 +49,7 @@ export function AuditPage() {
         <div
           role="status"
           data-testid="integrity-result"
-          className={`mb-4 rounded-lg border px-4 py-3 text-sm font-medium ${verify.data.intact ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-800" : "border-red-500/50 bg-red-500/10 text-red-700"}`}
+          className={`mb-4 rounded-lg border px-4 py-3 text-sm font-medium ${verify.data.intact ? "border-good-line bg-good-soft text-good" : "border-bad-line bg-bad-soft text-bad"}`}
         >
           {verify.data.intact ? "✓ " : "✗ "}
           {verify.data.summary}

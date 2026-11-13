@@ -612,7 +612,7 @@ describe("the admin portal", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Verify integrity" }));
     const result = await screen.findByTestId("integrity-result");
     expect(result).toHaveTextContent("✗ The audit chain breaks at record 4 of 12.");
-    expect(result.className).toContain("red");
+    expect(result.className).toContain("text-bad");
   });
 
   it("searches with the chosen filters and pages through the result", async () => {

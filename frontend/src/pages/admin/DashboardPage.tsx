@@ -23,6 +23,25 @@ import { WORKLOAD_COLUMNS } from "../technician/WorkloadPage";
 
 const WINDOWS = [7, 30, 90] as const;
 
+/** Chart text, grid and tooltip in the portal's colours, so both themes read (D-040). */
+const AXIS = {
+  fontSize: 11,
+  tick: { fill: "var(--muted)" },
+  stroke: "var(--line)",
+} as const;
+const TOOLTIP = {
+  contentStyle: {
+    background: "var(--surface)",
+    border: "1px solid var(--line)",
+    borderRadius: 8,
+    color: "var(--ink)",
+    fontSize: 12,
+  },
+  labelStyle: { color: "var(--ink)", fontWeight: 600 },
+  cursor: { fill: "var(--raised)", stroke: "var(--line)" },
+} as const;
+const LEGEND = { fontSize: 12, color: "var(--muted)" } as const;
+
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-lg border border-line bg-surface p-4">
@@ -45,22 +64,22 @@ function Charts({ data }: { data: Schemas["DashboardResponse"] }) {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trend}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-              <XAxis dataKey="day" fontSize={11} />
-              <YAxis allowDecimals={false} fontSize={11} />
-              <Tooltip />
-              <Legend />
+              <XAxis dataKey="day" {...AXIS} />
+              <YAxis allowDecimals={false} {...AXIS} />
+              <Tooltip {...TOOLTIP} />
+              <Legend wrapperStyle={LEGEND} />
               <Line
                 type="monotone"
                 dataKey="reported"
                 name="Reported"
-                stroke="#4338ca"
+                stroke="var(--chart-1)"
                 dot={false}
               />
               <Line
                 type="monotone"
                 dataKey="resolved"
                 name="Resolved"
-                stroke="#059669"
+                stroke="var(--chart-2)"
                 dot={false}
               />
             </LineChart>
@@ -72,12 +91,12 @@ function Charts({ data }: { data: Schemas["DashboardResponse"] }) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={services} layout="vertical" margin={{ left: 40 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-              <XAxis type="number" allowDecimals={false} fontSize={11} />
-              <YAxis type="category" dataKey="name" width={130} fontSize={11} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="incidents" name="Incidents" fill="#4338ca" />
-              <Bar dataKey="breached" name="Breached" fill="#dc2626" />
+              <XAxis type="number" allowDecimals={false} {...AXIS} />
+              <YAxis type="category" dataKey="name" width={130} {...AXIS} />
+              <Tooltip {...TOOLTIP} />
+              <Legend wrapperStyle={LEGEND} />
+              <Bar dataKey="incidents" name="Incidents" fill="var(--chart-1)" />
+              <Bar dataKey="breached" name="Breached" fill="var(--chart-3)" />
             </BarChart>
           </ResponsiveContainer>
         </div>

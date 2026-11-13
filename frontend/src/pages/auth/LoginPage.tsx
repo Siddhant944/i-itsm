@@ -89,7 +89,7 @@ export function LoginPage() {
           }}
         />
         {problem !== null && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-bad">
             {problem}
           </p>
         )}

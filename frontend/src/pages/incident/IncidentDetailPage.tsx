@@ -42,9 +42,9 @@ type Dialog = "resolve" | "request" | "reject" | "verify" | "priority" | "catego
 
 const ENTRY_TONE: Record<TimelineEntry["kind"], string> = {
   event: "bg-accent",
-  note: "bg-slate-400",
-  question: "bg-amber-500",
-  answer: "bg-sky-500",
+  note: "bg-neutral",
+  question: "bg-caution",
+  answer: "bg-info",
 };
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -515,7 +515,7 @@ function CorrelationPanel({ incident }: { incident: Incident }) {
         <p
           role="status"
           data-testid="root-cause-hint"
-          className="mb-3 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm font-medium"
+          className="mb-3 rounded-md border border-warn-line bg-warn-soft px-3 py-2 text-sm font-medium"
         >
           {hint}
         </p>
@@ -729,7 +729,7 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
       {question !== null && allowed.provideInformation && (
         <div
           role="status"
-          className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm"
+          className="rounded-lg border border-warn-line bg-warn-soft px-4 py-3 text-sm"
         >
           <p className="font-medium">The technician needs more information from you</p>
           <p className="mt-1 whitespace-pre-wrap">{question}</p>
@@ -739,7 +739,7 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
       {allowed.verify && (
         <div
           role="status"
-          className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-3 text-sm"
+          className="rounded-lg border border-good-line bg-good-soft px-4 py-3 text-sm"
         >
           <p className="font-medium">A fix has been applied. Is it working for you?</p>
           <p className="mt-1 text-xs text-muted">

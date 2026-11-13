@@ -6,23 +6,23 @@ export type ServiceState = Schemas["ServiceHealthNode"]["state"];
 export const STATE_STYLE: Record<ServiceState, { label: string; box: string; dot: string }> = {
   outage: {
     label: "Outage (open P1)",
-    box: "border-red-600 bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-100",
-    dot: "bg-red-600",
+    box: "border-danger bg-bad-soft text-ink",
+    dot: "bg-danger",
   },
   degraded: {
     label: "Degraded (open P2)",
-    box: "border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100",
-    dot: "bg-amber-500",
+    box: "border-caution bg-warn-soft text-ink",
+    dot: "bg-caution",
   },
   impacted: {
     label: "Impacted by a dependency",
-    box: "border-dashed border-orange-500 bg-orange-50 text-orange-900 dark:bg-orange-950 dark:text-orange-100",
-    dot: "bg-orange-500",
+    box: "border-dashed border-caution bg-raised text-ink",
+    dot: "ring-2 ring-caution ring-inset",
   },
   ok: {
     label: "Operational",
-    box: "border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100",
-    dot: "bg-emerald-600",
+    box: "border-success bg-good-soft text-ink",
+    dot: "bg-success",
   },
 };
 
