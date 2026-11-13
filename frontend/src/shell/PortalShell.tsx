@@ -81,11 +81,31 @@ function Screen() {
   );
 }
 
+/**
+ * WCAG 2.4.1: the first Tab stop on every portal page jumps past the navigation to the screen.
+ * Hidden until focused. It moves focus itself rather than changing the URL's hash.
+ */
+function SkipLink() {
+  return (
+    <a
+      href="#main-content"
+      onClick={(event) => {
+        event.preventDefault();
+        document.getElementById("main-content")?.focus();
+      }}
+      className="sr-only rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-ink focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50"
+    >
+      Skip to main content
+    </a>
+  );
+}
+
 /** Employee: a top bar and one centred column. */
 function TopBarLayout({ portal }: { portal: Portal }) {
   const items = useVisibleNav(portal);
   return (
     <div data-portal={portal} className="min-h-screen bg-page text-ink">
+      <SkipLink />
       <header className="bg-nav text-nav-ink">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 py-3">
           <p className="mr-auto text-lg font-semibold lg:mr-0">I-ITSM {PORTAL_TITLE[portal]}</p>
@@ -111,7 +131,7 @@ function TopBarLayout({ portal }: { portal: Portal }) {
           <UserMenu />
         </div>
       </header>
-      <main className="mx-auto max-w-4xl px-4 py-8">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-4xl px-4 py-8 outline-none">
         <LiveBanner />
         <Screen />
       </main>
@@ -159,6 +179,7 @@ function SidebarLayout({ portal }: { portal: Portal }) {
   };
   return (
     <div data-portal={portal} className="flex min-h-screen bg-page text-ink">
+      <SkipLink />
       {menuOpen && (
         <div
           aria-hidden="true"
@@ -223,7 +244,12 @@ function SidebarLayout({ portal }: { portal: Portal }) {
           <UserMenu />
         </header>
         {/* While the drawer is open the page behind it can be neither clicked nor tabbed to. */}
-        <main inert={menuOpen} className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          inert={menuOpen}
+          className="min-w-0 flex-1 px-4 py-6 outline-none sm:px-6"
+        >
           <LiveBanner />
           <Screen />
         </main>

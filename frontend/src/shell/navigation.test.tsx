@@ -112,6 +112,23 @@ describe("the three portals", () => {
     expect(container.querySelector("[data-portal]")).toHaveAttribute("data-portal", "admin");
   });
 
+  it.each([
+    ["employee", 1, "/employee/incidents"],
+    ["technician", 3, "/technician/queue"],
+  ] as const)(
+    "lets a keyboard user skip the %s navigation (WCAG 2.4.1)",
+    async (role, id, path) => {
+      const user = userEvent.setup();
+      renderRoutes(routes, { user: me(role, id), routes: QUEUE, path });
+      await screen.findByRole("navigation", { name: "Main" });
+      await user.tab();
+      const skip = screen.getByRole("link", { name: "Skip to main content" });
+      expect(skip).toHaveFocus();
+      await user.click(skip);
+      expect(screen.getByRole("main")).toHaveFocus();
+    },
+  );
+
   it("folds the sidebar into a drawer on narrow screens (P5.6)", async () => {
     const user = userEvent.setup();
     const { router } = renderRoutes(routes, {

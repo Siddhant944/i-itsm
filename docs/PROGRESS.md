@@ -2,7 +2,29 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: innovation features restored (13 Nov, after P6)
+## Status: UI polish from an ITSM benchmark (13 Nov, after the restored features)
+
+On `claude/nifty-maxwell-qkmfor`, fast-forwarded to `main` after PR #10 merged. We compared our
+portals with the ITSM products of Salesforce, ServiceNow and Atlassian and closed the cheap gaps
+it found, frontend only, in order of value for the UX criterion and the demo:
+- **My queue opens on open work.** Verified, closed and cancelled incidents hide behind a "Show
+  finished incidents (n …)" checkbox; RESOLVED stays, as in the team queue.
+- **Sortable lists.** Every IncidentTable header sorts (ascending, descending, back to the page's
+  order) with `aria-sort`; "SLA" sorts by the running clock's deadline, stopped or paused last.
+  Admin search keeps its server-side sort because it pages.
+- **Key facts under the incident title:** assignee, service, respond-by (or when the response
+  came) and resolve-by. They left the Details card.
+- **Skip link** (WCAG 2.4.1) on every portal page.
+- Left out on purpose: a light/dark choice per user. The brief asks for a visibly different GUI
+  per user type, and a shared theme switch would blur that.
+
+`make verify` passes (1,137 backend tests, 3 skipped; 128 frontend tests).
+
+### Needs a human
+1. Review and merge this branch's PR.
+2. Optional demo cue: in Workflow 1b, click the queue's SLA header to show the next breach first.
+
+## Previous: innovation features restored (13 Nov, after P6)
 
 On `claude/awesome-fermi-lx7q8c`, fast-forwarded to `main` after the P6 PR (#9) merged. Three
 items cut on 11 Nov are back (D-039), each named in the brief's Innovation Challenge list, each
