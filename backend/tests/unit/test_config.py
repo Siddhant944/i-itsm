@@ -96,3 +96,13 @@ def test_http_client_loggers_never_print_request_urls_which_carry_the_bot_token(
     with caplog.at_level(logging.INFO):
         client.post(f"https://api.telegram.org/bot{secret}/sendMessage", json={})
     assert secret not in caplog.text
+
+
+def test_env_local_is_read_after_env_so_neon_init_wins(tmp_path: Path) -> None:
+    """`neon init` writes DATABASE_URL to .env.local; it overrides .env."""
+    env, local = tmp_path / ".env", tmp_path / ".env.local"
+    env.write_text("DATABASE_URL=sqlite:///from-env.db\nAPP_NAME=From env\n", encoding="utf-8")
+    local.write_text("DATABASE_URL=sqlite:///from-local.db\n", encoding="utf-8")
+    settings = Settings(_env_file=(env, local))
+    assert settings.database_url == "sqlite:///from-local.db"
+    assert settings.app_name == "From env"

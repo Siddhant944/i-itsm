@@ -22,3 +22,12 @@ def test_sqlite_enables_foreign_keys_and_wal(tmp_path: Path) -> None:
 
     assert foreign_keys == 1
     assert journal_mode == "wal"
+
+
+def test_a_plain_postgresql_url_uses_the_psycopg_driver() -> None:
+    """Neon hands out postgresql:// URLs; without the prefix SQLAlchemy would want psycopg2."""
+    for scheme in ("postgresql", "postgres"):
+        engine = make_engine(f"{scheme}://u:p@127.0.0.1:1/db?sslmode=require")
+        assert engine.url.drivername == "postgresql+psycopg"
+        assert engine.url.query["sslmode"] == "require"
+        engine.dispose()
