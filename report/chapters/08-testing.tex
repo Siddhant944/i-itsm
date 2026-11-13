@@ -21,7 +21,7 @@ a merge became a GitHub issue with a regression test that fails without its fix.
     SQLite and (in CI) PostgreSQL implementations; the HTTP API, the authorisation matrix and
     migrations as integration tests on a real database.
   \item[Whole workflows in a browser.] Playwright runs the three demonstrated workflows, live
-    updates and an accessibility check of all 16 screens against the real API and web app.
+    updates and an accessibility check of all 18 screens against the real API and web app.
   \item[Gates.] \code{make verify} (lint, \code{mypy --strict}, import contracts and every test)
     must pass before each commit; CI repeats it on SQLite and PostgreSQL. Coverage may not fall
     below 90\,\% overall or 80\,\% on the domain and services.
@@ -44,7 +44,7 @@ pins the thresholds in use to the tuned ones.
 
 \section{Documented test cases}
 The requirements ask for at least fifteen meaningful cases covering normal operation, boundary
-conditions, invalid input, exceptions, authorisation and business rules. The 23 below are
+conditions, invalid input, exceptions, authorisation and business rules. The 24 below are
 kept in \code{docs/testing/cases.yaml}; each names the automated tests that carry it out, and
 its \emph{actual result} and \emph{status} come from the same real run as the table above.
 

@@ -22,7 +22,14 @@ interface Push {
 export function applyPush(client: QueryClient, push: Push): void {
   if (push.type !== "incident" || push.incident_id === undefined) return;
   void client.invalidateQueries({ queryKey: ["incident", push.incident_id] });
-  for (const key of ["incidents", "notifications", "workload", "violations", "dashboard"]) {
+  for (const key of [
+    "incidents",
+    "notifications",
+    "workload",
+    "violations",
+    "dashboard",
+    "service-health",
+  ]) {
     void client.invalidateQueries({ queryKey: [key] });
   }
 }

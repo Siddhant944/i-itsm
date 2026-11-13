@@ -16,10 +16,12 @@ from app.domain.analytics import (
     TechnicianWorkload,
     TrendPoint,
 )
+from app.domain.dependency_graph import LIVE_STATUSES, HealthMap, health_map
 from app.domain.errors import InvalidUserInputError, UnauthorizedOperationError
+from app.domain.incident import Incident
 from app.domain.permissions import Permission
 from app.domain.repositories import UnitOfWork
-from app.domain.search import csv_rows
+from app.domain.search import MAX_PAGE_SIZE, IncidentQuery, csv_rows
 from app.domain.users import User
 
 DEFAULT_WINDOW_DAYS = 30
@@ -54,6 +56,25 @@ class AnalyticsService:
             services=self.__uow.analytics.by_service(now, since),
             trend=self.__uow.analytics.trend(since, now),
         )
+
+    def service_health(self, actor: User) -> HealthMap:
+        """Every active service coloured by its open incidents and its dependencies' (P4.11)."""
+        self.__require(actor, Permission.REPORTS_VIEW)
+        now = self.__clock.now()
+        live: list[Incident] = []
+        offset = 0
+        while True:  # every incident still being worked on, a page at a time
+            page = self.__uow.incidents.search(
+                IncidentQuery(
+                    statuses=tuple(sorted(LIVE_STATUSES)), offset=offset, limit=MAX_PAGE_SIZE
+                ),
+                now,
+            )
+            live.extend(page.items)
+            offset += MAX_PAGE_SIZE
+            if offset >= page.total:
+                break
+        return health_map(self.__uow.catalogue.services(), live)
 
     def overview(self, actor: User, window_days: int = DEFAULT_WINDOW_DAYS) -> Overview:
         self.__require(actor, Permission.REPORTS_VIEW)

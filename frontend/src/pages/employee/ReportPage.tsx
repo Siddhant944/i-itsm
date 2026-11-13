@@ -11,11 +11,13 @@ import {
 } from "../../api/hooks";
 import { Button } from "../../components/Button";
 import { ConfidenceBadge } from "../../components/ConfidenceBadge";
+import { DictateButton } from "../../components/DictateButton";
 import { StatusBadge } from "../../components/Badge";
 import { SelectField, TextArea, TextField } from "../../components/Field";
 import { Card, ErrorState, PageHeader, Skeleton } from "../../components/States";
 import { useToasts } from "../../components/Toasts";
 import { confidenceBand } from "../../lib/confidence";
+import { appendSentence } from "../../lib/speech";
 import { usePortal } from "../../lib/usePortal";
 import { incidentPath } from "../../shell/nav";
 
@@ -317,6 +319,12 @@ export function ReportPage() {
               error={fieldErrors.description}
               onChange={(event) => {
                 setDescription(event.target.value);
+              }}
+            />
+            <DictateButton
+              label="Describe it by voice"
+              onText={(text) => {
+                setDescription((current) => appendSentence(current, text));
               }}
             />
             <SelectField

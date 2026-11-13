@@ -2196,6 +2196,110 @@
         "title": "SearchFilters",
         "type": "object"
       },
+      "ServiceHealthEdge": {
+        "properties": {
+          "depends_on": {
+            "title": "Depends On",
+            "type": "integer"
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "service_id",
+          "depends_on"
+        ],
+        "title": "ServiceHealthEdge",
+        "type": "object"
+      },
+      "ServiceHealthNode": {
+        "properties": {
+          "caused_by": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Caused By",
+            "type": "array"
+          },
+          "criticality": {
+            "title": "Criticality",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "open_incidents": {
+            "title": "Open Incidents",
+            "type": "integer"
+          },
+          "open_p1": {
+            "title": "Open P1",
+            "type": "integer"
+          },
+          "open_p2": {
+            "title": "Open P2",
+            "type": "integer"
+          },
+          "service_id": {
+            "title": "Service Id",
+            "type": "integer"
+          },
+          "sla_tier": {
+            "title": "Sla Tier",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "outage",
+              "degraded",
+              "impacted",
+              "ok"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service_id",
+          "name",
+          "criticality",
+          "sla_tier",
+          "state",
+          "open_incidents",
+          "open_p1",
+          "open_p2",
+          "caused_by"
+        ],
+        "title": "ServiceHealthNode",
+        "type": "object"
+      },
+      "ServiceHealthResponse": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceHealthEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceHealthNode"
+            },
+            "title": "Services",
+            "type": "array"
+          }
+        },
+        "required": [
+          "services",
+          "edges"
+        ],
+        "title": "ServiceHealthResponse",
+        "type": "object"
+      },
       "ServiceRequest": {
         "properties": {
           "active": {
@@ -5280,6 +5384,36 @@
           }
         ],
         "summary": "Overview",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/service-health": {
+      "get": {
+        "description": "The live service health map (P4.11): each service's state and the dependency edges.",
+        "operationId": "service_health_reports_service_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceHealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "summary": "Service Health",
         "tags": [
           "reports"
         ]

@@ -380,6 +380,15 @@ export function useDashboard(windowDays: number) {
   });
 }
 
+/** P4.11: each service's state from open incidents; refreshed by live pushes like the dashboard. */
+export function useServiceHealth() {
+  return useQuery({
+    queryKey: ["service-health"],
+    queryFn: () => unwrap(api.GET("/reports/service-health")),
+    refetchInterval: () => liveInterval() * 3,
+  });
+}
+
 export function useViolations() {
   return useQuery({
     queryKey: ["violations"],

@@ -6,12 +6,17 @@ finds, for an incident, the open P1 and P2 incidents on the services it depends 
 or through others — and names the nearest one as the possible root cause. The same walk the
 other way finds the incidents a failing service may be causing.
 
+``health_map`` applies the same rule to the whole catalogue at once, for the admin's live
+service health map (P4.11): every service with the state its own and its dependencies' open
+incidents put it in.
+
 Pure: the caller hands in the services and the open incidents; nothing here reads a database.
 """
 
 from collections import deque
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 
 from app.domain.catalogue import ITService
 from app.domain.incident import Incident
@@ -169,3 +174,82 @@ def hint(report: CorrelationReport, service_names: Mapping[int, str]) -> str | N
         middle = [service_names.get(s, str(s)) for s in cause.reach.path[1:-1]]
         via = f", through {' and '.join(middle)}"
     return f"Likely related to {cause.incident.id} ({name}{via}): possible root cause."
+
+
+class ServiceState(StrEnum):
+    """How a service stands on the health map, worst first."""
+
+    OUTAGE = "outage"  # an open P1 on the service itself
+    DEGRADED = "degraded"  # an open P2 on the service itself
+    IMPACTED = "impacted"  # fine itself, but something it depends on has an open P1 or P2
+    OK = "ok"
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceHealth:
+    """One node of the health map."""
+
+    service: ITService
+    state: ServiceState
+    open_incidents: int
+    open_p1: int
+    open_p2: int
+    #: For an impacted service: the services it depends on that are in outage or degraded,
+    #: nearest first, so the map can say where the trouble comes from.
+    caused_by: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class HealthMap:
+    """Every active service and every ``depends_on`` edge between them."""
+
+    services: tuple[ServiceHealth, ...]
+    #: (service, the service it depends on)
+    edges: tuple[tuple[int, int], ...]
+
+
+def health_map(services: Iterable[ITService], live_incidents: Iterable[Incident]) -> HealthMap:
+    """The state of every active service from the incidents still being worked on (§6.2).
+
+    Incidents that are resolved, closed or cancelled, or have no priority yet, change nothing;
+    retired services and their edges are left off the map.
+    """
+    active = [s for s in services if s.active]
+    ids = {s.id for s in active}
+    counts: dict[int, list[int]] = {s.id: [0, 0, 0] for s in active}  # open, P1, P2
+    for incident in live_incidents:
+        row = counts.get(incident.service_id)
+        if row is None or incident.status not in LIVE_STATUSES:
+            continue
+        row[0] += 1
+        if incident.priority is Priority.P1:
+            row[1] += 1
+        elif incident.priority is Priority.P2:
+            row[2] += 1
+
+    def own_state(service_id: int) -> ServiceState:
+        _, p1, p2 = counts[service_id]
+        if p1:
+            return ServiceState.OUTAGE
+        return ServiceState.DEGRADED if p2 else ServiceState.OK
+
+    graph = DependencyGraph(active)
+    nodes: list[ServiceHealth] = []
+    for service in sorted(active, key=lambda s: s.id):
+        state = own_state(service.id)
+        causes = tuple(
+            reach.service_id
+            for reach in graph.upstream(service.id)
+            if reach.service_id in ids and own_state(reach.service_id) is not ServiceState.OK
+        )
+        if state is ServiceState.OK and causes:
+            state = ServiceState.IMPACTED
+        total, p1, p2 = counts[service.id]
+        nodes.append(ServiceHealth(service, state, total, p1, p2, causes))
+    edges = tuple(
+        (service.id, dependency)
+        for service in sorted(active, key=lambda s: s.id)
+        for dependency in service.depends_on
+        if dependency in ids
+    )
+    return HealthMap(tuple(nodes), edges)

@@ -25,6 +25,8 @@ rectangle "I-ITSM" {
   usecase "See similar open incidents\nwhile typing" as UC_SIMILAR
   usecase "Get an AI category suggestion\n(with confidence, overridable)" as UC_CLASSIFY
   usecase "Follow an existing incident\ninstead of reporting again" as UC_FOLLOW
+  usecase "Describe the problem\nby voice" as UC_VOICE
+  usecase "Report by chat,\none question at a time" as UC_CHAT
   usecase "Track my incidents\nand their timeline" as UC_TRACK
   usecase "Answer an information request" as UC_INFO
   usecase "Verify or reject a fix,\nand rate it" as UC_VERIFY
@@ -44,6 +46,7 @@ rectangle "I-ITSM" {
   usecase "Manage users and technicians" as UC_USERS
   usecase "Search with 9 filters;\nexport CSV" as UC_SEARCH
   usecase "Dashboards and analytics" as UC_DASH
+  usecase "Live service health map" as UC_HEALTH
   usecase "Audit log and\nintegrity check" as UC_AUDIT
   usecase "SLA violations" as UC_VIOL
   usecase "Manage IT Managers" as UC_MGRS
@@ -63,6 +66,9 @@ EMP --> UC_TG
 UC_REPORT <.. UC_SIMILAR : <<extend>>
 UC_REPORT <.. UC_CLASSIFY : <<extend>>
 UC_REPORT <.. UC_FOLLOW : <<extend>>
+UC_REPORT <.. UC_VOICE : <<extend>>
+EMP --> UC_CHAT
+UC_CHAT ..> UC_AUTO : <<include>>
 UC_REPORT ..> UC_AUTO : <<include>>
 
 TECH --> UC_WORK
@@ -81,6 +87,7 @@ ADM --> UC_CONFIG
 ADM --> UC_USERS
 ADM --> UC_SEARCH
 ADM --> UC_DASH
+ADM --> UC_HEALTH
 ADM --> UC_AUDIT
 ADM --> UC_VIOL
 MGR --> UC_MGRS

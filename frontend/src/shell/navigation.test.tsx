@@ -64,14 +64,14 @@ describe("the three portals", () => {
     expect(window.sessionStorage.getItem("iitsm.token")).toBeNull();
   });
 
-  it("gives an employee a top bar with their two screens", async () => {
+  it("gives an employee a top bar with their three screens", async () => {
     const { container } = renderRoutes(routes, { user: me("employee"), routes: QUEUE, path: "/" });
     const nav = await screen.findByRole("navigation", { name: "Main" });
     expect(
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["My incidents", "Report an incident"]);
+    ).toEqual(["My incidents", "Report an incident", "Report by chat"]);
     expect(container.querySelector("[data-portal]")).toHaveAttribute("data-portal", "employee");
     expect(screen.getByTestId("current-user")).toHaveTextContent("employee person");
   });

@@ -1,7 +1,7 @@
 """Request and response models for search and the dashboards (blueprint §9)."""
 
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -93,6 +93,28 @@ class ServiceRowResponse(BaseModel):
     breached: int
     breach_share: float
     mttr_hours: float | None
+
+
+class ServiceHealthNode(BaseModel):
+    service_id: int
+    name: str
+    criticality: int
+    sla_tier: str
+    state: Literal["outage", "degraded", "impacted", "ok"]
+    open_incidents: int
+    open_p1: int
+    open_p2: int
+    caused_by: list[int]
+
+
+class ServiceHealthEdge(BaseModel):
+    service_id: int
+    depends_on: int
+
+
+class ServiceHealthResponse(BaseModel):
+    services: list[ServiceHealthNode]
+    edges: list[ServiceHealthEdge]
 
 
 class TrendPointResponse(BaseModel):

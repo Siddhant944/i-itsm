@@ -6,7 +6,13 @@ import pytest
 
 from app.core.clock import FakeClock
 from app.domain.catalogue import ITService
-from app.domain.dependency_graph import DependencyGraph, correlate, hint
+from app.domain.dependency_graph import (
+    DependencyGraph,
+    ServiceState,
+    correlate,
+    health_map,
+    hint,
+)
 from app.domain.incident import CancelReason, Incident, IncidentFactory
 from app.domain.priority import Priority, PriorityAssessment
 
@@ -170,3 +176,57 @@ def test_no_hint_from_minor_unrelated_or_finished_incidents(
     )
     assert report.root_causes == ()
     assert hint(report, NAMES) is None
+
+
+# ---------------------------------------------------------------- health map (P4.11)
+
+
+def catalogue() -> list[ITService]:
+    return [
+        ITService(NETWORK, NAMES[NETWORK], criticality=3),
+        ITService(DATABASE, NAMES[DATABASE], criticality=3, depends_on=(NETWORK,)),
+        ITService(IDENTITY, NAMES[IDENTITY], criticality=3, depends_on=(NETWORK,)),
+        ITService(FEES, NAMES[FEES], criticality=3, depends_on=(DATABASE, IDENTITY)),
+        ITService(EXAMS, NAMES[EXAMS], criticality=3, depends_on=(DATABASE,)),
+        ITService(PRINTING, NAMES[PRINTING], criticality=1),
+    ]
+
+
+def test_a_database_outage_lights_up_everything_built_on_it(clock: FakeClock) -> None:
+    outage = incident(clock, DATABASE, Priority.P1)
+    minor = incident(clock, PRINTING, Priority.P4)
+    found = health_map(catalogue(), [outage, minor])
+    state = {node.service.id: node for node in found.services}
+
+    assert state[DATABASE].state is ServiceState.OUTAGE
+    assert (state[DATABASE].open_incidents, state[DATABASE].open_p1) == (1, 1)
+    assert state[FEES].state is ServiceState.IMPACTED
+    assert state[FEES].caused_by == (DATABASE,)
+    assert state[EXAMS].state is ServiceState.IMPACTED
+    assert state[NETWORK].state is ServiceState.OK  # the database depends on it, not the reverse
+    assert state[PRINTING].state is ServiceState.OK  # a P4 is not an outage
+    assert state[PRINTING].open_incidents == 1
+    assert (FEES, DATABASE) in found.edges
+    assert (DATABASE, NETWORK) in found.edges
+
+
+def test_a_service_s_own_trouble_outranks_inherited_trouble(clock: FakeClock) -> None:
+    found = health_map(
+        catalogue(), [incident(clock, NETWORK, Priority.P1), incident(clock, FEES, Priority.P2)]
+    )
+    state = {node.service.id: node for node in found.services}
+    assert state[FEES].state is ServiceState.DEGRADED
+    assert state[FEES].caused_by == (NETWORK,)  # only the network is down, two hops away
+    assert state[DATABASE].state is ServiceState.IMPACTED
+
+
+def test_finished_unprioritised_and_retired_leave_no_mark(clock: FakeClock) -> None:
+    done = incident(clock, DATABASE, Priority.P1)
+    done.cancel(1, clock, CancelReason.WITHDRAWN)
+    unrated = incident(clock, IDENTITY, None)
+    services = catalogue()
+    services[2].retire()  # the Identity Provider
+    found = health_map(services, [done, unrated])
+    assert all(node.state is ServiceState.OK for node in found.services)
+    assert IDENTITY not in {node.service.id for node in found.services}
+    assert all(IDENTITY not in edge for edge in found.edges)

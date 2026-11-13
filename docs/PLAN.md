@@ -84,9 +84,9 @@ Never-cut work and WF3 come first, then WebSockets, then the two kept integratio
 | P4.8 | WebSockets | M3, M4 | P3 | `api/ws.py` (JWT; post-commit push); `hooks/useLive.ts` (reconnect; offline banner) | Live bell and dashboard update | IN, TD |
 | P4.9 | Telegram alerts *(kept, D-027)* | M1 | P2.5 | `adapters/telegram.py`; chat-ID linking in the profile; P1 and P2 routing | Fake Bot API; a send failure doesn't block | TD, IN |
 | P4.10 | Google Sign-In *(kept, D-027)* | M3 | P2.3 | GIS button; `adapters/google_identity.py` (`hd` check; first sign-in creates an Employee) | Wrong `hd` → 401 (faked verifier) | TD |
-| P4.11 | Health map *(CUT for now, D-027)* | M4 | P4.2 | `pages/admin/HealthMap.tsx` (React Flow, coloured by open P1 and P2) | Vitest renders the nodes and edges | IN, UX |
-| P4.12 | Voice input *(CUT for now, D-027)* | M4 | P3.2 | Mic button using the Web Speech API, hidden when unsupported | Vitest with mocked SpeechRecognition | IN |
-| P4.13 | Stretch: Telegram /report chatbot *(CUT for now, D-027)* | M1 | P4.9 | – | Only if ahead | IN |
+| P4.11 | Health map *(restored 13 Nov, D-039)* | M4 | P4.2 | `pages/admin/HealthMap.tsx` (React Flow, coloured by open P1 and P2) | Vitest renders the nodes and edges | IN, UX |
+| P4.12 | Voice input *(restored 13 Nov, D-039)* | M4 | P3.2 | Mic button using the Web Speech API, hidden when unsupported | Vitest with mocked SpeechRecognition | IN |
+| P4.13 | Chatbot reporting, in-app instead of Telegram *(restored 13 Nov, D-039)* | M1 | P4.9 | – | Only if ahead | IN |
 | P4.14 | Phase close | all | – | – | Every feature degrades with its service off; review; PR. Sun 15: dry run 2 | – |
 
 ## P5 Hardening — Sun 15 – Mon 16 Nov (feature freeze at end of Mon 16)

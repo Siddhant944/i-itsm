@@ -187,7 +187,7 @@ Preconditions & One account per role; every route of the OpenAPI document. \\
 Steps & Call each endpoint as each role and with no token. \\
 Input & 5 roles $\times$ every endpoint \\
 Expected & 401 without a token (except public routes), 403 where the role lacks the permission, success otherwise. \\
-Actual & 137 of 137 automated checks passed (3 tests, 137 with their parametrised cases). \\
+Actual & 139 of 139 automated checks passed (3 tests, 139 with their parametrised cases). \\
 Status & \textbf{\textcolor{green!45!black}{PASS}} \\
 Automated by & \texttt{\footnotesize tests/\allowbreak{}integration/\allowbreak{}test\_\allowbreak{}authz\_\allowbreak{}matrix.py::\allowbreak{}test\_\allowbreak{}every\_\allowbreak{}role\_\allowbreak{}gets\_\allowbreak{}the\_\allowbreak{}answer\_\allowbreak{}the\_\allowbreak{}matrix\_\allowbreak{}promises} \newline \texttt{\footnotesize tests/\allowbreak{}integration/\allowbreak{}test\_\allowbreak{}authz\_\allowbreak{}matrix.py::\allowbreak{}test\_\allowbreak{}everything\_\allowbreak{}but\_\allowbreak{}the\_\allowbreak{}public\_\allowbreak{}endpoints\_\allowbreak{}needs\_\allowbreak{}a\_\allowbreak{}token} \newline \texttt{\footnotesize tests/\allowbreak{}integration/\allowbreak{}test\_\allowbreak{}authz\_\allowbreak{}matrix.py::\allowbreak{}test\_\allowbreak{}BR02\_\allowbreak{}a\_\allowbreak{}technician\_\allowbreak{}outside\_\allowbreak{}the\_\allowbreak{}incident\_\allowbreak{}is\_\allowbreak{}refused} \\
 \end{testcase}
@@ -274,4 +274,16 @@ Expected & The hint names the database incident as the possible root cause. \\
 Actual & 1 of 1 automated check passed. \\
 Status & \textbf{\textcolor{green!45!black}{PASS}} \\
 Automated by & \texttt{\footnotesize tests/\allowbreak{}integration/\allowbreak{}test\_\allowbreak{}incidents\_\allowbreak{}api.py::\allowbreak{}test\_\allowbreak{}the\_\allowbreak{}fee\_\allowbreak{}portal\_\allowbreak{}incident\_\allowbreak{}names\_\allowbreak{}the\_\allowbreak{}database\_\allowbreak{}outage\_\allowbreak{}as\_\allowbreak{}its\_\allowbreak{}likely\_\allowbreak{}root\_\allowbreak{}cause} \\
+\end{testcase}
+
+\begin{testcase}{TC-24}{The service health map marks an outage and what it takes down}
+Category & Normal operation \\
+Requirements & FR-34, FR-29 \\
+Preconditions & The Fee Payment Portal depends on the Database Cluster; no open incidents. \\
+Steps & Read GET /reports/service-health; report a P1 on the Database Cluster; read it again; ask as an employee. \\
+Input & impact 3, urgency 3 on the Database Cluster \\
+Expected & All services ok at first; then the database is an outage, the portal impacted with the database as its cause; an employee gets 403. \\
+Actual & 3 of 3 automated checks passed. \\
+Status & \textbf{\textcolor{green!45!black}{PASS}} \\
+Automated by & \texttt{\footnotesize tests/\allowbreak{}integration/\allowbreak{}test\_\allowbreak{}incidents\_\allowbreak{}api.py::\allowbreak{}test\_\allowbreak{}the\_\allowbreak{}health\_\allowbreak{}map\_\allowbreak{}shows\_\allowbreak{}the\_\allowbreak{}outage\_\allowbreak{}and\_\allowbreak{}what\_\allowbreak{}it\_\allowbreak{}takes\_\allowbreak{}down} \newline \texttt{\footnotesize tests/\allowbreak{}unit/\allowbreak{}domain/\allowbreak{}test\_\allowbreak{}dependency\_\allowbreak{}graph.py::\allowbreak{}test\_\allowbreak{}a\_\allowbreak{}database\_\allowbreak{}outage\_\allowbreak{}lights\_\allowbreak{}up\_\allowbreak{}everything\_\allowbreak{}built\_\allowbreak{}on\_\allowbreak{}it} \newline \texttt{\footnotesize tests/\allowbreak{}unit/\allowbreak{}domain/\allowbreak{}test\_\allowbreak{}dependency\_\allowbreak{}graph.py::\allowbreak{}test\_\allowbreak{}finished\_\allowbreak{}unprioritised\_\allowbreak{}and\_\allowbreak{}retired\_\allowbreak{}leave\_\allowbreak{}no\_\allowbreak{}mark} \\
 \end{testcase}
