@@ -6,8 +6,9 @@ every push to `main` redeploys them.
 
 ## One-time setup (about ten minutes)
 
-1. **Neon.** Create a project in the region nearest Render's (ours: `i-itsm`, Singapore, created
-   with `neon init`). Copy its connection string from the Console's **Connect** button, keeping
+1. **Neon.** Create a project in the region nearest Render's (ours: `i-itsm-oregon`, AWS US West
+   (Oregon), because the Render API runs in Oregon; a database across an ocean makes every
+   query slow and can time out the first start's seed). Copy its connection string from the Console's **Connect** button, keeping
    `?sslmode=require`. A plain `postgresql://` URL is fine: the app switches it to the psycopg 3
    driver itself. Locally, `neon init` writes the same URL to `.env.local`, which the app reads
    after `.env` (both are git-ignored).
