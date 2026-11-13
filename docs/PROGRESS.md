@@ -15,14 +15,20 @@ it found, frontend only, in order of value for the UX criterion and the demo:
 - **Key facts under the incident title:** assignee, service, respond-by (or when the response
   came) and resolve-by. They left the Details card.
 - **Skip link** (WCAG 2.4.1) on every portal page.
-- Left out on purpose: a light/dark choice per user. The brief asks for a visibly different GUI
-  per user type, and a shared theme switch would blur that.
+- **Light and dark themes for all three portals (D-040).** A Light/Dark/System switch in each
+  portal's header, remembered per portal. Each portal keeps its own layout, navigation colour and
+  accent in both themes, and opens in its usual theme until someone picks. All colour literals
+  became semantic tokens (status colours included, charts and the health map too).
+  `src/theme.test.ts` checks every text pair at 4.5:1 or more in all six combinations, and the
+  axe-core e2e run now covers every screen in both themes. README shows three new screenshots.
 
-`make verify` passes (1,137 backend tests, 3 skipped; 128 frontend tests).
+`make verify` passes (1,137 backend tests, 3 skipped; 141 frontend tests). `make e2e`: all specs pass, the accessibility spec in both themes.
 
 ### Needs a human
 1. Review and merge this branch's PR.
-2. Optional demo cue: in Workflow 1b, click the queue's SLA header to show the next breach first.
+2. Optional demo cue: in Workflow 1b, click the queue's SLA header to show the next breach first;
+   flip a portal to its other theme once, to show D-040.
+3. The report's UI chapter could mention D-040 and use the new screenshots.
 
 ## Previous: innovation features restored (13 Nov, after P6)
 
