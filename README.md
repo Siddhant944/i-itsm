@@ -129,7 +129,7 @@ three portals can be open side by side as three different people.
 | `make dev` | Run the API and the web app with reload |
 | `make migrate` | Bring the database at `DATABASE_URL` up to the latest Alembic migration |
 | `make seed` | Migrate, then load the campus catalogue, the demo accounts and 420 historical incidents |
-| `make demo-reset` | Wipe and reseed the local database, stage Workflows 1 and 2, then serve both apps on the ×10 clock |
+| `make demo-reset` | Wipe and reseed the local database, settle old outages, stage Workflows 1 and 2, then serve both apps on the ×10 clock; `cd e2e && npx playwright test -c demo` then rehearses the demo against it |
 | `make test` | Backend (pytest) and frontend (Vitest) tests with coverage gates |
 | `make verify` | Lint, format, types, layer contracts, generated-client check and all tests; must pass before every commit |
 | `make e2e` | Playwright: the three workflows, live updates and an accessibility scan of every screen |

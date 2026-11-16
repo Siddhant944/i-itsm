@@ -24,11 +24,30 @@ it found, frontend only, in order of value for the UX criterion and the demo:
 
 `make verify` passes (1,137 backend tests, 3 skipped; 141 frontend tests). `make e2e`: all specs pass, the accessibility spec in both themes.
 
+**Ready to record (16 Nov).** Same branch, three more things:
+- **demo-reset settles the old outages (D-041)**, so the health map opens all green and
+  Workflow 3's database outage turns it red on camera.
+- **A rehearsal** (`e2e/demo/`, `cd e2e && npx playwright test -c demo` against a running
+  `make demo-reset`) walks shots 4–9 on the real ×10 clock. It passes: the staged incidents, the
+  duplicate hint and AI suggestion, the P1 and its assignment, follow-instead, the duplicate,
+  the root-cause hint, the health map, escalations at 33, 63 and 94 s, the admin tour (category
+  added live, audit chain intact) and Workflow 2 to closure.
+- **DEMO_SCRIPT.md** now has the machine set-up, the rehearsal, the checklist items, a note that
+  Workflow 1's P1 escalates too, and optional cues for SLA sorting and the theme switch.
+  `make report` builds the 60-page PDF for shot 2.
+
+`make verify` passes (backend and 141 frontend tests); `make e2e`: all 12 specs pass.
+
 ### Needs a human
-1. Review and merge this branch's PR.
-2. Optional demo cue: in Workflow 1b, click the queue's SLA header to show the next breach first;
-   flip a portal to its other theme once, to show D-040.
-3. The report's UI chapter could mention D-040 and use the new screenshots.
+1. **Review and merge the PR** for this branch; Render then redeploys `main` with the new screens.
+2. **On the recording machine:** pull `main`, `make setup`, delete `.env.local` if it exists,
+   allow the microphone, run the rehearsal, then `make demo-reset` before each take
+   (DEMO_SCRIPT.md, "Before recording").
+3. **Confirm the video file-name year** (`15_OOP_S1_2025-2026_Project`) with the IC.
+4. **Confirm D-038, D-040 and D-041** (or ask for changes).
+5. Before submission, not recording: chapter 12's two `TEAM:` notes
+   (`report/chapters/12-team-and-ai.tex`), each owner's read of their chapters, and the report
+   could mention D-040 and D-041.
 
 ## Previous: innovation features restored (13 Nov, after P6)
 
