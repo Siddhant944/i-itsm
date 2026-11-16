@@ -7,7 +7,10 @@ then does the two things a plain seed cannot:
    first tick after a seed would record ~170 breaches, ~60 escalations and ~30 auto-closes at
    once, in the middle of the recording. One quiet tick here records them now, with no
    notifications, exactly as the monitor would have done had it been running all along.
-2. **Stages the workflows' starting points** through the IncidentService facade, so each one
+2. **Settles the old outages** (D-041): the history's open P1 and P2 incidents are resolved by
+   their assignees (or cancelled while unassigned), so the health map starts green and
+   Workflow 3's database outage is the one red service on screen.
+3. **Stages the workflows' starting points** through the IncidentService facade, so each one
    is classified, prioritised, put on its SLA, assigned and audited like any other report:
    - Workflow 1: an open, low-priority Fee Payment Portal report from another employee, so the
      live report shows the "similar open incident" hint while it is typed (§6.2).
@@ -38,10 +41,14 @@ from sqlalchemy.engine.url import make_url
 from app.core.clock import Clock, SystemClock
 from app.core.config import AppEnv, Settings, get_settings
 from app.core.security import Argon2PasswordHasher
+from app.domain.dependency_graph import LIVE_STATUSES
 from app.domain.errors import ITSMError
-from app.domain.incident import Incident
+from app.domain.incident import CancelReason, Incident
+from app.domain.priority import Priority
 from app.domain.repositories import UnitOfWork
 from app.domain.rule_advisor import RuleBasedAdvisor
+from app.domain.search import CSV_EXPORT_LIMIT, IncidentQuery
+from app.domain.states import IncidentStatus
 from app.domain.users import User
 from app.repositories.database import make_engine
 from app.repositories.sqlalchemy.models import Base, SystemConfigRow
@@ -59,6 +66,9 @@ DEMO_EMPLOYEE = 1  # employee@campus.edu
 DEMO_TECHNICIAN = 2  # technician@campus.edu
 DEMO_LEAD = 3  # lead@campus.edu, the demo technician's Team Lead
 OTHER_EMPLOYEE = people.EMPLOYEES[0].user_id
+DEMO_ADMIN = 4  # admin@campus.edu
+#: What settle() writes on the incidents it closes off, so the audit log says why.
+SETTLED_SUMMARY = "Fixed before the demo: demo-reset settles old outages (D-041)."
 
 
 #: Hosts a reset may wipe without being told twice: this machine, and Compose's database service.
@@ -94,15 +104,32 @@ class StagedIncident:
 
 
 @dataclass(frozen=True, slots=True)
+class SettleReport:
+    """How many old P1/P2 incidents were taken off the health map before the demo (D-041)."""
+
+    resolved: int
+    cancelled: int
+
+    @property
+    def summary(self) -> str:
+        return (
+            f"old outages settled: {self.resolved} P1/P2 resolved, {self.cancelled} cancelled,"
+            " so the health map starts green"
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class DemoReport:
     seed_summary: str
     catch_up: TickReport
+    settled: SettleReport
     staged: tuple[StagedIncident, ...]
 
     def summary(self) -> str:
         lines = [
             self.seed_summary,
             f"history caught up ({self.catch_up.summary}, no notifications sent)",
+            self.settled.summary,
             *(
                 f"staged for {s.workflow}: {s.incident_id} {s.priority} '{s.title}'"
                 f" (assigned to user {s.assignee_id})"
@@ -142,12 +169,13 @@ def reset(settings: Settings, clock: Clock, *, allow_remote_database: bool = Fal
             caught_up = catch_up(uow, clock)
             uow.session.add(SystemConfigRow(key=CATCH_UP_MARKER, value={}, updated_at=clock.now()))
             uow.commit()
+            settled = settle(uow, clock)
             staged = stage(uow, clock)
         finally:
             uow.close()
     finally:
         engine.dispose()
-    return DemoReport(seeded.summary(), caught_up, staged)
+    return DemoReport(seeded.summary(), caught_up, settled, staged)
 
 
 def seed_if_empty(settings: Settings, clock: Clock) -> str:
@@ -199,6 +227,40 @@ def migrate(database_url: str) -> None:
 def catch_up(uow: UnitOfWork, clock: Clock) -> TickReport:
     """One tick with nobody to notify: the history's breaches, recorded as they would have been."""
     return SLAMonitor(uow, clock).tick()
+
+
+def settle(uow: UnitOfWork, clock: Clock) -> SettleReport:
+    """Close off the history's open P1 and P2 incidents, quietly, through the facade (D-041).
+
+    The generated history leaves outages open on several services, so the health map would
+    open half red and Workflow 3's database outage would not stand out. Each is resolved by
+    its assignee through the legal steps (§4), or, while nobody holds it yet, cancelled by an
+    administrator; both are audited. Nobody is notified, as in catch_up().
+    """
+    service = IncidentService(uow, clock, advisor=RuleBasedAdvisor())
+    query = IncidentQuery(
+        statuses=tuple(sorted(LIVE_STATUSES)),
+        priorities=(Priority.P1, Priority.P2),
+        limit=CSV_EXPORT_LIMIT,
+    )
+    admin = _user(uow, DEMO_ADMIN)
+    resolved = cancelled = 0
+    for incident in uow.incidents.search(query, clock.now()).items:
+        if incident.assignee_id is None:
+            service.cancel(admin, incident.id, CancelReason.WITHDRAWN)
+            cancelled += 1
+            continue
+        assignee = _user(uow, incident.assignee_id)
+        status = incident.status
+        if status is IncidentStatus.ASSIGNED:
+            status = service.acknowledge(assignee, incident.id).status
+        if status is IncidentStatus.ACKNOWLEDGED:
+            status = service.start(assignee, incident.id).status
+        if status is IncidentStatus.ON_HOLD:
+            status = service.resume(assignee, incident.id).status
+        service.resolve(assignee, incident.id, SETTLED_SUMMARY)
+        resolved += 1
+    return SettleReport(resolved, cancelled)
 
 
 def stage(uow: UnitOfWork, clock: Clock) -> tuple[StagedIncident, ...]:
