@@ -30,9 +30,9 @@ const ToastContext = createContext<ToastApi | null>(null);
 const LIFETIME_MS = 6000;
 
 const KIND: Record<Kind, string> = {
-  success: "border-emerald-500/50 bg-emerald-600 text-white",
-  error: "border-red-500/50 bg-red-600 text-white",
-  info: "border-slate-500/50 bg-slate-800 text-white",
+  success: "border-transparent bg-success text-white",
+  error: "border-transparent bg-danger text-white",
+  info: "border-transparent bg-inverse text-inverse-ink",
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {

@@ -42,9 +42,9 @@ type Dialog = "resolve" | "request" | "reject" | "verify" | "priority" | "catego
 
 const ENTRY_TONE: Record<TimelineEntry["kind"], string> = {
   event: "bg-accent",
-  note: "bg-slate-400",
-  question: "bg-amber-500",
-  answer: "bg-sky-500",
+  note: "bg-neutral",
+  question: "bg-caution",
+  answer: "bg-info",
 };
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -53,6 +53,39 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-xs tracking-wide text-muted uppercase">{label}</dt>
       <dd className="mt-0.5 text-sm">{children}</dd>
     </div>
+  );
+}
+
+/**
+ * The facts that decide what happens next, under the title where they are seen first: who has it,
+ * what it affects, and the two SLA deadlines (the highlights strip of the large service desks).
+ * Once the first response is in, its deadline gives way to when it happened.
+ */
+function KeyFacts({ incident }: { incident: Incident }) {
+  const names = useNames();
+  const { sla } = incident;
+  return (
+    <dl
+      data-testid="key-facts"
+      className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-line bg-surface px-4 py-3 sm:grid-cols-4"
+    >
+      <Fact label="Assigned to">
+        {incident.assignee_id === null ? "Not assigned yet" : names.person(incident.assignee_id)}
+      </Fact>
+      <Fact label="Service">{names.service(incident.service_id)}</Fact>
+      {sla === null ? (
+        <Fact label="SLA">Starts once the incident is classified</Fact>
+      ) : (
+        <>
+          {sla.responded_at === null ? (
+            <Fact label="Respond by">{formatDateTime(sla.response_deadline)}</Fact>
+          ) : (
+            <Fact label="Responded">{formatDateTime(sla.responded_at)}</Fact>
+          )}
+          <Fact label="Resolve by">{formatDateTime(sla.resolution_deadline)}</Fact>
+        </>
+      )}
+    </dl>
   );
 }
 
@@ -482,7 +515,7 @@ function CorrelationPanel({ incident }: { incident: Incident }) {
         <p
           role="status"
           data-testid="root-cause-hint"
-          className="mb-3 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm font-medium"
+          className="mb-3 rounded-md border border-warn-line bg-warn-soft px-3 py-2 text-sm font-medium"
         >
           {hint}
         </p>
@@ -690,12 +723,13 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
             {risk.data.reason}
           </p>
         )}
+        <KeyFacts incident={incident} />
       </div>
 
       {question !== null && allowed.provideInformation && (
         <div
           role="status"
-          className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm"
+          className="rounded-lg border border-warn-line bg-warn-soft px-4 py-3 text-sm"
         >
           <p className="font-medium">The technician needs more information from you</p>
           <p className="mt-1 whitespace-pre-wrap">{question}</p>
@@ -705,7 +739,7 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
       {allowed.verify && (
         <div
           role="status"
-          className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-3 text-sm"
+          className="rounded-lg border border-good-line bg-good-soft px-4 py-3 text-sm"
         >
           <p className="font-medium">A fix has been applied. Is it working for you?</p>
           <p className="mt-1 text-xs text-muted">
@@ -937,22 +971,14 @@ function Detail({ incident, me }: { incident: Incident; me: Me }) {
 
           <Card title="Details">
             <dl className="grid grid-cols-2 gap-3">
-              <Fact label="Service">{names.service(incident.service_id)}</Fact>
               <Fact label="Category">{names.category(incident.category_id)}</Fact>
               <Fact label="Reported by">{names.person(incident.reporter_id)}</Fact>
-              <Fact label="Assigned to">{names.person(incident.assignee_id)}</Fact>
               <Fact label="Impact">{levelLabel(incident.impact)}</Fact>
               <Fact label="Urgency">{levelLabel(incident.urgency)}</Fact>
               <Fact label="Priority score">
                 {incident.priority_score === null ? "—" : String(incident.priority_score)}
               </Fact>
               <Fact label="Reported">{formatDateTime(incident.created_at)}</Fact>
-              {incident.sla !== null && (
-                <>
-                  <Fact label="Respond by">{formatDateTime(incident.sla.response_deadline)}</Fact>
-                  <Fact label="Resolve by">{formatDateTime(incident.sla.resolution_deadline)}</Fact>
-                </>
-              )}
               {incident.parent_id !== null && (
                 <Fact label="Duplicate of">
                   {/* BR-01: a reporter may not open someone else's incident, so no link. */}

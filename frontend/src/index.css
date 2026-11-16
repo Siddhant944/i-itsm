@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 /*
- * One component library, three visibly different portals (blueprint §12, AGENTS.md: Frontend).
- * Components use the semantic colours below; each portal sets them on its root element.
+ * One component library, three visibly different portals (blueprint §12, AGENTS.md: Frontend),
+ * each in a light and a dark theme (D-040). Components use only the semantic colours below.
+ * The shell sets data-portal and data-theme on <html> and on its own root element.
+ *
+ * What keeps the portals apart in both themes: the layout (top bar or sidebar), the navigation
+ * colour, which stays dark in either theme, and the accent (teal, amber or indigo). The status
+ * colours (good, warn, bad, info, neutral) mean the same in every portal and differ only by theme.
+ * Every text pair is at least 4.5:1 (WCAG 1.4.3); src/theme.test.ts checks them.
  */
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -19,81 +25,275 @@
   --color-nav: var(--nav);
   --color-nav-ink: var(--nav-ink);
   --color-nav-active: var(--nav-active);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-good-line: var(--good-line);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-line);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-bad-line: var(--bad-line);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-line: var(--info-line);
+  --color-neutral: var(--neutral);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-danger: var(--danger);
+  --color-danger-strong: var(--danger-strong);
+  --color-success: var(--success);
+  --color-caution: var(--caution);
+  --color-inverse: var(--inverse);
+  --color-inverse-ink: var(--inverse-ink);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
 }
 
-/* Signed-out pages and the default. */
+/* Status colours and signed-out pages: light. */
 :root {
-  --page: #f8fafc;
+  --good: #0f6b4a;
+  --good-soft: #e3f4ec;
+  --good-line: #8fd0b1;
+  --warn: #8a4b06;
+  --warn-soft: #fdf1da;
+  --warn-line: #ebc06e;
+  --bad: #b4232a;
+  --bad-soft: #fdecec;
+  --bad-line: #efaaae;
+  --info: #0b5a85;
+  --info-soft: #e3f1fa;
+  --info-line: #9ccbe9;
+  --neutral: #475467;
+  --neutral-soft: #eef1f5;
+  /* Solid fills under white text: the same in both themes, so a red button always means danger. */
+  --danger: #c8282f;
+  --danger-strong: #a51d23;
+  --success: #0f7a52;
+  /* Fills for bars, dots and borders, never text. */
+  --caution: #d48a0b;
+  --inverse: #1d2330;
+  --inverse-ink: #f4f6fa;
+
+  --page: #f6f7f9;
   --surface: #ffffff;
-  --raised: #f1f5f9;
-  --ink: #0f172a;
-  --muted: #64748b;
-  --line: #e2e8f0;
+  --raised: #f0f2f5;
+  --ink: #111827;
+  --muted: #586174;
+  --line: #dde1e8;
   --accent: #0f766e;
   --accent-strong: #115e59;
   --accent-ink: #ffffff;
-  --accent-soft: #ccfbf1;
+  --accent-soft: #d8f1ec;
   --nav: #ffffff;
-  --nav-ink: #0f172a;
-  --nav-active: #ccfbf1;
+  --nav-ink: #111827;
+  --nav-active: #d8f1ec;
+  --chart-1: #0f766e;
+  --chart-2: #2f6fb3;
+  --chart-3: #c8282f;
+  color-scheme: light;
 }
 
-/* Employee: warm, light, a top bar and one centred column — a place to ask for help. */
-[data-portal="employee"] {
-  --page: #f7f5f0;
-  --surface: #ffffff;
-  --raised: #f3efe6;
-  --ink: #1c1917;
-  --muted: #6b6257;
-  --line: #e7e0d3;
-  --accent: #0f766e;
-  --accent-strong: #115e59;
-  --accent-ink: #ffffff;
-  --accent-soft: #d5f2ec;
-  --nav: #134e4a;
-  --nav-ink: #f0fdfa;
-  --nav-active: #0f766e;
-}
-
-/* Technician: a dark, dense operations console with an amber accent. */
-[data-portal="technician"] {
-  --page: #0b1220;
-  --surface: #131c2e;
-  --raised: #1c2740;
-  --ink: #e5e9f2;
-  --muted: #94a3b8;
-  --line: #2a3654;
-  --accent: #f59e0b;
-  --accent-strong: #fbbf24;
-  --accent-ink: #1c1407;
-  --accent-soft: #3b2f12;
-  --nav: #070c16;
-  --nav-ink: #cbd5e1;
-  --nav-active: #1c2740;
+/* Status colours in every dark theme. */
+[data-theme="dark"] {
+  --good: #6fd6a8;
+  --good-soft: #10291f;
+  --good-line: #23573f;
+  --warn: #f3c068;
+  --warn-soft: #2e220b;
+  --warn-line: #6a4d14;
+  --bad: #f7a1a4;
+  --bad-soft: #321315;
+  --bad-line: #7a2b30;
+  --info: #8ccdf2;
+  --info-soft: #0d2333;
+  --info-line: #23506f;
+  --neutral: #c3cad6;
+  --neutral-soft: #242b37;
+  --inverse: #eef1f6;
+  --inverse-ink: #111827;
+  --caution: #e8a33a;
   color-scheme: dark;
 }
 
-/* Admin: a cool, light back office with an indigo sidebar. */
+/* Signed-out pages follow the operating system until someone signs in and picks. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --good: #6fd6a8;
+    --good-soft: #10291f;
+    --good-line: #23573f;
+    --warn: #f3c068;
+    --warn-soft: #2e220b;
+    --warn-line: #6a4d14;
+    --bad: #f7a1a4;
+    --bad-soft: #321315;
+    --bad-line: #7a2b30;
+    --info: #8ccdf2;
+    --info-soft: #0d2333;
+    --info-line: #23506f;
+    --neutral: #c3cad6;
+    --neutral-soft: #242b37;
+    --inverse: #eef1f6;
+    --inverse-ink: #111827;
+    --caution: #e8a33a;
+    --page: #0f1216;
+    --surface: #171b21;
+    --raised: #1f242c;
+    --ink: #e8ebf0;
+    --muted: #9ba3b1;
+    --line: #2c323c;
+    --accent: #3cc9b4;
+    --accent-strong: #6fdcc9;
+    --accent-ink: #062320;
+    --accent-soft: #123630;
+    --nav: #171b21;
+    --nav-ink: #e8ebf0;
+    --nav-active: #123630;
+    --chart-1: #3cc9b4;
+    --chart-2: #7fb2ea;
+    --chart-3: #f08a8f;
+    color-scheme: dark;
+  }
+}
+
+/* Employee light: warm stone and a deep teal bar. A place to ask for help. */
+[data-portal="employee"] {
+  --page: #f6f4ef;
+  --surface: #ffffff;
+  --raised: #f1ede5;
+  --ink: #1c1917;
+  --muted: #5f574d;
+  --line: #e3ddd2;
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --accent-ink: #ffffff;
+  --accent-soft: #d6efe9;
+  --nav: #134e4a;
+  --nav-ink: #f0fdfa;
+  --nav-active: #0f766e;
+  --chart-1: #0f766e;
+  --chart-2: #9a6a2f;
+  --chart-3: #c8282f;
+}
+
+/* Employee dark: warm charcoal, the same teal bar, a lighter teal accent. */
+[data-portal="employee"][data-theme="dark"] {
+  --page: #11100e;
+  --surface: #1f1d19;
+  --raised: #292621;
+  --ink: #eeeae3;
+  --muted: #aca496;
+  --line: #3b362e;
+  --accent: #34c3ae;
+  --accent-strong: #67d8c6;
+  --accent-ink: #052520;
+  --accent-soft: #143831;
+  --nav: #0f3532;
+  --nav-ink: #e6fbf7;
+  --nav-active: #18615a;
+  --chart-1: #34c3ae;
+  --chart-2: #d9a86a;
+  --chart-3: #f08a8f;
+}
+
+/* Technician dark (the default): a dense operations console with an amber accent. */
+[data-portal="technician"] {
+  --page: #0b1220;
+  --surface: #121b2c;
+  --raised: #1a253b;
+  --ink: #e5e9f2;
+  --muted: #9aa8bd;
+  --line: #27334d;
+  --accent: #f59e0b;
+  --accent-strong: #fbbf24;
+  --accent-ink: #1c1407;
+  --accent-soft: #3a2c0f;
+  --nav: #070c16;
+  --nav-ink: #cbd5e1;
+  --nav-active: #1a253b;
+  --chart-1: #f59e0b;
+  --chart-2: #7fb2ea;
+  --chart-3: #f08a8f;
+}
+
+/* Technician light: a daylight console. Cool greys, the same near-black sidebar, darker amber. */
+[data-portal="technician"][data-theme="light"] {
+  --page: #f2f4f7;
+  --surface: #ffffff;
+  --raised: #eceff4;
+  --ink: #0f172a;
+  --muted: #526073;
+  --line: #d6dce6;
+  --accent: #b45309;
+  --accent-strong: #92400e;
+  --accent-ink: #ffffff;
+  --accent-soft: #fbeed4;
+  --nav: #0b1220;
+  --nav-ink: #cbd5e1;
+  --nav-active: #1e293b;
+  --chart-1: #b45309;
+  --chart-2: #2f6fb3;
+  --chart-3: #c8282f;
+}
+
+/* Admin light: a cool back office with an indigo sidebar. */
 [data-portal="admin"] {
   --page: #f5f6fb;
   --surface: #ffffff;
   --raised: #eef0f8;
   --ink: #111827;
-  --muted: #5b6478;
-  --line: #dfe3ee;
+  --muted: #565f75;
+  --line: #dde1ee;
   --accent: #4338ca;
   --accent-strong: #3730a3;
   --accent-ink: #ffffff;
-  --accent-soft: #e0e7ff;
+  --accent-soft: #e2e6fe;
   --nav: #1e1b4b;
   --nav-ink: #e0e7ff;
   --nav-active: #3730a3;
+  --chart-1: #4338ca;
+  --chart-2: #0f8a63;
+  --chart-3: #c8282f;
 }
 
+/* Admin dark: ink-blue surfaces, the same indigo sidebar, a periwinkle accent. */
+[data-portal="admin"][data-theme="dark"] {
+  --page: #0d0f1c;
+  --surface: #151829;
+  --raised: #1d2136;
+  --ink: #e5e7f3;
+  --muted: #a0a6bf;
+  --line: #2b3050;
+  --accent: #8b93f9;
+  --accent-strong: #aeb4fc;
+  --accent-ink: #0d0f2a;
+  --accent-soft: #252a5c;
+  --nav: #17153d;
+  --nav-ink: #e0e7ff;
+  --nav-active: #3730a3;
+  --chart-1: #8b93f9;
+  --chart-2: #4fcf9f;
+  --chart-3: #f08a8f;
+}
+
+html,
 body {
   background: var(--page);
   color: var(--ink);
 }
 
-/* `dark:` follows the technician console rather than the operating system. */
-@custom-variant dark (&:where([data-portal="technician"], [data-portal="technician"] *));
+/* `dark:` follows the chosen theme, not the operating system. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* React Flow (the admin health map) draws its own controls; give them the portal's colours. */
+[data-portal] .react-flow {
+  --xy-background-color: var(--surface);
+  --xy-background-pattern-color: var(--line);
+  --xy-controls-button-background-color: var(--surface);
+  --xy-controls-button-background-color-hover: var(--raised);
+  --xy-controls-button-color: var(--ink);
+  --xy-controls-button-color-hover: var(--ink);
+  --xy-controls-button-border-color: var(--line);
+  --xy-edge-stroke: var(--muted);
+  --xy-attribution-background-color: transparent;
+}

@@ -6,11 +6,11 @@ import { priorityLabel, roleLabel, slaLabel, statusLabel } from "../lib/format";
 export type Tone = "neutral" | "info" | "good" | "warn" | "bad" | "accent";
 
 const TONE: Record<Tone, string> = {
-  neutral: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
-  info: "bg-sky-500/15 text-sky-800 dark:text-sky-300",
-  good: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300",
-  warn: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
-  bad: "bg-red-500/15 text-red-700 dark:text-red-300",
+  neutral: "bg-neutral-soft text-neutral",
+  info: "bg-info-soft text-info",
+  good: "bg-good-soft text-good",
+  warn: "bg-warn-soft text-warn",
+  bad: "bg-bad-soft text-bad",
   accent: "bg-accent-soft text-accent-strong",
 };
 

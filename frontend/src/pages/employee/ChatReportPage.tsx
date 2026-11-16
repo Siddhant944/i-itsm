@@ -458,7 +458,7 @@ export function ChatReportPage() {
       <div className="flex flex-wrap gap-2">
         <Link
           to={incidentPath(portal, reported)}
-          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink"
         >
           Open {reported}
         </Link>
@@ -493,7 +493,7 @@ export function ChatReportPage() {
                 data-from={m.from}
                 className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${
                   m.from === "you"
-                    ? "rounded-br-sm bg-accent text-white"
+                    ? "rounded-br-sm bg-accent text-accent-ink"
                     : "rounded-bl-sm border border-line bg-raised text-ink"
                 }`}
               >

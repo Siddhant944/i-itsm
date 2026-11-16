@@ -233,6 +233,7 @@ export function SearchPage() {
               incidents={page.items}
               hrefFor={(id) => incidentPath(portal, id)}
               show={["category", "assignee"]}
+              sortable={false}
             />
             <div className="mt-3 flex items-center gap-2">
               <Button

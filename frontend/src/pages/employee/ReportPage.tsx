@@ -55,7 +55,7 @@ function SimilarHint({
     <div
       data-testid="similar-incidents"
       role="status"
-      className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm"
+      className="rounded-lg border border-warn-line bg-warn-soft px-4 py-3 text-sm"
     >
       <p className="font-medium">This may already be reported</p>
       <p className="mt-1 text-xs text-muted">
@@ -421,7 +421,7 @@ export function ReportPage() {
           <div
             role="alert"
             data-testid="repeat-report"
-            className="rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm"
+            className="rounded-lg border border-bad-line bg-bad-soft px-4 py-3 text-sm"
           >
             <p className="font-medium">You reported this a few minutes ago.</p>
             <p className="mt-1">

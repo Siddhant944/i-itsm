@@ -109,7 +109,7 @@ function Editor({ settings }: { settings: Settings }) {
           ))}
           <p
             data-testid="weights-total"
-            className={`text-sm font-medium ${total === 100 ? "text-emerald-700" : "text-red-600"}`}
+            className={`text-sm font-medium ${total === 100 ? "text-good" : "text-bad"}`}
           >
             Total {String(total)}%{total === 100 ? "" : " — the weights must add up to 100%."}
           </p>

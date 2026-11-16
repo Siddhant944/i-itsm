@@ -43,3 +43,13 @@ export function describeSla(sla: SLA | null, status: Status, now: number): SLAVi
   }
   return { tone: TONE[state], text: `${phase} due in ${formatDuration(remaining)}` };
 }
+
+/**
+ * When the running SLA clock runs out, for sorting by "SLA due": the response deadline until the
+ * first response, then the resolution deadline. Null when no clock is running (no SLA yet,
+ * paused, or stopped), so those incidents sort after every running one.
+ */
+export function slaDueAt(sla: SLA | null, status: Status): number | null {
+  if (sla === null || sla.paused || STOPPED.includes(status)) return null;
+  return Date.parse(sla.responded_at === null ? sla.response_deadline : sla.resolution_deadline);
+}

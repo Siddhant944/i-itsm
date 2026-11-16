@@ -13,7 +13,9 @@ CS F213 / MAC F212 Object-Oriented Programming, Semester I 2026–27 · Group 15
 ## What it does
 
 - **Three portals, five roles.** Employee, Technician (and Team Lead) and Admin (and IT Manager)
-  portals that look visibly different, each with navigation to all of its screens.
+  portals that look visibly different, each with navigation to all of its screens. Each portal
+  has a light and a dark theme (Light, Dark or System in the header); every text colour passes
+  WCAG AA contrast in both, and axe-core checks every screen in both.
 - **The full incident lifecycle.** Ten states and exactly the 20 legal transitions (State
   pattern); anything else is refused with a 409.
 - **Automatic triage.** Category suggested by Gemini (or keyword rules) with its confidence and
@@ -114,6 +116,10 @@ three portals can be open side by side as three different people.
 | ![Audit log](docs/screenshots/admin-audit.jpg) | ![SLA policies](docs/screenshots/admin-sla.jpg) |
 | **Admin: live service health map** | **Employee: report by chat** |
 | ![Service health map](docs/screenshots/admin-health-map.jpg) | ![Report by chat](docs/screenshots/employee-chat.jpg) |
+| **Dark theme: the admin dashboard** | **Light theme: the technician console** |
+| ![Admin dashboard, dark](docs/screenshots/admin-dashboard-dark.jpg) | ![Technician queue, light](docs/screenshots/technician-queue-light.jpg) |
+| **Dark theme: the employee report form** | |
+| ![Employee report form, dark](docs/screenshots/employee-report-dark.jpg) | |
 
 ## Commands
 
@@ -123,7 +129,7 @@ three portals can be open side by side as three different people.
 | `make dev` | Run the API and the web app with reload |
 | `make migrate` | Bring the database at `DATABASE_URL` up to the latest Alembic migration |
 | `make seed` | Migrate, then load the campus catalogue, the demo accounts and 420 historical incidents |
-| `make demo-reset` | Wipe and reseed the local database, stage Workflows 1 and 2, then serve both apps on the ×10 clock |
+| `make demo-reset` | Wipe and reseed the local database, settle old outages, stage Workflows 1 and 2, then serve both apps on the ×10 clock; `cd e2e && npx playwright test -c demo` then rehearses the demo against it |
 | `make test` | Backend (pytest) and frontend (Vitest) tests with coverage gates |
 | `make verify` | Lint, format, types, layer contracts, generated-client check and all tests; must pass before every commit |
 | `make e2e` | Playwright: the three workflows, live updates and an accessibility scan of every screen |

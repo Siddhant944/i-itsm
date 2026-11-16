@@ -32,7 +32,7 @@ function Shell({
         <p className="mt-1 text-xs text-muted">{hint}</p>
       )}
       {error !== undefined && (
-        <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-300">
+        <p role="alert" className="mt-1 text-xs text-bad">
           {error}
         </p>
       )}

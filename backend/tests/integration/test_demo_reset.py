@@ -26,6 +26,9 @@ from app.demo import (
     seed_if_empty,
     wipe,
 )
+from app.domain.dependency_graph import LIVE_STATUSES
+from app.domain.priority import Priority
+from app.domain.search import IncidentQuery
 from app.domain.states import IncidentStatus
 from app.repositories.database import make_engine
 from app.repositories.sqlalchemy.models import IncidentRow, NotificationRow, SystemConfigRow
@@ -125,6 +128,19 @@ def test_workflow_1s_report_is_offered_the_staged_look_alike(
     )
 
     assert workflow_1.incident_id in [c.incident.id for c in check.candidates]
+
+
+def test_old_outages_are_settled_so_the_health_map_starts_green(
+    report: DemoReport, uow: SqlAlchemyUnitOfWork, clock: FakeClock
+) -> None:
+    """D-041: no P1 or P2 is live before the take, so Workflow 3's outage is the red one."""
+    assert report.settled.resolved > 0
+    still_live = uow.incidents.search(
+        IncidentQuery(statuses=tuple(sorted(LIVE_STATUSES)), priorities=(Priority.P1, Priority.P2)),
+        clock.now(),
+    )
+    assert still_live.total == 0
+    assert "old outages settled" in report.summary()
 
 
 def test_a_production_database_is_never_wiped() -> None:

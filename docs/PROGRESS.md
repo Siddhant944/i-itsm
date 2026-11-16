@@ -2,7 +2,54 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: innovation features restored (13 Nov, after P6)
+## Status: UI polish from an ITSM benchmark (13 Nov, after the restored features)
+
+On `claude/nifty-maxwell-qkmfor`, fast-forwarded to `main` after PR #10 merged. We compared our
+portals with the ITSM products of Salesforce, ServiceNow and Atlassian and closed the cheap gaps
+it found, frontend only, in order of value for the UX criterion and the demo:
+- **My queue opens on open work.** Verified, closed and cancelled incidents hide behind a "Show
+  finished incidents (n …)" checkbox; RESOLVED stays, as in the team queue.
+- **Sortable lists.** Every IncidentTable header sorts (ascending, descending, back to the page's
+  order) with `aria-sort`; "SLA" sorts by the running clock's deadline, stopped or paused last.
+  Admin search keeps its server-side sort because it pages.
+- **Key facts under the incident title:** assignee, service, respond-by (or when the response
+  came) and resolve-by. They left the Details card.
+- **Skip link** (WCAG 2.4.1) on every portal page.
+- **Light and dark themes for all three portals (D-040).** A Light/Dark/System switch in each
+  portal's header, remembered per portal. Each portal keeps its own layout, navigation colour and
+  accent in both themes, and opens in its usual theme until someone picks. All colour literals
+  became semantic tokens (status colours included, charts and the health map too).
+  `src/theme.test.ts` checks every text pair at 4.5:1 or more in all six combinations, and the
+  axe-core e2e run now covers every screen in both themes. README shows three new screenshots.
+
+`make verify` passes (1,137 backend tests, 3 skipped; 141 frontend tests). `make e2e`: all specs pass, the accessibility spec in both themes.
+
+**Ready to record (16 Nov).** Same branch, three more things:
+- **demo-reset settles the old outages (D-041)**, so the health map opens all green and
+  Workflow 3's database outage turns it red on camera.
+- **A rehearsal** (`e2e/demo/`, `cd e2e && npx playwright test -c demo` against a running
+  `make demo-reset`) walks shots 4–9 on the real ×10 clock. It passes: the staged incidents, the
+  duplicate hint and AI suggestion, the P1 and its assignment, follow-instead, the duplicate,
+  the root-cause hint, the health map, escalations at 33, 63 and 94 s, the admin tour (category
+  added live, audit chain intact) and Workflow 2 to closure.
+- **DEMO_SCRIPT.md** now has the machine set-up, the rehearsal, the checklist items, a note that
+  Workflow 1's P1 escalates too, and optional cues for SLA sorting and the theme switch.
+  `make report` builds the 60-page PDF for shot 2.
+
+`make verify` passes (backend and 141 frontend tests); `make e2e`: all 12 specs pass.
+
+### Needs a human
+1. **Review and merge the PR** for this branch; Render then redeploys `main` with the new screens.
+2. **On the recording machine:** pull `main`, `make setup`, delete `.env.local` if it exists,
+   allow the microphone, run the rehearsal, then `make demo-reset` before each take
+   (DEMO_SCRIPT.md, "Before recording").
+3. **Confirm the video file-name year** (`15_OOP_S1_2025-2026_Project`) with the IC.
+4. **Confirm D-038, D-040 and D-041** (or ask for changes).
+5. Before submission, not recording: chapter 12's two `TEAM:` notes
+   (`report/chapters/12-team-and-ai.tex`), each owner's read of their chapters, and the report
+   could mention D-040 and D-041.
+
+## Previous: innovation features restored (13 Nov, after P6)
 
 On `claude/awesome-fermi-lx7q8c`, fast-forwarded to `main` after the P6 PR (#9) merged. Three
 items cut on 11 Nov are back (D-039), each named in the brief's Innovation Challenge list, each

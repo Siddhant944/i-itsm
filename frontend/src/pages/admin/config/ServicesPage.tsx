@@ -128,7 +128,7 @@ function ServiceDialog({
           onChange={setDependsOn}
         />
         {errors.depends_on !== undefined && (
-          <p role="alert" className="text-xs text-red-600">
+          <p role="alert" className="text-xs text-bad">
             {errors.depends_on}
           </p>
         )}

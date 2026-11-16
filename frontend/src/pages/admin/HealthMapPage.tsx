@@ -78,8 +78,11 @@ function HealthMap({ health }: { health: Health }) {
         source: String(edge.depends_on),
         target: String(edge.service_id),
         animated: failing,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: failing ? { stroke: "#dc2626", strokeWidth: 2 } : { stroke: "#94a3b8" },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: failing ? "var(--danger)" : "var(--muted)",
+        },
+        style: failing ? { stroke: "var(--danger)", strokeWidth: 2 } : { stroke: "var(--muted)" },
       };
     });
     return { nodes, edges };

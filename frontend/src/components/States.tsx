@@ -37,7 +37,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   return (
     <div
       role="alert"
-      className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+      className="rounded-lg border border-bad-line bg-bad-soft px-4 py-3 text-sm text-bad"
     >
       <p className="font-medium">{errorMessage(error)}</p>
       {onRetry !== undefined && (
@@ -88,7 +88,7 @@ export function QueryView<T>({
     );
   }
   const stale = query.isError && (
-    <p role="status" className="mb-3 text-xs text-amber-700 dark:text-amber-300">
+    <p role="status" className="mb-3 text-xs text-warn">
       Could not refresh just now; showing what was loaded last. {errorMessage(query.error)}
     </p>
   );
