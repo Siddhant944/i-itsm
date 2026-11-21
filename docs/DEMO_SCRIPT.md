@@ -1,5 +1,9 @@
 # Demo script
 
+> **Recording? Follow [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md).** It is the click-by-click sequence
+> in three tabs, with exact texts, IDs and assignees checked against `make demo-reset`, and a
+> table mapping each brief requirement to a step. This file stays the background reference.
+
 The recorded presentation (requirements §9 and the Important Note): 15–20 minutes, all four
 members on camera, each introducing themselves and explaining a module, and **three complete
 workflows**. Planned length: **17 minutes**. Based on blueprint §14, updated for what was built
