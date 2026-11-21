@@ -2,7 +2,22 @@
 
 Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECISIONS.md.
 
-## Status: UI polish from an ITSM benchmark (13 Nov, after the restored features)
+## Status: one-take recording ready (21 Nov, PR on `claude/bold-goodall-a5b7rd`)
+
+### Done
+- `make demo-reset` prints **WHO GETS WHAT IN THE TAKE**: the script's live reports replayed on the fresh data in a rolled-back transaction, with every assignee and escalation owner and their sign-in emails; `make demo-check` prints the same on the running demo and warns about reports made since the reset (D-043).
+- Email and Telegram are delivered by a background worker, so Submit returns at once (D-043).
+- The bell names each incident and shows the real time it arrived, converted back from the ×10 clock (D-044).
+- Sign-ins on the demo last about 2.4 real hours (D-042).
+- `docs/VIDEO_SCRIPT.pdf`: the word-for-word, one-take, 6-tab script, tested end to end in the sandbox at 1× speed (every step passed).
+- CI fix: the rehearsal tests run before the first-start test that reseeds the shared PostgreSQL test database.
+
+`make verify` passes: 1,146 backend tests (3 skipped), 142 frontend tests.
+
+### Needs a human
+- Record the take with the keys in the laptop's `.env` (Gemini, Google Sign-In, Gmail SMTP, Telegram on Rahul Verma's account), name the file `15_OOP_S1_2025-2026_Project` (confirm the year with the IC) and upload it with the report by 22 Nov.
+
+## Previous: UI polish from an ITSM benchmark (13 Nov, after the restored features)
 
 On `claude/nifty-maxwell-qkmfor`, fast-forwarded to `main` after PR #10 merged. We compared our
 portals with the ITSM products of Salesforce, ServiceNow and Atlassian and closed the cheap gaps

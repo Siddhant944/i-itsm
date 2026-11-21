@@ -2,6 +2,6 @@
 # Windows without make: run `uv run scripts/dev.py <target>` instead.
 RUN := uv run scripts/dev.py
 
-.PHONY: setup dev test lint verify format gen-client check-client e2e migrate seed demo-reset diagrams test-report report
-setup dev test lint verify format gen-client check-client e2e migrate seed demo-reset diagrams test-report report:
+.PHONY: setup dev test lint verify format gen-client check-client e2e migrate seed demo-reset demo-check diagrams test-report report
+setup dev test lint verify format gen-client check-client e2e migrate seed demo-reset demo-check diagrams test-report report:
 	@$(RUN) $@

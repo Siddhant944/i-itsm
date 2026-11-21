@@ -31,14 +31,15 @@ import argparse
 from argparse import Namespace
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Engine, inspect, text
+from sqlalchemy import Engine, inspect, select, text
 from sqlalchemy.engine.url import make_url
 
-from app.core.clock import Clock, SystemClock
+from app.core.clock import Clock, FakeClock, SystemClock
 from app.core.config import AppEnv, Settings, get_settings
 from app.core.security import Argon2PasswordHasher
 from app.domain.dependency_graph import LIVE_STATUSES
@@ -50,8 +51,9 @@ from app.domain.rule_advisor import RuleBasedAdvisor
 from app.domain.search import CSV_EXPORT_LIMIT, IncidentQuery
 from app.domain.states import IncidentStatus
 from app.domain.users import User
+from app.domain.value_objects import EmailAddress
 from app.repositories.database import make_engine
-from app.repositories.sqlalchemy.models import Base, SystemConfigRow
+from app.repositories.sqlalchemy.models import Base, IncidentRow, SystemConfigRow
 from app.repositories.sqlalchemy.repos import SqlAlchemyUnitOfWork, make_session_factory
 from app.seed import people
 from app.seed.runner import already_seeded, seed
@@ -67,6 +69,13 @@ DEMO_TECHNICIAN = 2  # technician@campus.edu
 DEMO_LEAD = 3  # lead@campus.edu, the demo technician's Team Lead
 OTHER_EMPLOYEE = people.EMPLOYEES[0].user_id
 DEMO_ADMIN = 4  # admin@campus.edu
+#: The staged incidents' titles; the rehearsal finds them by these (D-043).
+LOOK_ALIKE_TITLE = "Fee payment portal page is very slow"
+WIFI_TITLE = "Wi-Fi keeps dropping in the library reading room"
+#: The script's live reports, exactly as the video script has them typed (D-043).
+WORKFLOW1_REPORT = ("Fee payment page fails at checkout", "Fee Payment Portal", "Web Application")
+DATABASE_REPORT = ("Database cluster not responding", "Database Cluster", "Database")
+DATABASE_REPORTER = "employee@campus.edu"  # Devika reports it: one tab fewer
 #: What settle() writes on the incidents it closes off, so the audit log says why.
 SETTLED_SUMMARY = "Fixed before the demo: demo-reset settles old outages (D-041)."
 
@@ -124,6 +133,7 @@ class DemoReport:
     catch_up: TickReport
     settled: SettleReport
     staged: tuple[StagedIncident, ...]
+    plan: "TakePlan | None" = None
 
     def summary(self) -> str:
         lines = [
@@ -138,6 +148,8 @@ class DemoReport:
             f"demo accounts: employee, technician, lead, admin, manager @campus.edu,"
             f" password {people.DEMO_PASSWORD}",
         ]
+        if self.plan is not None:
+            lines.append(self.plan.summary())
         return "\n".join(lines)
 
 
@@ -171,11 +183,12 @@ def reset(settings: Settings, clock: Clock, *, allow_remote_database: bool = Fal
             uow.commit()
             settled = settle(uow, clock)
             staged = stage(uow, clock)
+            plan = rehearse(uow, clock.now())
         finally:
             uow.close()
     finally:
         engine.dispose()
-    return DemoReport(seeded.summary(), caught_up, settled, staged)
+    return DemoReport(seeded.summary(), caught_up, settled, staged, plan)
 
 
 def seed_if_empty(settings: Settings, clock: Clock) -> str:
@@ -277,7 +290,7 @@ def stage(uow: UnitOfWork, clock: Clock) -> tuple[StagedIncident, ...]:
 
     look_alike = service.report(
         _user(uow, OTHER_EMPLOYEE),
-        title="Fee payment portal page is very slow",
+        title=LOOK_ALIKE_TITLE,
         description="The fee payment page takes minutes to load and sometimes shows an error.",
         service_id=services["Fee Payment Portal"],
         category_id=categories["Web Application"],
@@ -287,7 +300,7 @@ def stage(uow: UnitOfWork, clock: Clock) -> tuple[StagedIncident, ...]:
 
     wifi = service.report(
         _user(uow, DEMO_EMPLOYEE),
-        title="Wi-Fi keeps dropping in the library reading room",
+        title=WIFI_TITLE,
         description="The wifi connection drops every few minutes on the first floor.",
         service_id=services["Campus Wi-Fi"],
         category_id=categories["Network"],
@@ -317,6 +330,193 @@ def _user(uow: UnitOfWork, user_id: int) -> User:
     return uow.users.get(user_id)
 
 
+# ---------------------------------------------------------------- the take, rehearsed
+@dataclass(frozen=True, slots=True)
+class Person:
+    """Someone the presenters need a signed-in window for."""
+
+    name: str
+    email: str
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.email})"
+
+
+@dataclass(frozen=True, slots=True)
+class TakePlan:
+    """Who the script's live reports reach on this exact data (D-043).
+
+    Assignment is deterministic, but the Smart scores for the Workflow 1 report are close, so
+    one extra report before the take (a dry run without a reset, say) changes who gets it. The
+    rehearsal replays the script on the current data and rolls everything back, so the
+    presenters know every name before they press record.
+    """
+
+    fresh: bool
+    workflow1: Person | None
+    duplicate_holder: Person | None
+    database: Person | None
+    escalations: tuple[Person, ...]
+    reassign_to: tuple[Person, ...]
+
+    def summary(self) -> str:
+        def name(person: Person | None) -> str:
+            return "nobody (check the data)" if person is None else str(person)
+
+        levels = ("~31 s", "~61 s", "~92 s")
+        lines = [
+            "",
+            "WHO GETS WHAT IN THE TAKE (the script replayed on this data, then rolled back):",
+            f"  Workflow 1  '{WORKFLOW1_REPORT[0]}', Category {WORKFLOW1_REPORT[2]}"
+            f" -> {name(self.workflow1)}",
+            f"  Step 2      '{LOOK_ALIKE_TITLE}' is confirmed as a duplicate by"
+            f" {name(self.duplicate_holder)}",
+            f"  Workflow 3  '{DATABASE_REPORT[0]}', Category {DATABASE_REPORT[2]}"
+            f" -> {name(self.database)}",
+            *(
+                f"    escalation level {level} at {when}: {person}"
+                for level, (when, person) in enumerate(
+                    zip(levels, self.escalations, strict=False), start=1
+                )
+            ),
+            "  Speaker 3   Assignment advice on the database incident (Smart): "
+            + (", ".join(p.name for p in self.reassign_to) or "none"),
+            "  Set each Category exactly as above. Sign a window in for every person named.",
+        ]
+        if not self.fresh:
+            lines.append(
+                "  WARNING: incidents were reported after the reset, so these names may not hold"
+                " for the take. Run demo-reset again before recording."
+            )
+        return "\n".join(lines)
+
+
+class _RehearsalUnitOfWork(UnitOfWork):
+    """Pattern: Proxy. Problem solved: the rehearsal must run the real facade and monitor, which
+    commit as they go, and still leave nothing behind. Here commit() only flushes, so the
+    rehearsal sees its own writes, and the caller rolls the one transaction back at the end."""
+
+    def __init__(self, inner: SqlAlchemyUnitOfWork) -> None:
+        self.__inner = inner
+        self.incidents = inner.incidents
+        self.users = inner.users
+        self.credentials = inner.credentials
+        self.catalogue = inner.catalogue
+        self.audit = inner.audit
+        self.notifications = inner.notifications
+        self.analytics = inner.analytics
+        self.violations = inner.violations
+        self.settings = inner.settings
+        self.embeddings = inner.embeddings
+
+    def commit(self) -> None:
+        self.__inner.session.flush()
+
+    def rollback(self) -> None:
+        self.__inner.rollback()
+
+
+def rehearse(uow: SqlAlchemyUnitOfWork, now: datetime) -> TakePlan:
+    """Replay the script's live steps on the current data, note who gets what, roll back."""
+    fresh = is_fresh(uow)
+    dry = _RehearsalUnitOfWork(uow)
+    clock = FakeClock(now)
+    service = IncidentService(dry, clock, advisor=RuleBasedAdvisor())
+    services = {s.name: s.id for s in uow.catalogue.services()}
+    categories = {c.name: c.id for c in uow.catalogue.categories()}
+    try:
+        workflow1 = service.report(
+            _user(uow, OTHER_EMPLOYEE),
+            title=WORKFLOW1_REPORT[0],
+            description="When I click pay, the page spins and then shows an error.",
+            service_id=services[WORKFLOW1_REPORT[1]],
+            category_id=categories[WORKFLOW1_REPORT[2]],
+            impact=3,
+            urgency=3,
+        ).incident
+        holder = None
+        if workflow1.assignee_id is not None:
+            meera = _user(uow, workflow1.assignee_id)
+            service.acknowledge(meera, workflow1.id)
+            service.start(meera, workflow1.id)
+            service.request_information(meera, workflow1.id, "Transaction ID?")
+            look_alike = _find_live(uow, LOOK_ALIKE_TITLE, now)
+            if look_alike is not None and look_alike.assignee_id is not None:
+                holder_user = _user(uow, look_alike.assignee_id)
+                service.confirm_duplicate(holder_user, look_alike.id, workflow1.id)
+                holder = _person(holder_user)
+        database = service.report(
+            uow.users.find_by_email(EmailAddress(DATABASE_REPORTER)) or _user(uow, DEMO_EMPLOYEE),
+            title=DATABASE_REPORT[0],
+            description="Every query to the main database times out.",
+            service_id=services[DATABASE_REPORT[1]],
+            category_id=categories[DATABASE_REPORT[2]],
+            impact=3,
+            urgency=3,
+        ).incident
+        first_owner = database.assignee_id
+        escalations: list[Person] = []
+        for minutes in (5, 10, 15):  # the P1 response target, missed once, twice, three times
+            clock.set(database.created_at + timedelta(minutes=minutes, seconds=4))
+            SLAMonitor(dry, clock).tick()
+            owner = uow.incidents.get(database.id).assignee_id
+            if owner is not None:
+                escalations.append(_person(_user(uow, owner)))
+        advice = service.assignment_advice(uow.incidents.get(database.id))
+        reassign_to = tuple(_person(_user(uow, c.technician_id)) for c in advice.ranked[:3])
+        return TakePlan(
+            fresh=fresh,
+            workflow1=_person_or_none(uow, workflow1.assignee_id),
+            duplicate_holder=holder,
+            database=_person_or_none(uow, first_owner),
+            escalations=tuple(escalations),
+            reassign_to=reassign_to,
+        )
+    finally:
+        uow.rollback()
+
+
+def is_fresh(uow: SqlAlchemyUnitOfWork) -> bool:
+    """True while the highest-numbered incident is still the staged Wi-Fi report.
+
+    Incident numbers are allocated in order (INC-YYYY-NNNN), so anything reported after the
+    reset outranks it; timestamps would tie under a clock that stands still.
+    """
+    newest = uow.session.scalars(
+        select(IncidentRow.title).order_by(IncidentRow.id.desc()).limit(1)
+    ).first()
+    return newest == WIFI_TITLE
+
+
+def check(settings: Settings, now: datetime) -> TakePlan:
+    """``demo-check``: the rehearsal on the database as it is now, for just before recording."""
+    engine = make_engine(settings.database_url)
+    try:
+        uow = SqlAlchemyUnitOfWork(make_session_factory(engine), FakeClock(now))
+        try:
+            return rehearse(uow, now)
+        finally:
+            uow.close()
+    finally:
+        engine.dispose()
+
+
+def _find_live(uow: UnitOfWork, title: str, now: datetime) -> Incident | None:
+    query = IncidentQuery(text=title, statuses=tuple(sorted(LIVE_STATUSES)), limit=5)
+    for incident in uow.incidents.search(query, now).items:
+        if incident.title == title:
+            return incident
+    return None
+
+
+def _person(user: User) -> Person:
+    return Person(user.full_name, str(user.email))
+
+
+def _person_or_none(uow: UnitOfWork, user_id: int | None) -> Person | None:
+    return None if user_id is None else _person(_user(uow, user_id))
+
+
 # ---------------------------------------------------------------- the CLI
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
@@ -329,6 +529,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="only seed a never-seeded database and catch the monitor up; wipe nothing",
     )
     parser.add_argument(
+        "--check",
+        action="store_true",
+        help="wipe nothing: replay the script on the current data and print who gets what",
+    )
+    parser.add_argument(
         "--allow-remote-database",
         action="store_true",
         help="let the reset wipe a database on another machine (a demo deployment only)",
@@ -336,7 +541,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     settings = get_settings()
     try:
-        if args.seed_if_empty:
+        if args.check:
+            print(check(settings, SystemClock().now()).summary().lstrip())
+        elif args.seed_if_empty:
             print(seed_if_empty(settings, SystemClock()))
         else:
             report = reset(

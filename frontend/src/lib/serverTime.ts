@@ -36,3 +36,15 @@ export function serverNow(): number {
 export function resetServerTime(): void {
   last = null;
 }
+
+/**
+ * When something stamped on the application's clock happened in real (wall-clock) time.
+ *
+ * The demo clock runs ×10, so a notification stamped "10 app-minutes ago" happened one real
+ * minute ago; showing the app-clock stamp would put it in the future. With no sync yet, a
+ * clock at real speed or one that stands still (tests), the stamp is already the answer.
+ */
+export function wallClockMs(appMs: number): number {
+  if (last === null || last.rate === 1 || last.rate <= 0) return appMs;
+  return Date.now() - (serverNow() - appMs) / last.rate;
+}

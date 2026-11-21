@@ -3,9 +3,9 @@
 \toprule
 Concept & Measured in the code & Examples \\
 \midrule
-Abstraction and interfaces & 26 abstract base classes declaring 82 abstract methods; 55 classes implement one directly & Clock, IncidentState, PriorityStrategy, AssignmentStrategy, RiskEstimator, AIAdvisor, NotificationChannel, IncidentRepository, UnitOfWork \\
-Encapsulation & 197 name-mangled attributes (self.\_\_x) in 39 modules, read through 165 properties; 0 property setters & Incident, SLAClock, User, Technician, IncidentService \\
-Immutability (value objects) & 80 frozen dataclasses & AccessToken, AssignmentAdvice, AssignmentRequest, AssignmentSettings, AuditRecord, AuthPolicy, Candidate, CandidateScore, ... \\
+Abstraction and interfaces & 26 abstract base classes declaring 82 abstract methods; 58 classes implement one directly & Clock, IncidentState, PriorityStrategy, AssignmentStrategy, RiskEstimator, AIAdvisor, NotificationChannel, IncidentRepository, UnitOfWork \\
+Encapsulation & 203 name-mangled attributes (self.\_\_x) in 41 modules, read through 165 properties; 0 property setters & Incident, SLAClock, User, Technician, IncidentService \\
+Immutability (value objects) & 82 frozen dataclasses & AccessToken, AssignmentAdvice, AssignmentRequest, AssignmentSettings, AuditRecord, AuthPolicy, Candidate, CandidateScore, ... \\
 Inheritance (true is-a only) & User has 5 subclasses; IncidentState has 10 concrete states; ITSMError has 8 groups and 14 specific errors & Administrator, Employee, ITManager, TeamLead, Technician \\
 Polymorphism & one call, many behaviours, chosen at runtime & state.resolve(), strategy.rank(), channel.send(), advisor.classify(), clock.now() \\
 \bottomrule

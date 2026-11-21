@@ -14,6 +14,7 @@ from collections.abc import Iterable, Sequence
 from app.core.clock import Clock
 from app.domain.catalogue import fallback_lead
 from app.domain.errors import (
+    IncidentNotFoundError,
     InvalidUserInputError,
     ITSMError,
     NetworkFailureError,
@@ -159,9 +160,17 @@ class NotificationService:
 
     # ------------------------------------------------------------ the bell
     def summary(self, user: User, limit: int = 20) -> NotificationSummary:
+        latest = self.__uow.notifications.in_app_for(user.id, limit=limit)
+        titles: dict[str, str] = {}
+        for incident_id in {n.incident_id for n in latest if n.incident_id is not None}:
+            try:
+                titles[incident_id] = self.__uow.incidents.get(incident_id).title
+            except IncidentNotFoundError:
+                continue
         return NotificationSummary(
             unread=self.__uow.notifications.count_unread(user.id),
-            latest=self.__uow.notifications.in_app_for(user.id, limit=limit),
+            latest=latest,
+            titles=titles,
         )
 
     def mark_read(self, user: User, notification_id: int) -> Notification:

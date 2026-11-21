@@ -281,6 +281,11 @@ def demo_reset(_: argparse.Namespace) -> None:
     serve(reload=False, extra_env=DEMO_ENV)
 
 
+def demo_check(_: argparse.Namespace) -> None:
+    """Replay the script on the running demo's data and print who gets what (D-043)."""
+    run(["uv", "run", "python", "-m", "app.demo", "--check"], BACKEND, DEMO_ENV)
+
+
 def diagrams(_: argparse.Namespace) -> None:
     """Regenerate the code-derived diagrams, then render every PlantUML source (P6.1).
 
@@ -337,6 +342,7 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], None]] = {
     "migrate": migrate,
     "seed": seed,
     "demo-reset": demo_reset,
+    "demo-check": demo_check,
     "diagrams": diagrams,
     "test-report": write_test_report,
     "report": report,

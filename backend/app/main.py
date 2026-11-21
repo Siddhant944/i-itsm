@@ -15,10 +15,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import __version__
+from app.adapters.background import BackgroundChatSender, BackgroundEmailSender, DeliveryWorker
 from app.adapters.gemini_advisor import gemini_advisor, gemini_summarizer
 from app.adapters.gemini_embeddings import gemini_embeddings
 from app.adapters.google_identity import GoogleIdTokenVerifier
-from app.adapters.smtp_email import EmailSettings, email_sender_for
+from app.adapters.smtp_email import ConsoleEmailSender, EmailSettings, email_sender_for
 from app.adapters.telegram import telegram_sender
 from app.api import health
 from app.api.deps import Services
@@ -42,6 +43,7 @@ from app.domain.errors import ITSMError
 from app.domain.ports import (
     AIAdvisor,
     ChatSender,
+    EmailSender,
     EmbeddingProvider,
     IdentityVerifier,
     ResolutionSummarizer,
@@ -179,6 +181,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.headers[CLOCK_RATE_HEADER] = str(services.clock.rate)
         return response
 
+    delivery = DeliveryWorker()  # D-043: email and Telegram leave the request
     app.state.services = Services(
         unit_of_work=lambda: SqlAlchemyUnitOfWork(sessions, clock),
         clock=clock,
@@ -191,18 +194,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allowed_email_domains=tuple(settings.allowed_email_domains),
             google_hosted_domain=settings.google_hd_domain,
         ),
-        email=email_sender_for(email_settings(settings)),
+        email=in_background(email_sender_for(email_settings(settings)), delivery),
         advisor=classifier(settings),
         embeddings=embedding_provider(settings),
         summarizer=summarizer(settings),
-        telegram=chat_sender(settings),
+        telegram=chat_in_background(chat_sender(settings), delivery),
         google=google_verifier(settings),
     )
     app.state.db_probe = lambda: ping(engine)
     app.state.settings = settings
     app.dependency_overrides[get_settings] = lambda: settings
 
-    scheduler = _schedule_monitor(app, settings, sessions, clock, app.state.services.live)
+    scheduler = _schedule_monitor(app, settings, sessions, clock, app.state.services.live, delivery)
     register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(auth_router.router)
@@ -228,6 +231,7 @@ def _schedule_monitor(
     sessions: sessionmaker[Session],
     clock: Clock,
     hub: LiveHub,
+    delivery: DeliveryWorker,
 ) -> MonitorScheduler | None:
     """The background SLA monitor, unless SLA_TICK_SECONDS is 0 (D-003).
 
@@ -237,8 +241,8 @@ def _schedule_monitor(
     if settings.sla_tick_seconds <= 0:
         return None
 
-    email = email_sender_for(email_settings(settings))
-    chat = chat_sender(settings)
+    email = in_background(email_sender_for(email_settings(settings)), delivery)
+    chat = chat_in_background(chat_sender(settings), delivery)
 
     def tick() -> TickReport:
         uow = SqlAlchemyUnitOfWork(sessions, clock)
@@ -257,6 +261,18 @@ def _schedule_monitor(
             uow.close()
 
     return MonitorScheduler(tick, clock, timedelta(seconds=settings.sla_tick_seconds))
+
+
+def in_background(sender: EmailSender, delivery: DeliveryWorker) -> EmailSender:
+    """D-043: real email is delivered off the request; the console fallback is instant anyway."""
+    if isinstance(sender, ConsoleEmailSender):
+        return sender
+    return BackgroundEmailSender(sender, delivery)
+
+
+def chat_in_background(sender: ChatSender | None, delivery: DeliveryWorker) -> ChatSender | None:
+    """D-043: Telegram messages are delivered off the request too."""
+    return None if sender is None else BackgroundChatSender(sender, delivery)
 
 
 def _chat_of(uow: UnitOfWork, user_id: int) -> str | None:

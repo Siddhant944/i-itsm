@@ -1777,6 +1777,8 @@ export interface components {
       id: number;
       /** Incident Id */
       incident_id: string | null;
+      /** Incident Title */
+      incident_title?: string | null;
       /** Read At */
       read_at: string | null;
       status: components["schemas"]["DeliveryStatus"];

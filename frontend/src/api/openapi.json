@@ -1374,6 +1374,17 @@
             ],
             "title": "Incident Id"
           },
+          "incident_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Title"
+          },
           "read_at": {
             "anyOf": [
               {

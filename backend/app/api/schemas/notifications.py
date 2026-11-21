@@ -14,6 +14,8 @@ class NotificationResponse(BaseModel):
     subject: str
     body: str
     incident_id: str | None
+    #: The incident's title, so the bell names the incident (None when it is unknown).
+    incident_title: str | None = None
     created_at: datetime
     read_at: datetime | None
     status: DeliveryStatus

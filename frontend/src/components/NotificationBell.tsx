@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { useMarkRead, useNotifications } from "../api/hooks";
 import { formatDateTime } from "../lib/format";
+import { wallClockMs } from "../lib/serverTime";
 import { ErrorState, Skeleton } from "./States";
 
 /** The in-app channel (blueprint §5.4): unread count, the latest items, mark as read. */
@@ -58,7 +59,14 @@ export function NotificationBell({ incidentHref }: { incidentHref: (id: string) 
                 className={`rounded-md px-2 py-2 text-sm ${item.read_at === null ? "bg-accent-soft" : ""}`}
               >
                 <p className="font-medium">{item.subject}</p>
-                <p className="text-xs text-muted">{formatDateTime(item.created_at)}</p>
+                {item.incident_title && (
+                  <p className="text-xs" data-testid="notification-title">
+                    {item.incident_title}
+                  </p>
+                )}
+                <p className="text-xs text-muted" data-testid="notification-time">
+                  {whenItHappened(item.created_at)}
+                </p>
                 <div className="mt-1 flex gap-3 text-xs">
                   {item.incident_id !== null && (
                     <Link
@@ -91,4 +99,25 @@ export function NotificationBell({ incidentHref }: { incidentHref: (id: string) 
       )}
     </div>
   );
+}
+
+/**
+ * The real time a notification arrived, and how long ago. The stamp is on the application's
+ * clock, which runs ×10 in the demo, so it is converted back to wall-clock time first.
+ */
+function whenItHappened(createdAt: string): string {
+  const appMs = Date.parse(createdAt);
+  if (Number.isNaN(appMs)) return formatDateTime(createdAt);
+  const realMs = wallClockMs(appMs);
+  const minutes = Math.max(0, Math.round((Date.now() - realMs) / 60_000));
+  const ago =
+    minutes === 0
+      ? "just now"
+      : minutes === 1
+        ? "1 min ago"
+        : minutes < 60
+          ? `${String(minutes)} min ago`
+          : null;
+  const stamp = formatDateTime(new Date(realMs).toISOString());
+  return ago === null ? stamp : `${stamp} · ${ago}`;
 }
