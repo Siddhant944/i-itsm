@@ -159,6 +159,57 @@ def test_a_production_database_is_never_wiped() -> None:
         reset(settings, FakeClock(NOW))
 
 
+# ---------------------------------------------------------------- D-043: the take, rehearsed
+# These read the state the module's reset left, so they run before the first-start test below,
+# which re-seeds the shared database on CI's PostgreSQL leg (TEST_DATABASE_URL).
+def test_the_reset_names_who_gets_each_scripted_report(report: DemoReport) -> None:
+    plan = report.plan
+    assert plan is not None
+    assert plan.fresh
+    assert plan.workflow1 is not None
+    assert plan.workflow1.email == "sys2@campus.edu"
+    assert plan.duplicate_holder is not None
+    assert plan.duplicate_holder.email == "sys2@campus.edu"
+    assert plan.database is not None
+    assert plan.database.email == "sys1@campus.edu"
+    assert [p.email for p in plan.escalations] == [
+        "s.desk1@campus.edu",
+        "admin@campus.edu",
+        "manager@campus.edu",
+    ]
+    assert "Meera Joshi" in [p.name for p in plan.reassign_to]
+    assert "WHO GETS WHAT IN THE TAKE" in report.summary()
+
+
+def test_the_rehearsal_is_repeatable_and_leaves_nothing_behind(
+    report: DemoReport, uow: SqlAlchemyUnitOfWork
+) -> None:
+    before = int(uow.session.scalar(select(func.count()).select_from(IncidentRow)) or 0)
+    again = rehearse(uow, NOW)
+    after = int(uow.session.scalar(select(func.count()).select_from(IncidentRow)) or 0)
+    assert again == report.plan
+    assert after == before
+    assert is_fresh(uow)
+
+
+def test_a_report_made_after_the_reset_is_flagged(uow: SqlAlchemyUnitOfWork) -> None:
+    """A dry run without a second reset is what moved Workflow 1 from Meera to Rohit."""
+    dry = _RehearsalUnitOfWork(uow)
+    services = {s.name: s.id for s in uow.catalogue.services()}
+    IncidentService(dry, FakeClock(NOW), advisor=RuleBasedAdvisor()).report(
+        uow.users.get(OTHER_EMPLOYEE),
+        title="A stray test report",
+        description="Sent before the take without resetting.",
+        service_id=services["Fee Payment Portal"],
+        impact=3,
+        urgency=3,
+    )
+    plan = rehearse(uow, NOW)  # rolls the stray report back along with its own steps
+    assert not plan.fresh
+    assert "Run demo-reset again" in plan.summary()
+    assert is_fresh(uow)
+
+
 def test_a_first_start_seeds_once_and_catches_up(tmp_path_factory: pytest.TempPathFactory) -> None:
     """SEED_ON_START: the first start seeds quietly, every later start changes nothing.
 
@@ -221,52 +272,3 @@ def test_a_remote_database_is_never_wiped_by_make_demo_reset(url: str) -> None:
 )
 def test_a_local_database_may_be_reset(url: str) -> None:
     assert is_local_database(url)
-
-
-# ---------------------------------------------------------------- D-043: the take, rehearsed
-def test_the_reset_names_who_gets_each_scripted_report(report: DemoReport) -> None:
-    plan = report.plan
-    assert plan is not None
-    assert plan.fresh
-    assert plan.workflow1 is not None
-    assert plan.workflow1.email == "sys2@campus.edu"
-    assert plan.duplicate_holder is not None
-    assert plan.duplicate_holder.email == "sys2@campus.edu"
-    assert plan.database is not None
-    assert plan.database.email == "sys1@campus.edu"
-    assert [p.email for p in plan.escalations] == [
-        "s.desk1@campus.edu",
-        "admin@campus.edu",
-        "manager@campus.edu",
-    ]
-    assert "Meera Joshi" in [p.name for p in plan.reassign_to]
-    assert "WHO GETS WHAT IN THE TAKE" in report.summary()
-
-
-def test_the_rehearsal_is_repeatable_and_leaves_nothing_behind(
-    report: DemoReport, uow: SqlAlchemyUnitOfWork
-) -> None:
-    before = int(uow.session.scalar(select(func.count()).select_from(IncidentRow)) or 0)
-    again = rehearse(uow, NOW)
-    after = int(uow.session.scalar(select(func.count()).select_from(IncidentRow)) or 0)
-    assert again == report.plan
-    assert after == before
-    assert is_fresh(uow)
-
-
-def test_a_report_made_after_the_reset_is_flagged(uow: SqlAlchemyUnitOfWork) -> None:
-    """A dry run without a second reset is what moved Workflow 1 from Meera to Rohit."""
-    dry = _RehearsalUnitOfWork(uow)
-    services = {s.name: s.id for s in uow.catalogue.services()}
-    IncidentService(dry, FakeClock(NOW), advisor=RuleBasedAdvisor()).report(
-        uow.users.get(OTHER_EMPLOYEE),
-        title="A stray test report",
-        description="Sent before the take without resetting.",
-        service_id=services["Fee Payment Portal"],
-        impact=3,
-        urgency=3,
-    )
-    plan = rehearse(uow, NOW)  # rolls the stray report back along with its own steps
-    assert not plan.fresh
-    assert "Run demo-reset again" in plan.summary()
-    assert is_fresh(uow)
