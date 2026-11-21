@@ -10,6 +10,9 @@ semester is 2026–27. **Confirm the year with the IC before uploading** (still 
 
 ## Before recording
 
+On Windows without `make`, every `make <target>` below is `uv run scripts/dev.py <target>`
+(e.g. `uv run scripts/dev.py demo-reset`).
+
 0. **On the recording machine, once:** pull `main`, then `make setup` (or `npm ci` in
    `frontend/` and `e2e/`: the health map and the accessibility test added packages). If
    `.env.local` exists (written by `neon init`), delete it or set
@@ -36,12 +39,28 @@ semester is 2026–27. **Confirm the year with the IC before uploading** (still 
 
    Keep `lead@campus.edu` (Priya Nair, Team Lead) and `manager@campus.edu` (Sunita Iyer) ready
    in a fourth window for Workflow 3. All passwords: `demo1234`.
-4. Optional: Telegram linked for Arjun and Priya (user menu → Telegram alerts) with a phone in
-   shot; email shows in the API console when SMTP is not configured. Without a Gemini key the
+4. Optional: Telegram alerts on a phone in shot. `TELEGRAM_BOT_TOKEN` in `.env`; the phone's
+   owner has pressed **Start** in the bot's chat and read their chat ID from @userinfobot.
+   - **Link after the final `make demo-reset`**: the reset wipes the database, links included.
+     One chat ID may be linked to several accounts (header → Telegram alerts → save).
+   - **Which accounts.** Escalation goes to the lead *of the assignee's team*, then the first
+     Administrator, then the IT Manager (§5.5); the Smart strategy decides the team, so it is
+     often not Priya's. Link `admin@`, `manager@` and every team lead: `lead@`, `s.desk1@`,
+     `sys1@`, `id1@`, `sec1@`. Add `technician@` for Workflow 2's alerts. An unlinked
+     recipient is skipped silently (its row still reads `sent`).
+   - If the P1 is assigned straight to a team lead, level 1 is skipped (it already holds it)
+     and only two escalation alerts arrive. That is correct; say so.
+   - A few minutes after the reset, *SLA approaching/breached* alerts arrive for the staged
+     Fee Payment Portal ticket (any priority breach alerts the admins). Expected.
+   - Close Telegram on the recording laptop: while it is active there, Telegram may not push
+     to the phone. Phone: Do Not Disturb off, the bot's chat not muted.
+
+   Email shows in the API console when SMTP is not configured. Without a Gemini key the
    suggestions say "from keyword rules" — that is the fallback working, say so.
 5. Open `report/build/main.pdf` (`make report`) at the class and state diagrams, and
    `docs/diagrams/architecture.svg` and `generated/er.svg`.
-6. Screen at 1280×800 or larger, browser zoom 100 %, notifications off. Record each workflow as
+6. Screen at 1280×800 or larger, browser zoom 100 %, the laptop's notifications off (the
+   phone's stay on for Telegram). Record each workflow as
    one continuous take; caption the requirement IDs in editing.
 
 Every workflow ends on the incident's audit trail (Admin → Incidents → the incident → Timeline,
@@ -85,6 +104,8 @@ seconds of reporting it.
 - [ ] Rehearsal passes (`cd e2e && npx playwright test -c demo`), then a fresh `make demo-reset`
 - [ ] `report/build/main.pdf` built (`make report`) for shot 2
 - [ ] `make demo-reset` immediately before each take
+- [ ] If showing Telegram: the accounts in item 4 linked *after* that reset; "Send a test"
+      reaches the phone
 - [ ] Each member introduced and explained a module
 - [ ] Workflows 1, 2 and 3 each shown end to end, each ending on its audit trail
 - [ ] Captions with requirement IDs added in editing
