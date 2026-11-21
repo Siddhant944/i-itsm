@@ -1,5 +1,7 @@
 # Demo script
 
+> **For the final recording, follow `docs/VIDEO_SCRIPT.pdf`** (one take, 6 tabs, checked end to end on 21 Nov against `make demo-reset`, with a 1x walkthrough video). This file is an earlier guide and its tab layout and incident numbers differ.
+
 > **Recording? Follow [DEMO_RUNBOOK.md](DEMO_RUNBOOK.md).** It is the click-by-click sequence
 > in three tabs, with exact texts, IDs and assignees checked against `make demo-reset`, and a
 > table mapping each brief requirement to a step. This file stays the background reference.

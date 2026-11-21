@@ -1,5 +1,7 @@
 # Demo runbook: the recording, click by click
 
+> **For the final recording, follow `docs/VIDEO_SCRIPT.pdf`** (one take, 6 tabs, checked end to end on 21 Nov against `make demo-reset`, with a 1x walkthrough video). This file is an earlier guide and its tab layout and incident numbers differ.
+
 A fixed sequence for the graded video (requirements §9: 15–20 minutes, every member on camera,
 at least three complete workflows). It uses **three browser tabs**, a terminal and the report PDF.
 It covers every MVP item, every role capability the brief lists, all seven intelligent features
