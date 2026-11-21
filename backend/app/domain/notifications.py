@@ -263,3 +263,5 @@ class NotificationSummary:
 
     unread: int
     latest: tuple[Notification, ...] = field(default_factory=tuple)
+    #: incident id -> title, so each line in the bell can name the incident, not only its id.
+    titles: Mapping[str, str] = field(default_factory=dict)

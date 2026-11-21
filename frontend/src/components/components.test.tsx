@@ -4,7 +4,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/client";
-import { syncServerTime } from "../lib/serverTime";
+import { resetServerTime, syncServerTime } from "../lib/serverTime";
 import { incident, renderPage } from "../test/utils";
 import { PriorityBadge, RoleBadge, SLAStatusBadge, StatusBadge } from "./Badge";
 import { Button } from "./Button";
@@ -385,6 +385,25 @@ describe("NotificationBell", () => {
     );
     await userEvent.click(within(panel).getByRole("button", { name: "Mark as read" }));
     expect(calls.some((c) => c.method === "POST" && c.path === "/notifications/7/read")).toBe(true);
+  });
+
+  it("names the incident and shows when it really happened on the x10 demo clock", async () => {
+    // Ten application minutes after the notification is one real minute on the x10 clock.
+    syncServerTime(new Date(Date.parse(item.created_at) + 10 * 60_000).toISOString(), "10");
+    renderPage(<NotificationBell incidentHref={(id) => id} />, {
+      routes: {
+        "GET /notifications": {
+          unread: 1,
+          latest: [{ ...item, incident_title: "Fee payment page fails at checkout" }],
+        },
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    expect(screen.getByTestId("notification-title")).toHaveTextContent(
+      "Fee payment page fails at checkout",
+    );
+    expect(screen.getByTestId("notification-time")).toHaveTextContent(/IST · 1 min ago$/);
+    resetServerTime();
   });
 
   it("says so when there is nothing", async () => {

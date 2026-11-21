@@ -21,7 +21,8 @@ def bell(
     """The caller's own unread count and latest in-app notifications."""
     summary = notifications.summary(user, limit=limit)
     return NotificationSummaryResponse(
-        unread=summary.unread, latest=[_response(n) for n in summary.latest]
+        unread=summary.unread,
+        latest=[_response(n, summary.titles.get(n.incident_id or "")) for n in summary.latest],
     )
 
 
@@ -33,7 +34,7 @@ def mark_read(
     return _response(notifications.mark_read(user, notification_id))
 
 
-def _response(notification: Notification) -> NotificationResponse:
+def _response(notification: Notification, title: str | None = None) -> NotificationResponse:
     assert notification.id is not None  # noqa: S101 - stored notifications always have an id
     return NotificationResponse(
         id=notification.id,
@@ -42,6 +43,7 @@ def _response(notification: Notification) -> NotificationResponse:
         subject=notification.subject,
         body=notification.body,
         incident_id=notification.incident_id,
+        incident_title=title,
         created_at=notification.created_at,
         read_at=notification.read_at,
         status=notification.status,
