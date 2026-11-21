@@ -269,7 +269,9 @@ def seed(args: argparse.Namespace) -> None:
 
 
 #: Blueprint §14: the recording runs on the ×10 clock, so a P1's 5-minute window takes 30 s.
-DEMO_ENV = {"APP_ENV": "demo", "CLOCK_MODE": "accelerated"}
+#: Token expiry is judged by that clock too, so the default 30-minute sign-in would end after
+#: 3 real minutes; 1440 clock minutes keeps a sign-in alive for about 2.4 real hours (D-042).
+DEMO_ENV = {"APP_ENV": "demo", "CLOCK_MODE": "accelerated", "JWT_ACCESS_TTL_MINUTES": "1440"}
 
 
 def demo_reset(_: argparse.Namespace) -> None:
