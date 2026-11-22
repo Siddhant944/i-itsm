@@ -10,6 +10,13 @@ CS F213 / MAC F212 Object-Oriented Programming, Semester I 2026–27 · Group 15
 
 ![The admin dashboard](docs/screenshots/admin-dashboard.jpg)
 
+## Submission
+
+- **Report:** [deliverables/15_OOP_S1_2026-2027_Project_Report.pdf](deliverables/15_OOP_S1_2026-2027_Project_Report.pdf)
+- **Each item of the brief's Deliverables list**, with its chapter as its own PDF, the diagrams
+  and the test results: [deliverables/](deliverables/README.md)
+- **Demonstration video:** `15_OOP_S1_2026-2027_Project`, in the course's shared folder
+
 ## What it does
 
 - **Three portals, five roles.** Employee, Technician (and Team Lead) and Admin (and IT Manager)
