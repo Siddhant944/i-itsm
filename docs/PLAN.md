@@ -3,7 +3,7 @@
 ## Context
 The repo holds only the sources: the requirements PDF (it wins every conflict), Blueprint v2 (the source of truth), the superseded v1 brief, AGENTS.md and a stub README. This plan turns the six phases into work packages of a few hours each. Every package names an owner, its dependencies, files, acceptance tests and the rubric line it earns. The goal is the full 120 marks, protected in this order: MVP → core-rule tests → §6 features → extras.
 
-**Team, group 15** (owners per blueprint §15): M1 Domain and lifecycle = Tushar B · M2 Intelligence and SLA = Siddhant L Pathak · M3 Platform = Shri Krishna P · M4 Frontend and QA = Ishaan S. The video file is `15_OOP_S1_2025-2026_Project` unless the IC corrects the year.
+**Team, group 15** (owners per blueprint §15): M1 Domain and lifecycle = Tushar B · M2 Intelligence and SLA = Siddhant L Pathak · M3 Platform = Shri Krishna P · M4 Frontend and QA = Ishaan S. The video file is `15_OOP_S1_2026-2027_Project` (D-045).
 
 Rubric keys: **FN** Functionality 60 · **TD** Technical depth 15 · **DA** Design and architecture 10 · **UX** User experience 10 · **IN** Innovation 10 · **DOC** Documentation and presentation 10 · **TST** Testing 5.
 
@@ -102,7 +102,7 @@ Never-cut work and WF3 come first, then WebSockets, then the two kept integratio
 - **P6.2 (owners per §15)** Report chapters 1–8, plus security, generated OOP and pattern evidence with file paths (`scripts/gen_pattern_table.py`), team responsibilities and a statement of AI use. Versions come from the lock files.
 - **P6.3 (M4)** ≥ 15 cases in `docs/testing/cases.yaml`, mapped to pytest node IDs. `scripts/test_report.py` writes actual results from a real run into `report/generated/`. The traceability matrix is generated from `@pytest.mark.req("BR-xx")` markers.
 - **P6.4 (M3)** Final README: one-command setup, Windows-native commands (uv, npm, SQLite, `scripts/dev.py`), demo accounts, architecture, tests, screenshots.
-- **P6.5 (M4, all)** `docs/DEMO_SCRIPT.md`: shot by shot with timings per member (§14), plus the file name `15_OOP_S1_2025-2026_Project`, pending the IC.
+- **P6.5 (M4, all)** `docs/DEMO_SCRIPT.md`: shot by shot with timings per member (§14), plus the file name `15_OOP_S1_2026-2027_Project` (D-045).
 - Chapters 1, 2 and 5 are drafted early whenever usage is spare. Drafts due Wed 18; recording Thu 19 – Fri 20; submission Sat 21.
 
 ## Usage rules
@@ -112,7 +112,7 @@ Never-cut work and WF3 come first, then WebSockets, then the two kept integratio
 - Never cut: the MVP, core-rule tests, AI classification with its fallback, duplicates, smart assignment, escalation or predictive SLA.
 
 ## Needs a human (seeded into PROGRESS.md)
-1. Confirm the file-name year (2025-2026 vs 2026-2027) with the IC.
+1. ~~Confirm the file-name year~~: the team chose 2026-2027 (D-045).
 2. Paste `scripts/cloud-setup.sh` into the cloud environment's setup script. The network policy must allow PyPI, npm, GitHub and the tectonic, plantuml and gitleaks downloads, and later generativelanguage.googleapis.com and api.telegram.org.
 3. Gemini API key and model names; SMTP app password; Telegram bot token; Google OAuth client ID and campus domain. These go into deployment secrets only.
 4. Hosting accounts after P2.10. Optional: branch protection, if you upgrade to GitHub Pro.

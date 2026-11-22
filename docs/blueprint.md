@@ -507,7 +507,7 @@ The 17-minute video shows all three required workflows end to end, and every mem
 - **M3 (4 min):** architecture and ER diagrams, then the admin portal. The admin adds a category live, edits an SLA policy and switches strategy to show a different pick. M3 then runs the 9-filter search, verifies audit integrity and walks through analytics.
 - **M4 (4 min):** Workflow 2: acknowledge → request info (clock paused) → reply → AI suggestion → resolve → reject → resolve → verify and rate → closed. An illegal transition is then refused, and CI runs the tests with coverage.
 
-The brief's filename pattern says `2025-2026`, though the semester is 2026–27; confirm which to use with the IC.
+The brief's filename pattern says `2025-2026`, though the semester is 2026–27; the team chose `2026-2027` (D-045).
 
 ## 15. Team and Timeline
 

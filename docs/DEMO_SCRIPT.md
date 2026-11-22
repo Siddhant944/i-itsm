@@ -11,8 +11,8 @@ members on camera, each introducing themselves and explaining a module, and **th
 workflows**. Planned length: **17 minutes**. Based on blueprint §14, updated for what was built
 (voice input, the health map and chat reporting are back, D-039; light and dark themes, D-040).
 
-**File name:** `15_OOP_S1_2025-2026_Project` — the brief's example uses 2025-2026 although the
-semester is 2026–27. **Confirm the year with the IC before uploading** (still open).
+**File name:** `15_OOP_S1_2026-2027_Project`. The brief's example uses 2025-2026; the team chose the
+current term, 2026–27 (D-045).
 
 ## Before recording
 
