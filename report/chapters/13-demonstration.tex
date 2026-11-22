@@ -1,0 +1,108 @@
+\chapter{Project Demonstration}\label{ch:demo}
+% Owner: All. 22 Nov 2026; written from the recorded video (timestamps are minutes:seconds).
+
+\section{The video}
+\begin{description}
+  \item[File.] \code{15\_OOP\_S1\_2026-2027\_Project}, uploaded to the course's shared folder.
+  \item[Length and format.] 16 min 06 s, 1920$\times$1080, screen recording with each
+    presenter on camera in the corner.
+  \item[Set-up.] The application ran locally from \code{make demo-reset}: a fresh database with
+    the campus catalogue and 420 historical incidents, and the application clock running ten
+    times faster, so SLA warnings, breaches and escalations happen within the recording.
+    Email went out through Gmail SMTP, urgent alerts through Telegram, and sign-in used Google
+    with the campus domain.
+  \item[Presenters.] Four members, in order: Tushar B, Shri Krishna P, Ishaan S and Siddhant L
+    Pathak.
+\end{description}
+
+\section{Timeline}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{10.8cm}@{}}
+\toprule
+\textbf{Time} & \textbf{Presenter} & \textbf{What is shown} \\
+\midrule
+\endhead
+00:00--01:20 & Tushar B & Title; the layered architecture diagram (Figure~\ref{fig:architecture})
+  and the deployment diagram. \\
+01:20--01:50 & Tushar B & Google Sign-In with a campus account (only the campus domain is
+  accepted). \\
+01:50--05:20 & Tushar B & \textbf{Workflow 1.} The employee reports ``Fee payment page fails at
+  checkout'', dictating the description by voice; the AI suggests the category Web Application
+  with its confidence (67\,\%, medium), which is accepted, and lists similar open incidents with
+  ``Follow this instead''. The incident is prioritised P1 Critical and assigned to Meera Joshi;
+  the bell, Telegram and email notify. The technician acknowledges (the response clock stops);
+  the admin view shows the Smart strategy's ranked candidates with scores and reasons. The
+  technician requests information, the incident goes ON\_HOLD and its SLA clock pauses. \\
+05:20--07:50 & Shri Krishna P & \textbf{Workflow 3.} A second employee reports ``Database system
+  not working'' (P1, assigned to Rohit Khanna, breach risk shown). A third report, ``The fee
+  payment system is too slow'', is matched to three open incidents, one flagged as reported
+  close together on a dependent service; the reporter follows the existing incident instead. The
+  technician view shows the possible duplicates and the likely root cause on the Database
+  Cluster; the unacknowledged P1 escalates up the chain and is reassigned. \\
+07:50--11:30 & Ishaan S & \textbf{Administrator portal.} Dashboard (open, critical, at-risk,
+  breached, MTTA, MTTR, SLA compliance, CSAT) and technician workload; adding a user; services
+  with their criticality, SLA tier and dependencies; adding the category Audio-Visual, which
+  appears on the report form at once; editing an SLA target; switching the assignment strategy
+  and its weights; the live service health map with the database outage in red; search with
+  filters and CSV export; the hash-chained audit log with its integrity check. \\
+11:30--14:20 & Siddhant L Pathak & \textbf{Workflow 2.} Technician Arjun Menon's queue, sorted
+  by SLA. On ``Wi-Fi keeps dropping in the library reading room'' the technician acknowledges,
+  starts work (SLA on track), overrides the priority P4 $\rightarrow$ P3 with a recorded reason,
+  adds a work note and requests information (clock paused); the employee replies and the clock
+  resumes; the technician reviews the suggested fixes drawn from similar resolved incidents. \\
+14:20--15:05 & Siddhant L Pathak & \textbf{Report by chat.} One question at a time; the chat
+  offers a look-alike incident to follow, the employee declines, and INC-2026-0426 is filed as
+  P4 through the same rules as the form. \\
+15:05--16:06 & Siddhant L Pathak & Account lockout after five failed sign-ins (TC-07);
+  closing card. \\
+\bottomrule
+\end{longtable}
+
+\section{The three workflows against the brief}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{4.4cm}>{\raggedright\arraybackslash}p{8.2cm}>{\raggedright\arraybackslash}p{3cm}@{}}
+\toprule
+\textbf{Brief's step} & \textbf{In the video} & \textbf{Also tested by} \\
+\midrule
+\endhead
+\multicolumn{3}{@{}l}{\textit{Workflow 1: employee reports $\rightarrow$ system prioritises
+  $\rightarrow$ technician assigned $\rightarrow$ notification generated}} \\
+Employee reports & 01:50--03:10, voice dictation and AI category with confidence & TC-01 \\
+System prioritises & P1 Critical from impact, urgency and service criticality, 03:20 & TC-01,
+  TC-18 \\
+Technician assigned & Meera Joshi by the Smart strategy, ranked candidates at 04:00 & TC-06,
+  TC-11 \\
+Notification generated & Bell, Telegram alert set-up and email, 03:20--04:30 & TC-14 \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Workflow 2: technician investigates $\rightarrow$ SLA monitored
+  $\rightarrow$ incident resolved $\rightarrow$ user notified}} \\
+Technician investigates & Acknowledge, start, priority override, work note, request for
+  information, 12:20--14:20 & TC-02 \\
+SLA monitored & SLA chip on track, clock paused while on hold and resumed on reply & TC-04,
+  TC-05 \\
+Incident resolved, user notified & Not on camera: the recording stops at the suggested fixes.
+  The automated Playwright test \code{e2e/tests/wf2.spec.ts} runs this workflow on to resolve,
+  reject, resolve again, verify and close, and checks the reporter's notification & TC-02,
+  \code{wf2.spec.ts} \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Workflow 3: multiple incidents $\rightarrow$ duplicates or related
+  incidents identified $\rightarrow$ correlated and escalated}} \\
+Multiple incidents reported & Database outage and fee-payment reports, 05:30--07:10 & TC-01 \\
+Duplicates identified & Three matches with similarity scores; the reporter follows the existing
+  incident, 06:50--07:10 & TC-20,
+  \code{duplicates.md} \\
+Correlated & Root cause on the Database Cluster, which the Fee Payment Portal depends on, 07:30;
+  red on the health map, 10:30 & TC-23,
+  TC-24 \\
+Escalated & Unacknowledged P1 reassigned up the chain, 07:40 and 10:50 & TC-19 \\
+\bottomrule
+\end{longtable}
+
+\section{Innovation features shown}
+Voice input (02:20), AI-assisted classification with confidence (02:40), duplicate detection
+while typing (02:40, 06:50), smart assignment with explanations (04:00), predictive breach risk
+(06:10), Telegram alerts (03:20), Google Sign-In (01:20), the live service health map (10:30),
+chatbot reporting (14:20) and suggested fixes from past incidents (14:00).
+
+\section{Planned script and the recording}
+\code{docs/VIDEO\_SCRIPT.pdf} is the tested one-take script the team prepared. The recording
+follows its order for Workflows 1 and 3 and the administrator tour, with the presenters as listed
+above; Workflow 2 ends before resolution, which the automated test covers instead.

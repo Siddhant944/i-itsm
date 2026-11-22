@@ -73,7 +73,9 @@ Reporting an incident (Workflow~1, Figure~\ref{fig:sequence-wf1}) shows every la
   \item Only after the commit does the \code{PostCommitDispatcher} hand the events to the
     notification service (in-app, email, Telegram) and the live publisher (WebSocket). A
     failing email can therefore never undo the change it reports, and nobody is notified about
-    a change that rolled back.
+    a change that rolled back. The in-app notification and the push go out at once; real email
+    and Telegram messages are queued for one background worker, so a slow mail server never
+    delays the user's request (D-043).
 \end{enumerate}
 
 \section{Cross-cutting concerns}

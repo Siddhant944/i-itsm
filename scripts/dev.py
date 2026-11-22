@@ -317,13 +317,36 @@ def report(_: argparse.Namespace) -> None:
     run(["uv", "run", "python", "scripts/gen_pattern_table.py"], BACKEND)
     run(["uv", "run", "python", "scripts/gen_versions.py"], BACKEND)
     tectonic = shutil.which("tectonic") or str(REPO / "tools" / "tex" / "bin" / "tectonic")
-    if not Path(tectonic).exists():
+    xelatex = shutil.which("xelatex")
+    (REPORT / "build" / "chapters").mkdir(parents=True, exist_ok=True)
+    # REPORT_ENGINE=xelatex uses an installed TeX Live, for networks that block tectonic's
+    # package bundle; three passes settle the contents and cross-references.
+    if os.environ.get("REPORT_ENGINE") == "xelatex" or (not Path(tectonic).exists() and xelatex):
+        if xelatex is None:
+            raise TaskError("REPORT_ENGINE=xelatex but xelatex is not installed")
+        for _pass in range(3):
+            run(
+                [
+                    xelatex,
+                    "-interaction=nonstopmode",
+                    "-halt-on-error",
+                    "-output-directory=build",
+                    "main.tex",
+                ],
+                REPORT,
+            )
+    elif Path(tectonic).exists():
+        run([tectonic, "--outdir", "build", "main.tex"], REPORT)
+    else:
         raise TaskError(
             "tectonic not found; run scripts/cloud-setup.sh (Linux) or see the README (Windows)"
         )
-    (REPORT / "build").mkdir(exist_ok=True)
-    run([tectonic, "--outdir", "build", "main.tex"], REPORT)
     print(f"report: {REPORT / 'build' / 'main.pdf'}")
+
+
+def deliverables(_: argparse.Namespace) -> None:
+    """Assemble deliverables/ from the built report and diagrams (D-045)."""
+    run(["uv", "run", "python", "scripts/build_deliverables.py"], BACKEND)
 
 
 COMMANDS: dict[str, Callable[[argparse.Namespace], None]] = {
@@ -346,6 +369,7 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], None]] = {
     "diagrams": diagrams,
     "test-report": write_test_report,
     "report": report,
+    "deliverables": deliverables,
 }
 
 

@@ -15,29 +15,29 @@ merged, so that each can explain the whole system.
 M1 Tushar B \newline Domain and lifecycle & \code{domain/}: users and permissions, the
   \code{Incident} aggregate and its State classes, priority, events; the notification
   subsystem and Telegram alerts; the admin configuration screens & 1 Problem analysis;
-  4 UML; 10 OOP and patterns & Domain and notification tests; demo: introduction, class and
-  state diagrams, Workflow 1 (report) \\
+  4 UML; 10 OOP and patterns & Domain and notification tests; demo: architecture and
+  deployment, Google Sign-In, Workflow 1 \\
 M2 Siddhant L Pathak \newline Intelligence and SLA & AI advisor and fallback, similarity and
   duplicates, dependency graph and correlation, predictive SLA risk, assignment strategies,
   SLA engine and monitor, escalation chain, historical seed data & 2 Requirements;
   5 Technology stack & Strategy, similarity (precision and recall), SLA and escalation tests;
-  demo: Workflow 1 (assignment, notifications) and Workflow 3 \\
+  demo: Workflow 2, chat reporting, account lockout \\
 M3 Shri Krishna P \newline Platform & API and error mapping, authentication including Google
   Sign-In, repositories, ORM and migrations, audit chain, search and analytics with the
   dashboard, Docker, CI and deployment & 3 Architecture; 6 Repository; 7 Database;
-  9 Security & Integration and authorisation-matrix tests; demo: architecture, ER, admin
-  portal, search, audit and analytics \\
+  9 Security & Integration and authorisation-matrix tests; demo: Workflow 3 (duplicates,
+  correlation, escalation) \\
 M4 Ishaan S \newline Frontend and QA & Design system, Employee and Technician portals, live
   updates, accessibility and phone layout, installable PWA, Playwright suites & 8 Testing;
   final PDF; video editing & End-to-end and accessibility tests, test report; demo:
-  Workflow 2 and the test run \\
+  administrator portal, health map, search and audit \\
 \bottomrule
 \end{longtable}
 
 \paragraph{How we worked.} The build ran in six phases (foundations, domain core, persistence and
 API, frontend MVP, intelligence and integrations, hardening), each on its own branch and merged
 by pull request after all four members reviewed it. \code{docs/PLAN.md} lists every work
-package with its owner; \code{docs/DECISIONS.md} records the 37 design decisions taken on the
+package with its owner; \code{docs/DECISIONS.md} records the 45 design decisions taken on the
 way and why; \code{docs/PROGRESS.md} says what each phase delivered and what it left for a
 human to do.
 
