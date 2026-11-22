@@ -19,6 +19,11 @@ Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECIS
   Deliverables list with the chapter as its own PDF, diagrams as SVG and PNG, the PostgreSQL
   schema, the test report and cases, plus the full report
   `15_OOP_S1_2026-2027_Project_Report.pdf`.
+- **Accuracy pass (after PR #16):** report checked against the code and seeded data. Fixed: the
+  Fee Payment example's category, the seed size, FR-13 (category only), the AT\_RISK rule
+  (75 % status vs the predictive chip, D-032), the timeline (three weeks), where ownership is
+  checked, where exceptions are caught, and Chapter 11's "Shown in" column. Chapter 13 now shows
+  seven screenshots of the three portals. README: frontend test count, `make deliverables`.
 - File names use 2026-2027 (D-045). Test report refreshed (24/24 cases pass; 1146 backend tests).
 - `make report` falls back to XeLaTeX (`REPORT_ENGINE=xelatex`) when tectonic cannot download
   its bundle.

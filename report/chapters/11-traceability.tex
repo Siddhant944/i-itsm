@@ -41,7 +41,7 @@ At least two intelligent features & AI classification, duplicate detection, corr
 Persistence & Repositories over SQLite and PostgreSQL, 18 tables, migrations & M3 & TC-12,
   TC-14 & Admin tour \\
 Exception handling & \code{ITSMError} hierarchy, one HTTP code per group, no stack traces &
-  M1, M3 & TC-09 to TC-14 & WF2 (illegal transition) \\
+  M1, M3 & TC-09 to TC-14 & WF2 (only legal steps offered) \\
 Security & Argon2, JWT, lockout, role and ownership checks, validation, CORS & M3 & TC-07,
   TC-15 to TC-17 & Sign-in, lockout \\
 At least two design patterns & The blueprint's nine patterns, plus Unit of Work and Proxy (Chapter~\ref{ch:oop}) & All & covered by the
@@ -65,19 +65,19 @@ AI-based resolution recommendation & Similar past fixes plus a summary that may 
 Incident similarity detection & Hybrid TF-IDF/Gemini embeddings while typing; duplicates
   linked & WF3 \\
 Automated root-cause analysis & Dependency-graph walk names the likely root cause & WF3 \\
-Predictive SLA violation detection & Historical risk estimate with a plain-words reason & WF2 \\
-Service dependency graph & Editable dependencies; the live service health map & WF3, M3 \\
+Predictive SLA violation detection & Historical risk estimate with a plain-words reason & WF3 \\
+Service dependency graph & Editable dependencies; the live service health map & Admin tour \\
 Real-time notifications & In-app bell and screens updated over WebSockets & all \\
 Mobile push notifications & Telegram alerts for P1/P2, breaches and escalations & WF1 \\
 Voice-based incident reporting & Web Speech API dictation on the form and in the chat & WF1 \\
-Chatbot-based incident reporting & ``Report by chat'' in the Employee portal & M4 \\
+Chatbot-based incident reporting & ``Report by chat'' in the Employee portal & Chat (14:18) \\
 Cloud deployment & Render (API, web) and Neon (PostgreSQL), HTTPS, deployed from \code{main} &
   closing \\
 Microservice architecture & Not implemented: a modular monolith with enforced layers & -- \\
 Event-driven architecture & Domain events, audit in the transaction, post-commit delivery
   (Observer) & WF1 \\
-Real-time operational dashboard & Dashboard and health map refreshed by live pushes & M3 \\
-Analytics and visualisation & MTTA, MTTR, SLA compliance, CSAT, reopen rate, trends, CSV & M3 \\
+Real-time operational dashboard & Dashboard and health map refreshed by live pushes & Admin tour \\
+Analytics and visualisation & MTTA, MTTR, SLA compliance, CSAT, reopen rate, trends, CSV & Admin tour \\
 Automated incident escalation & Chain of Responsibility up to the IT Manager & WF3 \\
 \bottomrule
 \end{longtable}

@@ -46,8 +46,8 @@ FastAPI.
     requirements before data reaches the domain.
   \item The OpenAPI document is generated from the code; it gives interactive documentation
     for evaluators and the source for our typed client.
-  \item Dependency injection supplies the authenticated user, role and ownership checks,
-    repositories and the Clock to each route, keeping routers thin; WebSockets are built in.
+  \item Dependency injection supplies the authenticated user, the role check, repositories and
+    the Clock to each route (ownership is checked by the service once the incident is loaded), keeping routers thin; WebSockets are built in.
 \end{itemize}
 
 \subsection*{4. Why did you select this database?}
@@ -76,7 +76,7 @@ A layered, containerised modular monolith (the requirements' ``Choice~1'').
 \begin{itemize}
   \item \textbf{Spring Boot with PostgreSQL:} compile-time typing and strong access control,
     but heavier setup, and Python's AI and data libraries suit our intelligent features better
-    on a four-week timeline.
+    on a three-week timeline.
   \item \textbf{Node.js with MongoDB:} rejected because the audit trail and SLA reporting need
     relational integrity and joins.
   \item \textbf{Flutter with Firebase (mobile and cloud):} rejected because technician and

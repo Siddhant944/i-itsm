@@ -10,6 +10,13 @@ CS F213 / MAC F212 Object-Oriented Programming, Semester I 2026–27 · Group 15
 
 ![The admin dashboard](docs/screenshots/admin-dashboard.jpg)
 
+## Submission
+
+- **Report:** [deliverables/15_OOP_S1_2026-2027_Project_Report.pdf](deliverables/15_OOP_S1_2026-2027_Project_Report.pdf)
+- **Each item of the brief's Deliverables list**, with its chapter as its own PDF, the diagrams
+  and the test results: [deliverables/](deliverables/README.md)
+- **Demonstration video:** `15_OOP_S1_2026-2027_Project`, in the course's shared folder
+
 ## What it does
 
 - **Three portals, five roles.** Employee, Technician (and Team Lead) and Admin (and IT Manager)
@@ -136,7 +143,8 @@ three portals can be open side by side as three different people.
 | `make gen-client` | Regenerate the typed TypeScript client from the API's OpenAPI document |
 | `make diagrams` | Regenerate the code-derived UML and ER diagrams and render all of them |
 | `make test-report` | Run the tests and write the documented cases' actual results into the report |
-| `make report` | Build the report PDF (`report/build/main.pdf`) with tectonic |
+| `make report` | Build the report PDF (`report/build/main.pdf`) with tectonic, or with an installed TeX Live when `REPORT_ENGINE=xelatex` |
+| `make deliverables` | Rebuild `deliverables/` from the report and diagrams: one folder per item of the brief |
 
 Configuration lives in environment variables; copy `.env.example` to `.env` (never commit it).
 
@@ -176,7 +184,7 @@ UML, ER and sequence diagrams: [docs/diagrams/](docs/diagrams/README.md).
 make test
 ```
 
-About 1,100 backend tests (97 % coverage) and 106 frontend tests; every business rule BR-01 to
+About 1,150 backend tests (97 % coverage) and 142 frontend tests; every business rule BR-01 to
 BR-10 has tests named after it, and time-dependent rules run on a fake clock. The backend suite
 runs on SQLite by default; set `TEST_DATABASE_URL` to a PostgreSQL URL to run it there (CI runs
 both). The 24 documented test cases and their results from the latest run:
@@ -187,7 +195,7 @@ both). The 24 documented test cases and their results from the latest run:
 - [Requirements](docs/source/OOP_S1_2026-2027_Project.pdf) · [Blueprint](docs/blueprint.md) ·
   [Plan](docs/PLAN.md) · [Progress](docs/PROGRESS.md) · [Decisions](docs/DECISIONS.md) ·
   [Demo script](docs/DEMO_SCRIPT.md) · [Deployment](docs/DEPLOY.md)
-- The report: `report/` (`make report`)
+- The report: [deliverables/15_OOP_S1_2026-2027_Project_Report.pdf](deliverables/15_OOP_S1_2026-2027_Project_Report.pdf) (source in `report/`)
 
 ## Team
 
