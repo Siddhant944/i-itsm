@@ -72,8 +72,11 @@ loadable on its own. A \code{FallbackAdvisor} aggregates a primary and a fallbac
 One hierarchy, \code{ITSMError}, with a stable code per error and one HTTP status per group
 (Chapter~\ref{ch:security}). The domain raises intention-revealing errors
 (\code{InvalidStateTransitionError("ASSIGNED", "RESOLVED")}); the API maps them once. Exceptions are
-caught in one deliberate place only: the post-commit notification boundary, where a failing
-email or push is logged rather than undoing a change that has already committed.
+caught only at deliberate boundaries: after the commit, where a failing email, Telegram message
+or push is logged rather than undoing a change that has already committed; in the background
+jobs (the SLA monitor and the delivery worker), so one bad incident cannot stop the others; in
+the AI fallback, which hands over to the keyword rules; and in the repositories, which turn a
+driver error into a \code{DatabaseFailureError}.
 
 \subsection*{Collections}
 \code{frozenset} skills make ``does this technician cover the required skills'' a set

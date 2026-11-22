@@ -57,7 +57,7 @@ FR-12 & An incident can be cancelled with a reason (withdrawn, or duplicate of a
 \textbf{ID} & \textbf{Requirement} & \textbf{Source} \\
 \midrule
 \endhead
-FR-13 & The system suggests a category (and service) with a confidence score; the reporter or
+FR-13 & The system suggests a category with a confidence score; the reporter or
   technician can override it, and the decision is audited. & R: Classification, Feature F \\
 FR-14 & Categories are data: an administrator adds one without code changes, and
   classification uses it immediately. & R: Classification \\
@@ -264,5 +264,7 @@ P4 & 4 h / 24 h & 8 h / 48 h & 16 h / 96 h \\
 \end{tabular}
 \end{center}
 
-An incident is AT\_RISK when the predictive estimate of breaching reaches 0.5, or, with fewer
-than ten comparable past incidents, when 75\,\% of the target has elapsed (inclusive).
+An incident's SLA status is AT\_RISK once 75\,\% of its target has elapsed (inclusive); this
+status drives search, the dashboard and the monitor's warning. Separately, staff see a predictive
+breach risk, flagged when the estimate from comparable past incidents reaches 0.5, with the
+75\,\% rule as its fallback when fewer than ten are comparable (D-032).

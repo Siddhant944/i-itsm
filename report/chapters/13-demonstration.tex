@@ -124,6 +124,32 @@ Gmail alerts (04:24), Google Sign-In (01:22), configuration without code changes
 service health map (10:31), suggested fixes from similar incidents (14:08) and chatbot reporting
 (14:18).
 
+\section{The three portals}
+The portals share one design system but look deliberately different, as the brief asks: the
+Employee portal has a top bar and a teal accent, the Technician console a dark sidebar and an
+amber accent, and the Administrator portal an indigo sidebar. Each has a light and a dark theme
+(D-040). The screenshots below come from the same seeded data as the video.
+
+\diagram[0.9\textwidth]{employee-report}{Employee portal: the report form, with plain-language
+questions, the AI's suggested category and its confidence, and possible duplicates.}
+
+\diagram[0.9\textwidth]{employee-chat}{Employee portal: reporting by chat, one question at a
+time.}
+
+\diagram[0.9\textwidth]{technician-queue}{Technician console: the queue, most urgent first, with
+live SLA countdowns.}
+
+\diagram[0.9\textwidth]{technician-incident}{Technician console: an incident with its timeline,
+the legal next actions, the assignment reasons and suggested fixes.}
+
+\diagram[0.9\textwidth]{admin-dashboard}{Administrator portal: the live dashboard.}
+
+\diagram[0.9\textwidth]{admin-health-map}{Administrator portal: the service health map, coloured
+by open incidents and by the services each one depends on.}
+
+\diagram[0.9\textwidth]{admin-audit}{Administrator portal: the hash-chained audit log and its
+integrity check.}
+
 \section{Planned script and the recording}
 \code{docs/VIDEO\_SCRIPT.pdf} is the tested one-take script the team prepared. The recording
 follows its order for Workflows 1 and 3 and the administrator tour, with the presenters as listed
