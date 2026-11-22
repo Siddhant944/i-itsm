@@ -1,59 +1,81 @@
 \chapter{Project Demonstration}\label{ch:demo}
-% Owner: All. 22 Nov 2026; written from the recorded video (timestamps are minutes:seconds).
+% Owner: All. 22 Nov 2026; written from the recorded, captioned video (times are minutes:seconds).
 
 \section{The video}
 \begin{description}
   \item[File.] \code{15\_OOP\_S1\_2026-2027\_Project}, uploaded to the course's shared folder.
-  \item[Length and format.] 16 min 06 s, 1920$\times$1080, screen recording with each
-    presenter on camera in the corner.
+  \item[Length and format.] 16 min 08 s, 3840$\times$2160, with captions; the screen is recorded
+    with each presenter on camera in the corner.
+  \item[Presenters.] All four members, each introducing themselves and their part: Tushar B
+    (00:07), Shri Krishna P (05:18), Ishaan S (08:03) and Siddhant L Pathak (11:35).
   \item[Set-up.] The application ran locally from \code{make demo-reset}: a fresh database with
     the campus catalogue and 420 historical incidents, and the application clock running ten
-    times faster, so SLA warnings, breaches and escalations happen within the recording.
-    Email went out through Gmail SMTP, urgent alerts through Telegram, and sign-in used Google
-    with the campus domain.
-  \item[Presenters.] Four members, in order: Tushar B, Shri Krishna P, Ishaan S and Siddhant L
-    Pathak.
+    times faster, so SLA warnings, breaches and escalations happen within the recording. Email
+    went out through Gmail SMTP, urgent alerts through Telegram, classification through Gemini,
+    and sign-in used Google with the campus domain.
 \end{description}
 
 \section{Timeline}
 \begin{longtable}{@{}>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{10.8cm}@{}}
 \toprule
-\textbf{Time} & \textbf{Presenter} & \textbf{What is shown} \\
+\textbf{Time} & \textbf{Presenter} & \textbf{What is shown and said} \\
 \midrule
 \endhead
-00:00--01:20 & Tushar B & Title; the layered architecture diagram (Figure~\ref{fig:architecture})
-  and the deployment diagram. \\
-01:20--01:50 & Tushar B & Google Sign-In with a campus account (only the campus domain is
-  accepted). \\
-01:50--05:20 & Tushar B & \textbf{Workflow 1.} The employee reports ``Fee payment page fails at
-  checkout'', dictating the description by voice; the AI suggests the category Web Application
-  with its confidence (67\,\%, medium), which is accepted, and lists similar open incidents with
-  ``Follow this instead''. The incident is prioritised P1 Critical and assigned to Meera Joshi;
-  the bell, Telegram and email notify. The technician acknowledges (the response clock stops);
-  the admin view shows the Smart strategy's ranked candidates with scores and reasons. The
-  technician requests information, the incident goes ON\_HOLD and its SLA clock pauses. \\
-05:20--07:50 & Shri Krishna P & \textbf{Workflow 3.} A second employee reports ``Database system
-  not working'' (P1, assigned to Rohit Khanna, breach risk shown). A third report, ``The fee
-  payment system is too slow'', is matched to three open incidents, one flagged as reported
-  close together on a dependent service; the reporter follows the existing incident instead. The
-  technician view shows the possible duplicates and the likely root cause on the Database
-  Cluster; the unacknowledged P1 escalates up the chain and is reassigned. \\
-07:50--11:30 & Ishaan S & \textbf{Administrator portal.} Dashboard (open, critical, at-risk,
-  breached, MTTA, MTTR, SLA compliance, CSAT) and technician workload; adding a user; services
-  with their criticality, SLA tier and dependencies; adding the category Audio-Visual, which
-  appears on the report form at once; editing an SLA target; switching the assignment strategy
-  and its weights; the live service health map with the database outage in red; search with
-  filters and CSV export; the hash-chained audit log with its integrity check. \\
-11:30--14:20 & Siddhant L Pathak & \textbf{Workflow 2.} Technician Arjun Menon's queue, sorted
-  by SLA. On ``Wi-Fi keeps dropping in the library reading room'' the technician acknowledges,
-  starts work (SLA on track), overrides the priority P4 $\rightarrow$ P3 with a recorded reason,
-  adds a work note and requests information (clock paused); the employee replies and the clock
-  resumes; the technician reviews the suggested fixes drawn from similar resolved incidents. \\
-14:20--15:05 & Siddhant L Pathak & \textbf{Report by chat.} One question at a time; the chat
-  offers a look-alike incident to follow, the employee declines, and INC-2026-0426 is filed as
-  P4 through the same rules as the form. \\
-15:05--16:06 & Siddhant L Pathak & Account lockout after five failed sign-ins (TC-07);
-  closing card. \\
+00:00--01:22 & Tushar B & Introduction of the group and the four parts. \textbf{Architecture}:
+  a React and TypeScript frontend with three portals, a Python FastAPI backend exposing a REST
+  API, layered code (API routes, services, domain model), and the State, Strategy, Observer and
+  Adapter patterns; PostgreSQL in deployment and SQLite for development; hosting on Render and
+  Neon; CI on every push; Docker; four external services (Gemini, Google Sign-In, Telegram,
+  Gmail SMTP), each with a fallback so the application keeps working without it. \\
+01:22--02:05 & Tushar B & \textbf{Google Sign-In} with a campus account and two-factor
+  verification; the backend verifies Google's signed ID token and admits only the campus
+  domain. \\
+02:05--05:16 & Tushar B & \textbf{Workflow 1.} The employee reports ``Fee payment page fails at
+  checkout'', dictating the description by voice (speech recognition fills the field); Gemini
+  suggests the category with its confidence from a structured reply that the backend
+  validates, with keyword rules as the fallback; the suggestion is accepted, and similar
+  existing reports are listed. The incident is prioritised P1 (impact $\times$ urgency $\times$
+  business criticality) and assigned to Meera Joshi, who is notified and acknowledges. The
+  admin view shows the Smart strategy weighing skills, current load, experience and past work
+  on the service. A P1 sends Telegram and Gmail notifications, shown arriving. The technician
+  requests the transaction ID; the SLA clock pauses and the employee sees the request. \\
+05:18--08:02 & Shri Krishna P & \textbf{Workflow 3.} Devika reports ``Database system not
+  working'' affecting almost everyone: a P1 Critical that reaches administrator Rahul Verma, with
+  the response clock counting and the escalation levels explained. Devika then reports ``The fee
+  payment system is too slow''; it is matched to an existing report at 88\,\% similarity (text
+  embeddings with a TF-IDF fallback, also weighing when each was filed). She follows the
+  existing incident and gets its updates instead; the technician sees the possible duplicates and
+  the duplicate is cancelled, so one incident is worked instead of two. The unacknowledged
+  database P1 has meanwhile escalated and moves on to Team Lead Sunita Iyer. \\
+08:03--11:33 & Ishaan S & \textbf{Administrator portal.} The dashboard (open, critical,
+  resolved, SLA compliance, MTTA, MTTR, CSAT, trends, technician workload and incidents per
+  service, updating live); users, roles and technician skills, with permissions from a
+  role-to-permission map, including an account created by Google Sign-In; services with tier,
+  business criticality and dependencies; adding the category Audio-Visual, which appears on the
+  employee form at once with no code change; changing a Bronze SLA target, which new incidents
+  use at once; manual reassignment of the escalated database outage to Meera Joshi; the three
+  assignment strategies and switching to Load-based to see the ranking change; the service
+  health map showing everything the Database Cluster takes down; search with nine filters,
+  four combined, and CSV export; the audit log, where each record stores the previous record's
+  hash and ``Verify integrity'' checks the chain. \\
+11:35--14:18 & Siddhant L Pathak & The database ticket has escalated further, and the mailbox
+  holds the email notifications sent during the demonstration. \textbf{Workflow 2.} Technician
+  Arjun Menon's queue, sorted and filtered. On ``Wi-Fi keeps dropping in the library reading
+  room'' the technician acknowledges, and only the legal next steps are offered (a state machine
+  of ten states and twenty transitions, built with the State pattern); overrides the calculated
+  P4 to P3 with the reason ``exam season''; starts work and adds a work note; requests
+  information, which pauses the SLA clock. Employee Devika sees the paused incident and replies;
+  the clock resumes. Gemini's suggested fixes and the possible duplicates are shown. \\
+14:18--15:05 & Siddhant L Pathak & \textbf{Report by chat.} Devika reports a projector fault one
+  question at a time; the chat offers similar tickets, she says hers is different, and a new
+  ticket is filed for the help desk through the same rules as the form. \\
+15:05--15:40 & Siddhant L Pathak & \textbf{Errors and testing.} A failed sign-in shows a generic
+  message and the account locks after five failed attempts. About 1,100 backend tests with
+  97\,\% coverage and about 140 frontend tests, all run by GitHub Actions. \\
+15:40--16:08 & Siddhant L Pathak & Summary: the full lifecycle (report, classify, prioritise,
+  assign, investigate, resolve, verify, close), every MVP module, all three workflows, the
+  intelligent features, Google Sign-In, Gmail and Telegram, voice and chatbot reporting, the live
+  health map, the audit log and the cloud deployment on Render and Neon. \\
 \bottomrule
 \end{longtable}
 
@@ -65,42 +87,42 @@
 \endhead
 \multicolumn{3}{@{}l}{\textit{Workflow 1: employee reports $\rightarrow$ system prioritises
   $\rightarrow$ technician assigned $\rightarrow$ notification generated}} \\
-Employee reports & 01:50--03:10, voice dictation and AI category with confidence & TC-01 \\
-System prioritises & P1 Critical from impact, urgency and service criticality, 03:20 & TC-01,
-  TC-18 \\
-Technician assigned & Meera Joshi by the Smart strategy, ranked candidates at 04:00 & TC-06,
-  TC-11 \\
-Notification generated & Bell, Telegram alert set-up and email, 03:20--04:30 & TC-14 \\
+Employee reports & Voice dictation and Gemini's category with confidence, 02:05--03:16 & TC-01 \\
+System prioritises & P1 from impact $\times$ urgency $\times$ business criticality, 04:12 &
+  TC-01, TC-18 \\
+Technician assigned & Meera Joshi by the Smart strategy, explained at 04:03 & TC-06, TC-11 \\
+Notification generated & In-app at 03:37, Telegram and Gmail at 04:24--04:36 & TC-14 \\
 \midrule
 \multicolumn{3}{@{}l}{\textit{Workflow 2: technician investigates $\rightarrow$ SLA monitored
   $\rightarrow$ incident resolved $\rightarrow$ user notified}} \\
-Technician investigates & Acknowledge, start, priority override, work note, request for
-  information, 12:20--14:20 & TC-02 \\
-SLA monitored & SLA chip on track, clock paused while on hold and resumed on reply & TC-04,
-  TC-05 \\
-Incident resolved, user notified & Not on camera: the recording stops at the suggested fixes.
-  The automated Playwright test \code{e2e/tests/wf2.spec.ts} runs this workflow on to resolve,
-  reject, resolve again, verify and close, and checks the reporter's notification & TC-02,
-  \code{wf2.spec.ts} \\
+Technician investigates & Acknowledge, priority override with a reason, work note, request
+  for information, 12:20--13:33 & TC-02, TC-10 \\
+SLA monitored & Clock paused while waiting for the reporter and resumed on her reply,
+  13:31--14:06 & TC-04, TC-05 \\
+Incident resolved, user notified & Not on camera: the recording moves on after the suggested
+  fixes. The automated Playwright test \code{e2e/tests/wf2.spec.ts} runs this workflow on to
+  resolve, reject, resolve again, verify and close, and checks the reporter's notification &
+  TC-02, TC-17, \code{wf2.spec.ts} \\
 \midrule
 \multicolumn{3}{@{}l}{\textit{Workflow 3: multiple incidents $\rightarrow$ duplicates or related
   incidents identified $\rightarrow$ correlated and escalated}} \\
-Multiple incidents reported & Database outage and fee-payment reports, 05:30--07:10 & TC-01 \\
-Duplicates identified & Three matches with similarity scores; the reporter follows the existing
-  incident, 06:50--07:10 & TC-20,
-  \code{duplicates.md} \\
-Correlated & Root cause on the Database Cluster, which the Fee Payment Portal depends on, 07:30;
-  red on the health map, 10:30 & TC-23,
-  TC-24 \\
-Escalated & Unacknowledged P1 reassigned up the chain, 07:40 and 10:50 & TC-19 \\
+Multiple incidents reported & Database outage and fee-payment reports, 05:29--06:55 & TC-01 \\
+Duplicates identified & 88\,\% match from embeddings, TF-IDF and filing time; the reporter
+  follows the existing incident, 06:57--07:42 & TC-20, \code{duplicates.md} \\
+Correlated & The Database Cluster and every service that depends on it, on the health map,
+  10:31--10:40 & TC-23, TC-24 \\
+Escalated & The unacknowledged P1 escalates to the Team Lead (07:44--07:57), is reassigned by
+  the administrator (09:54--10:20) and escalates again while still unacknowledged (11:52) &
+  TC-19 \\
 \bottomrule
 \end{longtable}
 
 \section{Innovation features shown}
-Voice input (02:20), AI-assisted classification with confidence (02:40), duplicate detection
-while typing (02:40, 06:50), smart assignment with explanations (04:00), predictive breach risk
-(06:10), Telegram alerts (03:20), Google Sign-In (01:20), the live service health map (10:30),
-chatbot reporting (14:20) and suggested fixes from past incidents (14:00).
+Voice input (02:16), AI-assisted classification with confidence and a fallback (02:39), duplicate
+detection while typing (03:12, 06:57), smart assignment with explanations (04:03), Telegram and
+Gmail alerts (04:24), Google Sign-In (01:22), configuration without code changes (09:11), the live
+service health map (10:31), suggested fixes from similar incidents (14:08) and chatbot reporting
+(14:18).
 
 \section{Planned script and the recording}
 \code{docs/VIDEO\_SCRIPT.pdf} is the tested one-take script the team prepared. The recording

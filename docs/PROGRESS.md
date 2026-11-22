@@ -5,10 +5,12 @@ Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECIS
 ## Status: submission package ready (22 Nov, branch `ccr-95de7181-86g84a`)
 
 ### Done
-- **Video reviewed** (`OOP_Group15_Video_Final.mov`, 16 min 06 s, 1080p): presenters Tushar B
-  (architecture, Workflow 1), Shri Krishna P (Workflow 3), Ishaan S (admin portal) and Siddhant L
-  Pathak (Workflow 2, chat reporting, lockout). Workflow 2 stops before resolution; the team chose
-  to submit as is, and the report says so and points to `e2e/tests/wf2.spec.ts`.
+- **Video reviewed** (`15_OOP_S1_2026-27.mp4` in Drive, 16 min 08 s, 4K, burned-in captions,
+  read by OCR): all four members introduce themselves (Tushar 00:07, Shri Krishna 05:18, Ishaan
+  08:03, Siddhant 11:35). Workflow 2 stops before resolution; the team chose to submit as is, and
+  the report says so and points to `e2e/tests/wf2.spec.ts`.
+- **Chapter 12:** the `TEAM:` placeholders are replaced by *What each member did*, built from the
+  work-package owners in PLAN.md and the video.
 - **Report:** new Chapter 13 *Project Demonstration* (timeline, the three workflows against the
   brief, innovation features shown); Chapter 12's demo column and Chapter 11's video column match
   the recording; D-040 and D-043 described; decision count 45; cover shows the repository and
@@ -22,11 +24,11 @@ Updated at the end of every session. Plan: docs/PLAN.md · Decisions: docs/DECIS
   its bundle.
 
 ### Needs a human (today, 22 Nov)
-1. Chapter 12's two `TEAM:` notes (`report/chapters/12-team-and-ai.tex`, lines 3 and 81), then
-   `make report` and `make deliverables`.
-2. Rename the video to `15_OOP_S1_2026-2027_Project.mov` and upload it and
+1. Fix the auto-caption errors in the video (see the session notes: 00:25, 00:56-00:58, 11:32,
+   15:31-15:37) if time allows.
+2. Rename the video to `15_OOP_S1_2026-2027_Project.mp4` and upload it and
    `deliverables/15_OOP_S1_2026-2027_Project_Report.pdf` to the course's shared folder.
-3. Paste the repository link into the course spreadsheet.
+3. Merge the branch, then paste the repository link into the course spreadsheet.
 
 ## Previous: one-take recording ready (21 Nov, PR on `claude/bold-goodall-a5b7rd`)
 

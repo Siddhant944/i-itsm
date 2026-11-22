@@ -1,6 +1,5 @@
 \chapter{Team Responsibilities and Use of AI Tools}\label{ch:team}
 % Owner: All. Draft 1, 12 Nov 2026; sources: blueprint §15, docs/PLAN.md, AGENTS.md, git history.
-% TEAM: confirm the responsibilities below and add your own words to 12.2 before submission.
 
 \section{Team responsibilities}
 Group 15 split the work by layer so that each member owns a part end to end --- code, tests,
@@ -41,6 +40,76 @@ package with its owner; \code{docs/DECISIONS.md} records the 45 design decisions
 way and why; \code{docs/PROGRESS.md} says what each phase delivered and what it left for a
 human to do.
 
+\section{What each member did}
+The work packages below are the ones each member owned in \code{docs/PLAN.md}; a package shared
+by two members is listed under both.
+
+\subsection*{Tushar B --- domain model and lifecycle}
+\begin{itemize}
+  \item Built the core of the domain: the injected \code{Clock} and the \code{ITSMError}
+    hierarchy; the \code{User} hierarchy (Employee, Technician, Team Lead, Administrator, IT
+    Manager) with the role-to-permission map; the \code{Incident} aggregate with its ten
+    \code{State} classes and exactly twenty legal transitions; and the priority strategies with
+    category floors and audited overrides.
+  \item Defined the repository and adapter interfaces (ports) with in-memory implementations, so
+    the domain was tested before any database existed.
+  \item Wrote the \code{IncidentService} facade and the hash-chained audit trail, the
+    notification subsystem (in-app and email with retries), Telegram alerts, chatbot
+    reporting, and the administrator's configuration screens.
+  \item Wrote the use case, class and sequence diagrams and report Chapters 1, 4 and 10; shared
+    the 80\,\% coverage gate on domain and services with Siddhant.
+  \item In the video: the opening, the architecture and deployment, Google Sign-In and
+    Workflow~1.
+\end{itemize}
+
+\subsection*{Siddhant L Pathak --- intelligence and SLA}
+\begin{itemize}
+  \item Built the SLA engine (targets per priority and tier, pause and resume) and the SLA
+    monitor that warns at 75\,\%, records breaches, escalates up the chain and auto-closes after
+    72 hours; the escalation chain itself; and the Skill, Load and Smart assignment strategies
+    with their explanations.
+  \item Built the intelligent features: duplicate detection (TF-IDF and Gemini embeddings, with
+    thresholds tuned on 52 hand-labelled pairs), the service dependency graph and root-cause
+    hint, the Gemini category advisor with its keyword-rule fallback, the predictive breach
+    risk and the suggested fixes from similar resolved incidents.
+  \item Wrote the campus seed data (services and their dependencies, teams, skills and 420
+    historical incidents) and, with Shri Krishna, the \code{make demo-reset} demo set-up.
+  \item Wrote report Chapters 2 and 5.
+  \item In the video: Workflow~2, reporting by chat and the account lockout.
+\end{itemize}
+
+\subsection*{Shri Krishna P --- platform}
+\begin{itemize}
+  \item Set up the repository, the backend skeleton, the cross-platform build commands and
+    continuous integration on SQLite and PostgreSQL.
+  \item Built persistence (the SQLAlchemy models for 18 tables and the Alembic migrations),
+    authentication and security (Argon2 passwords, JWT, lockout, Google Sign-In), the API
+    routers with the error-to-HTTP mapping, search with CSV export and the analytics behind
+    the dashboard.
+  \item Built the authorisation-matrix tests and, with Ishaan, the live WebSocket updates; built
+    the administrator's operations screens (users, search, SLA violations, audit log).
+  \item Researched free hosting and deployed to Render and Neon with production settings.
+  \item Drew the architecture and ER diagrams, wrote the README and report Chapters 3, 6, 7
+    and 9.
+  \item In the video: Workflow~3 (duplicates, correlation and escalation).
+\end{itemize}
+
+\subsection*{Ishaan S --- frontend and quality}
+\begin{itemize}
+  \item Set up the React frontend and its typed API client, and built the design system shared
+    by the three portals.
+  \item Built the Employee and Technician portals, the assignment panel with its reasons, the
+    live updates in the browser, the service health map, voice input, the light and dark
+    themes, the phone layout and the installable web app, and the accessibility checks.
+  \item Wrote the Playwright suites that run all three workflows end to end, the 24 documented
+    test cases and the generated test report; wrote report Chapter 8 and assembled the final PDF.
+  \item Wrote the demonstration script and edited the video.
+  \item In the video: the administrator portal, health map, search and audit log.
+\end{itemize}
+
+\paragraph{Together.} All four of us reviewed every phase's pull request before it was merged,
+rehearsed the demonstration, recorded the video and checked the report.
+
 \section{How AI tools were used}
 The requirements allow ``available APIs or packages, AI tools or techniques''. We used AI in two
 distinct ways and record both plainly.
@@ -78,5 +147,3 @@ quality of the result depended on the quality of those checks --- the blueprint'
 the boundary tests, the layer contracts and the phase reviews. Several real bugs (Chapter~8)
 were caught by those reviews, not by the first draft of the code.
 
-% TEAM: add here, in your own words, what each of you did yourselves (design sessions, reviews,
-% testing by hand, dry runs, decisions you made) before submitting.
